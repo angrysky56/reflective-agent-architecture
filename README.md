@@ -142,6 +142,15 @@ uv run pytest --cov=src --cov-report=html
 
 # Run specific test file
 uv run pytest tests/test_director.py -v
+
+# Quick validation
+uv run python validate_energy_search.py
+
+# Full test suite
+uv run pytest -v
+
+# Specific energy-aware tests
+uv run pytest tests/test_director.py::test_energy_aware_search -v
 ```
 
 ## Dependencies
