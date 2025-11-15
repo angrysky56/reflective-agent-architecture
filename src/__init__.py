@@ -1,7 +1,7 @@
 """
 Reflective Agent Architecture (RAA)
 
-A research prototype integrating modern associative memory with metacognitive 
+A research prototype integrating modern associative memory with metacognitive
 monitoring for insight-like problem solving.
 
 Components:
@@ -14,9 +14,9 @@ Components:
 __version__ = "0.1.0"
 __author__ = "Ty"
 
-from .manifold import Manifold
-from .processor import Processor
-from .pointer import Pointer
 from .director import Director
+from .manifold import Manifold
+from .pointer import Pointer
+from .processor import Processor
 
 __all__ = ["Manifold", "Processor", "Pointer", "Director"]

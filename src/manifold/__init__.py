@@ -9,7 +9,7 @@ Key Papers:
 - Modern Hopfield Networks with Continuous-Time Memories (2025) - arXiv:2502.10122
 """
 
-from .hopfield_network import ModernHopfieldNetwork, HopfieldConfig
+from .hopfield_network import HopfieldConfig, ModernHopfieldNetwork
 from .patterns import PatternMemory
 
 __all__ = ["ModernHopfieldNetwork", "HopfieldConfig", "PatternMemory", "Manifold"]

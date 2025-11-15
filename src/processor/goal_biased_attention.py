@@ -5,9 +5,11 @@ Implements attention that is biased by goal state from the Pointer.
 Inspired by Adaptive Transformer Programs (ICLR 2025).
 """
 
+from typing import Optional
+
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
+import torch.nn.functional as f
 
 
 class GoalBiasedAttention(nn.Module):
@@ -43,14 +45,13 @@ class GoalBiasedAttention(nn.Module):
         self.goal_bias_proj = nn.Linear(embedding_dim, num_heads)
 
         self.dropout = nn.Dropout(dropout)
-
     def forward(
         self,
         query: torch.Tensor,
         key: torch.Tensor,
         value: torch.Tensor,
-        goal_state: torch.Tensor = None,
-        attn_mask: torch.Tensor = None,
+        goal_state: Optional[torch.Tensor] = None,
+        attn_mask: Optional[torch.Tensor] = None,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Goal-biased multi-head attention.
@@ -69,18 +70,18 @@ class GoalBiasedAttention(nn.Module):
         batch_size, seq_len, _ = query.shape
 
         # Project Q, K, V
-        Q = self.q_proj(query)  # (batch, seq_len, embedding_dim)
-        K = self.k_proj(key)
-        V = self.v_proj(value)
+        q = self.q_proj(query)  # (batch, seq_len, embedding_dim)
+        k = self.k_proj(key)
+        v = self.v_proj(value)
 
         # Reshape to multi-head format
-        Q = Q.view(batch_size, seq_len, self.num_heads, self.head_dim).transpose(1, 2)
-        K = K.view(batch_size, seq_len, self.num_heads, self.head_dim).transpose(1, 2)
-        V = V.view(batch_size, seq_len, self.num_heads, self.head_dim).transpose(1, 2)
+        q = q.view(batch_size, seq_len, self.num_heads, self.head_dim).transpose(1, 2)
+        k = k.view(batch_size, seq_len, self.num_heads, self.head_dim).transpose(1, 2)
+        v = v.view(batch_size, seq_len, self.num_heads, self.head_dim).transpose(1, 2)
         # Now: (batch, num_heads, seq_len, head_dim)
 
         # Compute attention scores
-        scores = torch.matmul(Q, K.transpose(-2, -1)) / (self.head_dim ** 0.5)
+        scores = torch.matmul(q, k.transpose(-2, -1)) / (self.head_dim ** 0.5)
         # (batch, num_heads, seq_len, seq_len)
 
         # Apply goal bias if provided
@@ -100,11 +101,11 @@ class GoalBiasedAttention(nn.Module):
             scores = scores.masked_fill(attn_mask.unsqueeze(0).unsqueeze(0), float('-inf'))
 
         # Softmax to get attention weights
-        attention_weights = F.softmax(scores, dim=-1)
+        attention_weights = f.softmax(scores, dim=-1)
         attention_weights = self.dropout(attention_weights)
 
         # Apply attention to values
-        context = torch.matmul(attention_weights, V)  # (batch, num_heads, seq_len, head_dim)
+        context = torch.matmul(attention_weights, other=v)  # (batch, num_heads, seq_len, head_dim)
 
         # Reshape back
         context = context.transpose(1, 2).contiguous()

@@ -10,15 +10,14 @@ Implements the full Director loop:
 This is the Phase 1 (MVP) implementation following SEARCH_MECHANISM_DESIGN.md.
 """
 
-from dataclasses import dataclass
-from typing import Optional, Dict, Any
 import logging
+from dataclasses import dataclass
+from typing import Any, Dict, Optional
 
 import torch
 
 from .entropy_monitor import EntropyMonitor, compute_entropy
-from .search_mvp import knn_search, SearchResult
-
+from .search_mvp import SearchResult, knn_search
 
 logger = logging.getLogger(__name__)
 
@@ -68,9 +67,9 @@ class DirectorMVP:
 
         # Entropy monitor
         self.monitor = EntropyMonitor(
-            threshold_percentile=config.entropy_threshold_percentile,
-            history_size=config.entropy_history_size,
-            default_threshold=config.default_entropy_threshold,
+            threshold_percentile=self.config.entropy_threshold_percentile,
+            history_size=self.config.entropy_history_size,
+            default_threshold=self.config.default_entropy_threshold,
         )
 
         # Search episode logging

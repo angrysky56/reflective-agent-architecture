@@ -8,10 +8,10 @@ Based on:
 - Semantic Energy: Detecting LLM Hallucination Beyond Entropy (2025)
 """
 
-from typing import List, Optional
+from typing import List
 
 import torch
-import torch.nn.functional as F
+import torch.nn.functional as f
 
 
 def compute_entropy(logits: torch.Tensor) -> torch.Tensor:
@@ -29,8 +29,8 @@ def compute_entropy(logits: torch.Tensor) -> torch.Tensor:
         - (batch, seq_len) if input is (batch, seq_len, vocab_size)
     """
     # Convert logits to probabilities
-    probs = F.softmax(logits, dim=-1)
-    log_probs = F.log_softmax(logits, dim=-1)
+    probs = f.softmax(logits, dim=-1)
+    log_probs = f.log_softmax(logits, dim=-1)
 
     # Shannon entropy: -sum(p * log(p))
     entropy = -(probs * log_probs).sum(dim=-1)
@@ -60,7 +60,7 @@ class EntropyMonitor:
             threshold_percentile: Percentile of historical entropy to use as threshold
             history_size: Number of recent entropy values to keep
             min_samples_for_adaptive: Minimum samples before using adaptive threshold
-            default_threshold: Fixed threshold to use before enough samples
+            default_threshold: fixed threshold to use before enough samples
         """
         self.threshold_percentile = threshold_percentile
         self.history_size = history_size

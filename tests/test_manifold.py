@@ -5,7 +5,7 @@ Tests for Manifold (Modern Hopfield Network)
 import pytest
 import torch
 
-from src.manifold import Manifold, HopfieldConfig
+from src.manifold import HopfieldConfig, Manifold
 
 
 def test_manifold_initialization():

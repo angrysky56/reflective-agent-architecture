@@ -5,8 +5,8 @@ Implements the token-level sequence generation component of RAA.
 The Processor is biased by goal states from the Pointer component.
 """
 
-from .transformer_decoder import TransformerDecoder, ProcessorConfig
 from .goal_biased_attention import GoalBiasedAttention
+from .transformer_decoder import ProcessorConfig, TransformerDecoder
 
 __all__ = ["TransformerDecoder", "ProcessorConfig", "GoalBiasedAttention", "Processor"]
 
