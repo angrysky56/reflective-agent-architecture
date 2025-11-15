@@ -17,7 +17,7 @@ from typing import Any, Dict, Optional
 import torch
 
 from .entropy_monitor import EntropyMonitor
-from .search_mvp import SearchResult, knn_search
+from .search_mvp import SearchResult, knn_search, energy_aware_knn_search
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +35,7 @@ class DirectorConfig:
     search_k: int = 5  # Number of neighbors to retrieve
     search_metric: str = "cosine"  # Distance metric
     exclude_threshold: float = 0.95  # Similarity threshold for excluding current basin
+    use_energy_aware_search: bool = True  # Use energy-aware selection (aligns with Hopfield theory)
 
     # Control parameters
     max_search_attempts: int = 3  # Maximum search attempts before giving up
@@ -111,14 +112,28 @@ class DirectorMVP:
             return None
 
         try:
-            # Perform k-NN search
-            result = knn_search(
-                current_state=current_state,
-                memory_patterns=memory_patterns,
-                k=self.config.search_k,
-                metric=self.config.search_metric,
-                exclude_threshold=self.config.exclude_threshold,
-            )
+            # Choose search strategy based on configuration
+            if self.config.use_energy_aware_search:
+                # Energy-aware search: aligns with Hopfield energy landscape
+                result = energy_aware_knn_search(
+                    current_state=current_state,
+                    memory_patterns=memory_patterns,
+                    energy_evaluator=self.manifold.energy,
+                    k=self.config.search_k,
+                    metric=self.config.search_metric,
+                    exclude_threshold=self.config.exclude_threshold,
+                )
+                logger.debug("Used energy-aware search (Hopfield-aligned)")
+            else:
+                # Basic k-NN search (Phase 1 MVP)
+                result = knn_search(
+                    current_state=current_state,
+                    memory_patterns=memory_patterns,
+                    k=self.config.search_k,
+                    metric=self.config.search_metric,
+                    exclude_threshold=self.config.exclude_threshold,
+                )
+                logger.debug("Used basic k-NN search")
 
             # Log search episode
             if self.config.log_search_episodes:

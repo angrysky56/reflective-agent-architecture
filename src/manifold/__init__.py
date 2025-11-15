@@ -11,8 +11,35 @@ Key Papers:
 
 from .hopfield_network import HopfieldConfig, ModernHopfieldNetwork
 from .patterns import PatternMemory
+from .pattern_curriculum import (
+    PatternCurriculum,
+    PatternCurriculumConfig,
+    RandomPatternCurriculum,
+    ManualPatternCurriculum,
+    PrototypePatternCurriculum,
+    create_pattern_curriculum,
+    initialize_manifold_patterns,
+)
+from .pattern_generator import (
+    PatternGenerator,
+    create_novel_pattern_from_neighbors,
+)
 
-__all__ = ["ModernHopfieldNetwork", "HopfieldConfig", "PatternMemory", "Manifold"]
+__all__ = [
+    "ModernHopfieldNetwork",
+    "HopfieldConfig",
+    "PatternMemory",
+    "Manifold",
+    "PatternCurriculum",
+    "PatternCurriculumConfig",
+    "RandomPatternCurriculum",
+    "ManualPatternCurriculum",
+    "PrototypePatternCurriculum",
+    "create_pattern_curriculum",
+    "initialize_manifold_patterns",
+    "PatternGenerator",
+    "create_novel_pattern_from_neighbors",
+]
 
 
 # Alias for main interface
