@@ -129,7 +129,7 @@ class ReflectiveAgentArchitecture:
         if self.config.enable_metacognition:
             attempts = 0
             current_entropy = entropy
-            best_result = (next_token, logits, entropy)
+            best_result = (next_token, logits, entropy, current_goal)
 
             while attempts < self.config.max_reframing_attempts:
                 new_goal = self.director.check_and_search(
@@ -163,7 +163,7 @@ class ReflectiveAgentArchitecture:
                 # Check if entropy improved
                 if entropy_new < current_entropy:
                     # Accept improvement
-                    best_result = (next_token_new, logits_new, entropy_new)
+                    best_result = (next_token_new, logits_new, entropy_new, new_goal)
                     current_entropy = entropy_new
 
                     result.update(
@@ -185,10 +185,18 @@ class ReflectiveAgentArchitecture:
                     logits = logits_new  # Update for next entropy check
 
             if attempts >= self.config.max_reframing_attempts:
-                logger.warning(
-                    f"Reached max reframing attempts ({self.config.max_reframing_attempts}). Using best result."
-                )
-                # Keep the best result found (could be original or an intermediate)
+                logger.warning(f"Reached max reframing attempts ({self.config.max_reframing_attempts}). Using best result.")
+                # Restore the best result found (could be original or an intermediate)
+                best_token, best_logits, best_entropy, best_goal = best_result
+                result.update({
+                    'next_token': best_token,
+                    'logits': best_logits,
+                    'entropy': best_entropy,
+                    'new_goal': best_goal if best_goal != self.pointer.get_current_goal() else None,
+                    'reframed': best_goal != self.pointer.get_current_goal(),
+                    'reframing_attempts': attempts,
+                })
+                self.pointer.set_goal(best_goal)
 
         return result
 

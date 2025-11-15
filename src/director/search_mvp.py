@@ -97,8 +97,7 @@ def knn_search(
 
     # Selection strategy: for MVP, just take nearest neighbor
     # TODO: In Phase 2, select based on entropy reduction when used as goal
-    best_idx = neighbor_indices[0]
-    best_pattern = memory_patterns[best_idx]
+    best_pattern = memory_patterns[neighbor_indices[0]]
 
     # Selection score (for logging/debugging)
     selection_score = distances[0].item()
