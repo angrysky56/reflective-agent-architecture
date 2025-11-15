@@ -163,8 +163,8 @@ def test_energy_aware_search_stability():
     current_state = torch.randn(embedding_dim)
 
     # Energy evaluator: negative norm (lower = more stable)
-    def energy_evaluator(pattern: torch.Tensor) -> float:
-        return -torch.norm(pattern, p=2).item()
+    def energy_evaluator(pattern: torch.Tensor) -> torch.Tensor:
+        return -torch.norm(pattern, p=2)
 
     # Run search
     result = energy_aware_knn_search(
@@ -177,11 +177,10 @@ def test_energy_aware_search_stability():
 
     # The selected pattern should be pattern_stable (index 1) if energy logic works
     # Compute energies
-    energies = [energy_evaluator(p) for p in memory_patterns]
-    min_energy_idx = energies.index(min(energies))
+    energies = [energy_evaluator(p).item() for p in memory_patterns]
 
     # The best pattern should have the lowest energy among neighbors
-    best_pattern_energy = energy_evaluator(result.best_pattern)
+    best_pattern_energy = energy_evaluator(result.best_pattern).item()
 
     # Verify it's one of the low-energy patterns
     assert best_pattern_energy <= max(energies)
