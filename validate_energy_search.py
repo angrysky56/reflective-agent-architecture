@@ -9,9 +9,9 @@ import torch
 from src.director.search_mvp import energy_aware_knn_search, knn_search
 
 
-def simple_energy_evaluator(pattern: torch.Tensor) -> float:
+def simple_energy_evaluator(pattern: torch.Tensor) -> torch.Tensor:
     """Simple energy function: negative L2 norm."""
-    return -torch.norm(pattern, p=2).item()
+    return -torch.norm(pattern, p=2)
 
 
 def main():
@@ -24,7 +24,7 @@ def main():
     num_patterns = 10
     k = 5
 
-    print(f"\nSetup:")
+    print("\nSetup:")
     print(f"  Embedding dimension: {embedding_dim}")
     print(f"  Number of patterns: {num_patterns}")
     print(f"  k neighbors: {k}")
@@ -44,7 +44,7 @@ def main():
         metric="cosine",
     )
 
-    print(f"✓ Basic k-NN completed")
+    print("✓ Basic k-NN completed")
     print(f"  Best pattern shape: {basic_result.best_pattern.shape}")
     print(f"  Neighbor indices: {basic_result.neighbor_indices}")
     print(f"  Selection score: {basic_result.selection_score:.4f}")
@@ -61,7 +61,7 @@ def main():
         metric="cosine",
     )
 
-    print(f"✓ Energy-aware k-NN completed")
+    print("✓ Energy-aware k-NN completed")
     print(f"  Best pattern shape: {energy_result.best_pattern.shape}")
     print(f"  Neighbor indices: {energy_result.neighbor_indices}")
     print(f"  Selection score (energy): {energy_result.selection_score:.4f}")
@@ -74,7 +74,7 @@ def main():
     neighbor_energies = []
     for idx in energy_result.neighbor_indices:
         pattern = memory_patterns[idx]
-        energy = simple_energy_evaluator(pattern)
+        energy = simple_energy_evaluator(pattern).item()
         neighbor_energies.append(energy)
 
     print(f"  Neighbor energies: {[f'{e:.4f}' for e in neighbor_energies]}")
@@ -82,10 +82,11 @@ def main():
     print(f"  Min energy: {min(neighbor_energies):.4f}")
 
     # Verify lowest energy was selected
-    assert abs(energy_result.selection_score - min(neighbor_energies)) < 1e-5, \
-        "Energy-aware search should select lowest energy pattern!"
+    assert (
+        abs(energy_result.selection_score - min(neighbor_energies)) < 1e-5
+    ), "Energy-aware search should select lowest energy pattern!"
 
-    print(f"✓ Verified: Selected pattern has lowest energy")
+    print("✓ Verified: Selected pattern has lowest energy")
 
     print("\n" + "-" * 60)
     print("Test 4: Stability Test (Known Patterns)")
@@ -93,7 +94,7 @@ def main():
 
     # Create patterns with known stability characteristics
     pattern_unstable = torch.randn(embedding_dim) * 0.1  # Low norm = high energy
-    pattern_stable = torch.randn(embedding_dim) * 3.0    # High norm = low energy
+    pattern_stable = torch.randn(embedding_dim) * 3.0  # High norm = low energy
     pattern_medium = torch.randn(embedding_dim) * 1.0
 
     test_patterns = torch.stack([pattern_unstable, pattern_medium, pattern_stable])
@@ -107,20 +108,19 @@ def main():
         metric="cosine",
     )
 
-    energies = [simple_energy_evaluator(p) for p in test_patterns]
-    selected_energy = simple_energy_evaluator(result.best_pattern)
+    energies = [simple_energy_evaluator(p).item() for p in test_patterns]
+    selected_energy = simple_energy_evaluator(result.best_pattern).item()
 
-    print(f"  Pattern energies:")
+    print("  Pattern energies:")
     print(f"    Unstable: {energies[0]:.4f}")
     print(f"    Medium:   {energies[1]:.4f}")
     print(f"    Stable:   {energies[2]:.4f}")
     print(f"  Selected energy: {selected_energy:.4f}")
 
     # The selected pattern should be one of the lower-energy ones
-    assert selected_energy <= max(energies), \
-        "Selected pattern should not have highest energy!"
+    assert selected_energy <= max(energies), "Selected pattern should not have highest energy!"
 
-    print(f"✓ Verified: Selected pattern has reasonable energy")
+    print("✓ Verified: Selected pattern has reasonable energy")
 
     print("\n" + "=" * 60)
     print("All tests passed! ✓")
