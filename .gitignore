@@ -15,7 +15,10 @@ env/
 venv/
 
 # VS Code
-.vscode/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
 
 # Test and coverage
 .coverage

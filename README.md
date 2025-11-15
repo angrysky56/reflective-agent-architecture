@@ -84,14 +84,84 @@ RAA synthesizes three active research frontiers:
 3. **Latent-space reasoning** vs token-generation paradigm
 4. **Computational theory of insight** bridging connectionism and symbolism
 
+## Installation
+
+### Prerequisites
+- Python >= 3.10
+- [uv](https://docs.astral.sh/uv/) (recommended) or pip
+
+### Using uv (Recommended)
+
+```bash
+# Clone the repository
+git clone https://github.com/angrysky56/reflective-agent-architecture.git
+cd reflective-agent-architecture
+
+# Sync dependencies (creates venv automatically)
+uv sync
+
+# Install with development dependencies
+uv sync --extra dev
+
+# Install with optional dependencies
+uv sync --extra notebooks
+uv sync --extra geometric
+```
+
+### Using pip
+
+```bash
+# Clone the repository
+git clone https://github.com/angrysky56/reflective-agent-architecture.git
+cd reflective-agent-architecture
+
+# Create virtual environment
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
+# Install package with dependencies
+pip install -e .
+
+# Install with development dependencies
+pip install -e ".[dev]"
+```
+
+## Running Tests
+
+```bash
+# Using uv
+uv run pytest
+
+# Or activate environment first
+uv sync --extra dev
+source .venv/bin/activate
+pytest
+
+# Run with coverage
+uv run pytest --cov=src --cov-report=html
+
+# Run specific test file
+uv run pytest tests/test_director.py -v
+```
+
 ## Dependencies
 
-Core libraries (to be added to pyproject.toml):
+Core libraries:
 - PyTorch >= 2.0
 - transformers (HuggingFace)
 - scipy (entropy calculations)
 - numpy
-- Optional: PyTorch Geometric (if using hybrid GNN approach)
+- matplotlib
+- tqdm
+
+Development tools:
+- pytest, pytest-cov
+- black, ruff (formatting and linting)
+- mypy (type checking)
+
+Optional:
+- PyTorch Geometric (if using hybrid GNN approach)
+- Jupyter (for notebooks)
 
 ## Project Structure
 
