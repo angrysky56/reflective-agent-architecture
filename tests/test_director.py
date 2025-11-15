@@ -83,7 +83,7 @@ def test_full_director_loop():
     # High entropy logits (should trigger search)
     high_entropy_logits = torch.randn(1, 100)
 
-    new_goal = director.check_and_search(
+    _ = director.check_and_search(
         current_state=current_state,
         processor_logits=high_entropy_logits,
     )

@@ -143,7 +143,6 @@ def search_with_entropy_selection(
     # Evaluate entropy for each neighbor
     best_pattern = None
     best_entropy = float('inf')
-    best_idx = None
 
     for idx in basic_result.neighbor_indices:
         pattern = memory_patterns[idx]
@@ -152,7 +151,6 @@ def search_with_entropy_selection(
         if estimated_entropy < best_entropy:
             best_entropy = estimated_entropy
             best_pattern = pattern
-            best_idx = idx
 
     if best_pattern is None:
         raise ValueError("No valid pattern found during entropy-based selection.")
@@ -194,7 +192,7 @@ def multi_hop_search(
     results = []
     state = current_state
 
-    for hop in range(num_hops):
+    for _ in range(num_hops):
         result = knn_search(state, memory_patterns, k, metric)
         results.append(result)
 
