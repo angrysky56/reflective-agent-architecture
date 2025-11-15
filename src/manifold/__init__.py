@@ -10,13 +10,12 @@ Key Papers:
 """
 
 from .hopfield_network import HopfieldConfig, ModernHopfieldNetwork
-from .patterns import PatternMemory
 from .pattern_curriculum import (
+    ManualPatternCurriculum,
     PatternCurriculum,
     PatternCurriculumConfig,
-    RandomPatternCurriculum,
-    ManualPatternCurriculum,
     PrototypePatternCurriculum,
+    RandomPatternCurriculum,
     create_pattern_curriculum,
     initialize_manifold_patterns,
 )
@@ -24,6 +23,7 @@ from .pattern_generator import (
     PatternGenerator,
     create_novel_pattern_from_neighbors,
 )
+from .patterns import PatternMemory
 
 __all__ = [
     "ModernHopfieldNetwork",
@@ -50,4 +50,5 @@ class Manifold(ModernHopfieldNetwork):
     The Manifold stores semantic knowledge as an energy landscape with basin attractors.
     Retrieval happens via associative dynamics that minimize the Hopfield energy function.
     """
+
     pass
