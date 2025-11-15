@@ -17,7 +17,7 @@ from typing import Any, Dict, Optional
 import torch
 
 from .entropy_monitor import EntropyMonitor
-from .search_mvp import SearchResult, knn_search, energy_aware_knn_search
+from .search_mvp import SearchResult, energy_aware_knn_search, knn_search
 
 logger = logging.getLogger(__name__)
 
@@ -170,8 +170,8 @@ class DirectorMVP:
         # Add entropy to context for logging
         if context is None:
             context = {}
-        context['entropy'] = entropy_value
-        context['threshold'] = self.monitor.get_threshold()
+        context["entropy"] = entropy_value
+        context["threshold"] = self.monitor.get_threshold()
 
         # Step 2: Check if intervention needed
         if not is_clash:
@@ -207,13 +207,13 @@ class DirectorMVP:
     ) -> None:
         """Log search episode for analysis and future policy learning."""
         episode = {
-            'current_state': current_state.detach().cpu(),
-            'new_state': result.best_pattern.detach().cpu(),
-            'neighbor_indices': result.neighbor_indices,
-            'distances': result.neighbor_distances.detach().cpu(),
-            'selection_score': result.selection_score,
-            'entropy': context.get('entropy') if context else None,
-            'threshold': context.get('threshold') if context else None,
+            "current_state": current_state.detach().cpu(),
+            "new_state": result.best_pattern.detach().cpu(),
+            "neighbor_indices": result.neighbor_indices,
+            "distances": result.neighbor_distances.detach().cpu(),
+            "selection_score": result.selection_score,
+            "entropy": context.get("entropy") if context else None,
+            "threshold": context.get("threshold") if context else None,
         }
 
         self.search_episodes.append(episode)
@@ -228,13 +228,13 @@ class DirectorMVP:
         entropy_stats = self.monitor.get_statistics()
 
         return {
-            'entropy': entropy_stats,
-            'num_search_episodes': len(self.search_episodes),
-            'config': {
-                'search_k': self.config.search_k,
-                'metric': self.config.search_metric,
-                'threshold_percentile': self.config.entropy_threshold_percentile,
-            }
+            "entropy": entropy_stats,
+            "num_search_episodes": len(self.search_episodes),
+            "config": {
+                "search_k": self.config.search_k,
+                "metric": self.config.search_metric,
+                "threshold_percentile": self.config.entropy_threshold_percentile,
+            },
         }
 
     def reset(self) -> None:
