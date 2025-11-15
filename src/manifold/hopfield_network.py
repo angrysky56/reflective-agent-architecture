@@ -21,6 +21,9 @@ class HopfieldConfig:
     beta: float = 1.0  # Inverse temperature for softmax
     max_patterns: int = 1000
     update_steps: int = 10  # Number of iterations for convergence
+    adaptive_beta: bool = False  # Enable context-dependent beta
+    beta_min: float = 0.5  # Minimum beta (soft retrieval, exploration)
+    beta_max: float = 2.0  # Maximum beta (sharp retrieval, exploitation)
     device: str = "cpu"
 
 
@@ -179,13 +182,57 @@ class ModernHopfieldNetwork(nn.Module):
         retrieved_state, _ = self.retrieve(query)
         return retrieved_state
 
+    def compute_adaptive_beta(self, entropy: float, max_entropy: Optional[float] = None) -> float:
+        """
+        Compute context-dependent beta based on entropy signal.
+
+        Epistemological principle:
+        - High entropy (confusion) → lower beta → softer attention (exploration)
+        - Low entropy (confidence) → higher beta → sharper attention (exploitation)
+
+        Args:
+            entropy: Current entropy value
+            max_entropy: Maximum possible entropy (defaults to log2 of num_patterns)
+
+        Returns:
+            Adaptive beta value in [beta_min, beta_max]
+        """
+        if not self.config.adaptive_beta:
+            return self.beta
+
+        # Normalize entropy to [0, 1]
+        if max_entropy is None:
+            # Use log2(num_patterns) as theoretical max
+            max_entropy = torch.log2(torch.tensor(max(self.num_patterns, 2))).item()
+
+        normalized_entropy = min(entropy / max_entropy, 1.0) if max_entropy > 0 else 0.0
+
+        # Map to beta range: high entropy → low beta
+        # Formula: beta = beta_max - (beta_max - beta_min) * normalized_entropy
+        adaptive_beta = (
+            self.config.beta_max -
+            (self.config.beta_max - self.config.beta_min) * normalized_entropy
+        )
+
+        return adaptive_beta
+
+    def set_beta(self, beta: float) -> None:
+        """
+        Dynamically set beta parameter.
+
+        Args:
+            beta: New inverse temperature value
+        """
+        self.beta = beta
+
     def clear_memory(self) -> None:
         """Clear all stored patterns."""
         self.patterns = torch.empty(0, self.config.embedding_dim).to(self.device)
         self.num_patterns = 0
 
     def __repr__(self) -> str:
+        adaptive_str = " (adaptive)" if self.config.adaptive_beta else ""
         return (
             f"ModernHopfieldNetwork(patterns={self.num_patterns}, "
-            f"dim={self.embedding_dim}, beta={self.beta})"
+            f"dim={self.embedding_dim}, beta={self.beta}{adaptive_str})"
         )

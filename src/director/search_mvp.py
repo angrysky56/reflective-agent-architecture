@@ -113,6 +113,74 @@ def knn_search(
     return result
 
 
+def energy_aware_knn_search(
+    current_state: torch.Tensor,
+    memory_patterns: torch.Tensor,
+    energy_evaluator: Callable[[torch.Tensor], torch.Tensor],
+    k: int = 5,
+    metric: str = "cosine",
+    exclude_threshold: float = 0.95,
+) -> SearchResult:
+    """
+    Energy-aware k-NN search aligned with Hopfield principles.
+
+    This addresses the critical gap: geometric proximity alone doesn't
+    guarantee the pattern is a stable attractor. We must check energy!
+
+    Process:
+    1. Get k nearest neighbors by geometric distance
+    2. Evaluate Hopfield energy for each neighbor
+    3. Select pattern with LOWEST energy (most stable attractor)
+
+    Args:
+        current_state: Current embedding
+        memory_patterns: Stored patterns
+        energy_evaluator: Function computing Hopfield energy
+                         Signature: (pattern: Tensor) -> Tensor (scalar)
+        k: Number of neighbors to retrieve
+        metric: Distance metric for initial retrieval
+        exclude_threshold: Similarity threshold for excluding current basin
+
+    Returns:
+        SearchResult with lowest-energy (most stable) pattern
+    """
+    # Step 1: Get k nearest neighbors geometrically
+    basic_result = knn_search(
+        current_state, memory_patterns, k, metric, exclude_threshold
+    )
+
+    # Step 2: Evaluate Hopfield energy for each neighbor
+    best_pattern = None
+    best_energy = float('inf')
+    best_idx = None
+
+    for idx in basic_result.neighbor_indices:
+        pattern = memory_patterns[idx]
+        energy = energy_evaluator(pattern)
+
+        # Convert to float if tensor
+        if isinstance(energy, torch.Tensor):
+            energy = energy.item()
+
+        if energy < best_energy:
+            best_energy = energy
+            best_pattern = pattern
+            best_idx = idx
+
+    if best_pattern is None:
+        raise ValueError("No valid pattern found during energy-aware selection.")
+
+    # Step 3: Return energy-optimal result
+    result = SearchResult(
+        best_pattern=best_pattern,
+        neighbor_indices=basic_result.neighbor_indices,
+        neighbor_distances=basic_result.neighbor_distances,
+        selection_score=best_energy,  # Energy as score (lower = better)
+    )
+
+    return result
+
+
 def search_with_entropy_selection(
     current_state: torch.Tensor,
     memory_patterns: torch.Tensor,
