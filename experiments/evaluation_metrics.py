@@ -9,11 +9,11 @@ Comprehensive metrics for assessing:
 4. Comparative analysis (RAA vs baselines)
 """
 
-import numpy as np
-from typing import List, Dict, Tuple, Optional
-from scipy import stats
+from typing import Dict, List, Optional, Tuple
+
 import matplotlib.pyplot as plt
-from pathlib import Path
+import numpy as np
+from scipy import stats
 
 
 class EntropyMetrics:
@@ -72,14 +72,11 @@ class EntropyMetrics:
             slope, _ = np.polyfit(t, log_h, 1)
             return -slope  # Negative slope = convergence rate
 
-        except:
+        except Exception:
             return 0.0
 
     @staticmethod
-    def detect_reframing_events(
-        trajectory: List[float],
-        threshold: float = 0.1
-    ) -> List[int]:
+    def detect_reframing_events(trajectory: List[float], threshold: float = 0.1) -> List[int]:
         """
         Detect sudden entropy increases (potential reframing events).
 
@@ -95,17 +92,14 @@ class EntropyMetrics:
 
         reframing_indices = []
         for i in range(1, len(trajectory)):
-            increase = trajectory[i] - trajectory[i-1]
+            increase = trajectory[i] - trajectory[i - 1]
             if increase > threshold:
                 reframing_indices.append(i)
 
         return reframing_indices
 
     @staticmethod
-    def compute_exploration_efficiency(
-        trajectory: List[float],
-        final_success: bool
-    ) -> float:
+    def compute_exploration_efficiency(trajectory: List[float], final_success: bool) -> float:
         """
         Compute efficiency of exploration.
 
@@ -130,24 +124,16 @@ class PerformanceMetrics:
     """Task performance metrics."""
 
     @staticmethod
-    def compute_accuracy(
-        predictions: List[str],
-        targets: List[str]
-    ) -> float:
+    def compute_accuracy(predictions: List[str], targets: List[str]) -> float:
         """Compute accuracy (exact match)."""
         if not predictions or not targets:
             return 0.0
 
-        correct = sum(
-            p.lower().strip() == t.lower().strip()
-            for p, t in zip(predictions, targets)
-        )
+        correct = sum(p.lower().strip() == t.lower().strip() for p, t in zip(predictions, targets))
         return correct / len(predictions)
 
     @staticmethod
-    def compute_accuracy_by_difficulty(
-        results: List[Dict]
-    ) -> Dict[str, float]:
+    def compute_accuracy_by_difficulty(results: List[Dict]) -> Dict[str, float]:
         """
         Break down accuracy by difficulty level.
 
@@ -168,9 +154,7 @@ class PerformanceMetrics:
         return accuracy_by_diff
 
     @staticmethod
-    def compute_success_rate_vs_reframing(
-        results: List[Dict]
-    ) -> Tuple[List[int], List[float]]:
+    def compute_success_rate_vs_reframing(results: List[Dict]) -> Tuple[List[int], List[float]]:
         """
         Analyze success rate as function of reframing count.
 
@@ -187,8 +171,7 @@ class PerformanceMetrics:
 
         reframing_counts = sorted(count_to_results.keys())
         success_rates = [
-            sum(count_to_results[c]) / len(count_to_results[c])
-            for c in reframing_counts
+            sum(count_to_results[c]) / len(count_to_results[c]) for c in reframing_counts
         ]
 
         return reframing_counts, success_rates
@@ -198,10 +181,7 @@ class ComparativeMetrics:
     """Metrics for comparing RAA vs baseline."""
 
     @staticmethod
-    def compute_relative_improvement(
-        raa_accuracy: float,
-        baseline_accuracy: float
-    ) -> float:
+    def compute_relative_improvement(raa_accuracy: float, baseline_accuracy: float) -> float:
         """
         Compute relative improvement.
 
@@ -209,15 +189,12 @@ class ComparativeMetrics:
             Percentage improvement over baseline
         """
         if baseline_accuracy == 0:
-            return float('inf') if raa_accuracy > 0 else 0.0
+            return float("inf") if raa_accuracy > 0 else 0.0
 
         return (raa_accuracy - baseline_accuracy) / baseline_accuracy * 100
 
     @staticmethod
-    def compute_cohens_d(
-        raa_scores: List[float],
-        baseline_scores: List[float]
-    ) -> float:
+    def compute_cohens_d(raa_scores: List[float], baseline_scores: List[float]) -> float:
         """
         Compute Cohen's d effect size.
 
@@ -242,8 +219,8 @@ class ComparativeMetrics:
         n_baseline = len(baseline_scores)
 
         pooled_std = np.sqrt(
-            ((n_raa - 1) * std_raa**2 + (n_baseline - 1) * std_baseline**2) /
-            (n_raa + n_baseline - 2)
+            ((n_raa - 1) * std_raa**2 + (n_baseline - 1) * std_baseline**2)
+            / (n_raa + n_baseline - 2)
         )
 
         if pooled_std == 0:
@@ -253,8 +230,7 @@ class ComparativeMetrics:
 
     @staticmethod
     def run_significance_test(
-        raa_scores: List[float],
-        baseline_scores: List[float]
+        raa_scores: List[float], baseline_scores: List[float]
     ) -> Tuple[float, float]:
         """
         Run statistical significance test (t-test).
@@ -276,7 +252,7 @@ class VisualizationTools:
     def plot_entropy_trajectories(
         successful_trajs: List[List[float]],
         failed_trajs: List[List[float]],
-        output_path: Optional[str] = None
+        output_path: Optional[str] = None,
     ):
         """
         Plot entropy trajectories for successful vs failed attempts.
@@ -290,35 +266,33 @@ class VisualizationTools:
 
         # Plot successful trajectories
         for traj in successful_trajs:
-            plt.plot(traj, color='green', alpha=0.3, linewidth=0.5)
+            plt.plot(traj, color="green", alpha=0.3, linewidth=0.5)
 
         # Plot failed trajectories
         for traj in failed_trajs:
-            plt.plot(traj, color='red', alpha=0.3, linewidth=0.5)
+            plt.plot(traj, color="red", alpha=0.3, linewidth=0.5)
 
         # Plot means
         if successful_trajs:
             max_len = max(len(t) for t in successful_trajs)
             padded = [t + [t[-1]] * (max_len - len(t)) for t in successful_trajs]
             mean_successful = np.mean(padded, axis=0)
-            plt.plot(mean_successful, color='darkgreen', linewidth=2,
-                    label='Successful (mean)')
+            plt.plot(mean_successful, color="darkgreen", linewidth=2, label="Successful (mean)")
 
         if failed_trajs:
             max_len = max(len(t) for t in failed_trajs)
             padded = [t + [t[-1]] * (max_len - len(t)) for t in failed_trajs]
             mean_failed = np.mean(padded, axis=0)
-            plt.plot(mean_failed, color='darkred', linewidth=2,
-                    label='Failed (mean)')
+            plt.plot(mean_failed, color="darkred", linewidth=2, label="Failed (mean)")
 
-        plt.xlabel('Processing Step')
-        plt.ylabel('Entropy')
-        plt.title('Entropy Trajectories: Successful vs Failed Solutions')
+        plt.xlabel("Processing Step")
+        plt.ylabel("Entropy")
+        plt.title("Entropy Trajectories: Successful vs Failed Solutions")
         plt.legend()
         plt.grid(alpha=0.3)
 
         if output_path:
-            plt.savefig(output_path, dpi=300, bbox_inches='tight')
+            plt.savefig(output_path, dpi=300, bbox_inches="tight")
             print(f"Saved plot to {output_path}")
         else:
             plt.show()
@@ -329,7 +303,7 @@ class VisualizationTools:
     def plot_accuracy_comparison(
         raa_accuracy: Dict[str, float],
         baseline_accuracy: Dict[str, float],
-        output_path: Optional[str] = None
+        output_path: Optional[str] = None,
     ):
         """
         Plot accuracy comparison across difficulty levels.
@@ -347,19 +321,19 @@ class VisualizationTools:
         width = 0.35
 
         fig, ax = plt.subplots(figsize=(10, 6))
-        ax.bar(x - width/2, raa_scores, width, label='RAA', color='blue', alpha=0.7)
-        ax.bar(x + width/2, baseline_scores, width, label='Baseline', color='gray', alpha=0.7)
+        ax.bar(x - width / 2, raa_scores, width, label="RAA", color="blue", alpha=0.7)
+        ax.bar(x + width / 2, baseline_scores, width, label="Baseline", color="gray", alpha=0.7)
 
-        ax.set_xlabel('Difficulty')
-        ax.set_ylabel('Accuracy')
-        ax.set_title('RAA vs Baseline: Accuracy by Difficulty')
+        ax.set_xlabel("Difficulty")
+        ax.set_ylabel("Accuracy")
+        ax.set_title("RAA vs Baseline: Accuracy by Difficulty")
         ax.set_xticks(x)
         ax.set_xticklabels(difficulties)
         ax.legend()
-        ax.grid(axis='y', alpha=0.3)
+        ax.grid(axis="y", alpha=0.3)
 
         if output_path:
-            plt.savefig(output_path, dpi=300, bbox_inches='tight')
+            plt.savefig(output_path, dpi=300, bbox_inches="tight")
             print(f"Saved plot to {output_path}")
         else:
             plt.show()
@@ -368,9 +342,7 @@ class VisualizationTools:
 
 
 def generate_comparison_report(
-    raa_results: Dict,
-    baseline_results: Dict,
-    output_path: Optional[str] = None
+    raa_results: Dict, baseline_results: Dict, output_path: Optional[str] = None
 ) -> str:
     """
     Generate comprehensive comparison report.
@@ -388,20 +360,14 @@ def generate_comparison_report(
     baseline_acc = baseline_results.get("summary", {}).get("accuracy", 0)
 
     # Compute improvement
-    improvement = ComparativeMetrics.compute_relative_improvement(
-        raa_acc, baseline_acc
-    )
+    improvement = ComparativeMetrics.compute_relative_improvement(raa_acc, baseline_acc)
 
     # Compute effect size (if detailed results available)
     effect_size = 0.0
     if "detailed_results" in raa_results and "detailed_results" in baseline_results:
-        raa_scores = [
-            1.0 if r["correct"] else 0.0
-            for r in raa_results["detailed_results"]
-        ]
+        raa_scores = [1.0 if r["correct"] else 0.0 for r in raa_results["detailed_results"]]
         baseline_scores = [
-            1.0 if r["correct"] else 0.0
-            for r in baseline_results["detailed_results"]
+            1.0 if r["correct"] else 0.0 for r in baseline_results["detailed_results"]
         ]
         effect_size = ComparativeMetrics.compute_cohens_d(raa_scores, baseline_scores)
 
@@ -439,7 +405,7 @@ RAA-Specific Metrics:
   Avg Reframing Count:    {avg_reframing:.1f}
 """
 
-    report += "\n" + "="*70
+    report += "\n" + "=" * 70
 
     if output_path:
         with open(output_path, "w") as f:

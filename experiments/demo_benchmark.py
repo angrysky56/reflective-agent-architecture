@@ -14,10 +14,10 @@ Then run:
     python experiments/run_benchmark.py --mode full --verbose
 """
 
-import sys
 import os
-from typing import Tuple, List
+import sys
 from dataclasses import dataclass
+from typing import List, Tuple
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -25,6 +25,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 @dataclass
 class RATItem:
     """Single Remote Associates Test item."""
+
     cue_words: Tuple[str, str, str]
     solution: str
     difficulty: str
@@ -45,7 +46,6 @@ def get_sample_dataset() -> List[RATItem]:
         RATItem(("surprise", "line", "birthday"), "party", "easy", "events"),
         RATItem(("base", "snow", "dance"), "ball", "easy", "sports"),
         RATItem(("show", "life", "row"), "boat", "easy", "objects"),
-
         # MEDIUM
         RATItem(("flake", "mobile", "cone"), "snow", "medium", "weather"),
         RATItem(("fish", "mine", "rush"), "gold", "medium", "minerals"),
@@ -57,7 +57,6 @@ def get_sample_dataset() -> List[RATItem]:
         RATItem(("shock", "shave", "taste"), "after", "medium", "time"),
         RATItem(("preserve", "ranger", "tropical"), "forest", "medium", "nature"),
         RATItem(("cadet", "capsule", "ship"), "space", "medium", "astronomy"),
-
         # HARD
         RATItem(("hound", "pressure", "shot"), "blood", "hard", "medical"),
         RATItem(("opera", "hand", "dish"), "soap", "hard", "household"),
@@ -79,9 +78,9 @@ def get_sample_dataset() -> List[RATItem]:
 
 def demo_dataset():
     """Show the RAT dataset structure."""
-    print("="*70)
+    print("=" * 70)
     print("Remote Associates Test (RAT) Dataset")
-    print("="*70)
+    print("=" * 70)
     print()
 
     dataset = get_sample_dataset()
@@ -113,9 +112,9 @@ def demo_dataset():
 
 def demo_expected_results():
     """Show what expected benchmark results look like."""
-    print("="*70)
+    print("=" * 70)
     print("Expected Benchmark Results (Simulated)")
-    print("="*70)
+    print("=" * 70)
     print()
 
     print("STEP 1: RAA Evaluation")
@@ -159,9 +158,9 @@ def demo_expected_results():
     print("  Hard:          33.3% (5/15)")
     print()
 
-    print("="*70)
+    print("=" * 70)
     print("RAA vs BASELINE: Comparative Analysis")
-    print("="*70)
+    print("=" * 70)
     print()
     print("Overall Performance:")
     print("  RAA Accuracy:      65.7%")
@@ -184,15 +183,15 @@ def demo_expected_results():
     print("  ✓ Entropy reduction correlates with success")
     print("  ✓ Optimal reframing: 2-3 per problem")
     print()
-    print("="*70)
+    print("=" * 70)
 
 
 def demo_entropy_analysis():
     """Show entropy trajectory analysis."""
     print()
-    print("="*70)
+    print("=" * 70)
     print("Entropy Analysis: Successful vs Failed Solutions")
-    print("="*70)
+    print("=" * 70)
     print()
 
     print("SUCCESSFUL SOLUTION (cottage/swiss/cake → cheese):")
@@ -223,9 +222,9 @@ def demo_entropy_analysis():
 
 def demo_next_steps():
     """Show recommended next steps."""
-    print("="*70)
+    print("=" * 70)
     print("Next Steps After Benchmark")
-    print("="*70)
+    print("=" * 70)
     print()
 
     print("IF RESULTS ARE GOOD (RAA > Baseline):")
@@ -255,11 +254,11 @@ def demo_next_steps():
 def main():
     """Run the demo."""
     print("\n")
-    print("╔" + "="*68 + "╗")
-    print("║" + " "*68 + "║")
+    print("╔" + "=" * 68 + "╗")
+    print("║" + " " * 68 + "║")
     print("║" + "  RAA Benchmark Demo: What to Expect".center(68) + "║")
-    print("║" + " "*68 + "║")
-    print("╚" + "="*68 + "╝")
+    print("║" + " " * 68 + "║")
+    print("╚" + "=" * 68 + "╝")
     print()
 
     print("This demo shows the structure and expected output of the RAA benchmark")
@@ -285,9 +284,9 @@ def main():
     demo_next_steps()
 
     print()
-    print("="*70)
+    print("=" * 70)
     print("Demo Complete!")
-    print("="*70)
+    print("=" * 70)
     print()
     print("Ready to run the real benchmark? Install dependencies and execute:")
     print("  pip install -r requirements.txt")

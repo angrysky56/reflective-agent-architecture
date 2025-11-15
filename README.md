@@ -124,6 +124,7 @@ pip install -e .
 
 # Install with development dependencies
 pip install -e ".[dev]"
+
 ```
 
 ## Running Tests
@@ -151,6 +152,13 @@ uv run pytest -v
 
 # Specific energy-aware tests
 uv run pytest tests/test_director.py::test_energy_aware_search -v
+
+# Quick peek at what to expect (no installation)
+python experiments/demo_benchmark.py
+
+# Full empirical validation (requires torch)
+uv pip install -r requirements.txt
+python experiments/run_benchmark.py --mode full --verbose
 ```
 
 ## Dependencies

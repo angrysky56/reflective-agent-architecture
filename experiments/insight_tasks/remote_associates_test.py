@@ -14,15 +14,16 @@ This tests the core RAA hypothesis: Can entropy-triggered search enable
 discovery of the hidden associative pattern?
 """
 
-import torch
-import numpy as np
-from typing import List, Dict, Tuple, Optional
 from dataclasses import dataclass
+from typing import Dict, List, Optional, Tuple
+
+import numpy as np
 
 
 @dataclass
 class RATItem:
     """Single Remote Associates Test item."""
+
     cue_words: Tuple[str, str, str]
     solution: str
     difficulty: str  # 'easy', 'medium', 'hard'
@@ -56,7 +57,6 @@ class RATDataset:
             RATItem(("pine", "crab", "sauce"), "apple", "easy", "food"),
             RATItem(("surprise", "line", "birthday"), "party", "easy", "events"),
             RATItem(("base", "snow", "dance"), "ball", "easy", "sports"),
-
             # MEDIUM (Moderate solution rate 30-60%)
             RATItem(("flake", "mobile", "cone"), "snow", "medium", "weather"),
             RATItem(("fish", "mine", "rush"), "gold", "medium", "minerals"),
@@ -68,7 +68,6 @@ class RATDataset:
             RATItem(("shock", "shave", "taste"), "after", "medium", "time"),
             RATItem(("preserve", "ranger", "tropical"), "forest", "medium", "nature"),
             RATItem(("cadet", "capsule", "ship"), "space", "medium", "astronomy"),
-
             # HARD (Low solution rate <30%)
             RATItem(("hound", "pressure", "shot"), "blood", "hard", "medical"),
             RATItem(("opera", "hand", "dish"), "soap", "hard", "household"),
@@ -80,7 +79,6 @@ class RATDataset:
             RATItem(("envy", "golf", "beans"), "green", "hard", "colors"),
             RATItem(("date", "alley", "fold"), "blind", "hard", "vision"),
             RATItem(("light", "birthday", "stick"), "candle", "hard", "objects"),
-
             # VERY HARD (Requires deep insight)
             RATItem(("rat", "blue", "cottage"), "cheese", "hard", "food"),
             RATItem(("boot", "summer", "ground"), "camp", "hard", "activities"),
@@ -126,7 +124,7 @@ class RATEvaluator:
         model_output: str,
         entropy_trajectory: List[float],
         reframing_count: int,
-        computation_time: float
+        computation_time: float,
     ) -> Dict:
         """
         Evaluate single RAT item.
@@ -161,7 +159,7 @@ class RATEvaluator:
             "reframing_count": reframing_count,
             "computation_time": computation_time,
             "difficulty": item.difficulty,
-            "category": item.category
+            "category": item.category,
         }
 
         self.results.append(result)
@@ -181,7 +179,7 @@ class RATEvaluator:
             return True
 
         # Allow minor pluralization
-        if output_clean.rstrip('s') == target_clean.rstrip('s'):
+        if output_clean.rstrip("s") == target_clean.rstrip("s"):
             return True
 
         return False
@@ -199,16 +197,11 @@ class RATEvaluator:
             "total_items": total,
             "correct": correct,
             "accuracy": correct / total,
-            "avg_entropy_reduction": np.mean([
-                r["entropy_reduction"] for r in self.results
-                if r["entropy_reduction"] is not None
-            ]),
-            "avg_reframing_count": np.mean([
-                r["reframing_count"] for r in self.results
-            ]),
-            "avg_computation_time": np.mean([
-                r["computation_time"] for r in self.results
-            ])
+            "avg_entropy_reduction": np.mean(
+                [r["entropy_reduction"] for r in self.results if r["entropy_reduction"] is not None]
+            ),
+            "avg_reframing_count": np.mean([r["reframing_count"] for r in self.results]),
+            "avg_computation_time": np.mean([r["computation_time"] for r in self.results]),
         }
 
         # Breakdown by difficulty
@@ -220,10 +213,16 @@ class RATEvaluator:
                 stats[f"count_{difficulty}"] = len(diff_results)
 
         # Correlation: entropy reduction vs success
-        correct_entropy = [r["entropy_reduction"] for r in self.results
-                          if r["correct"] and r["entropy_reduction"] is not None]
-        incorrect_entropy = [r["entropy_reduction"] for r in self.results
-                            if not r["correct"] and r["entropy_reduction"] is not None]
+        correct_entropy = [
+            r["entropy_reduction"]
+            for r in self.results
+            if r["correct"] and r["entropy_reduction"] is not None
+        ]
+        incorrect_entropy = [
+            r["entropy_reduction"]
+            for r in self.results
+            if not r["correct"] and r["entropy_reduction"] is not None
+        ]
 
         if correct_entropy and incorrect_entropy:
             stats["entropy_reduction_correct"] = np.mean(correct_entropy)
@@ -317,7 +316,7 @@ if __name__ == "__main__":
     print(f"  Cues: {hard.cue_words}")
     print(f"  Solution: {hard.solution}\n")
 
-    print(f"Breakdown by difficulty:")
+    print("Breakdown by difficulty:")
     for diff in ["easy", "medium", "hard"]:
         count = len(dataset.get_by_difficulty(diff))
         print(f"  {diff.capitalize()}: {count} items")

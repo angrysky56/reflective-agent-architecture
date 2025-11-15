@@ -14,20 +14,20 @@ The key difference: No explicit search or reframing - just learned
 attention patterns.
 """
 
-import sys
 import os
+import sys
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
+
+import json
+import time
+from pathlib import Path
+from typing import Dict, List, Tuple
 
 import torch
 import torch.nn as nn
-import time
-from typing import Dict, List, Tuple, Optional
-from pathlib import Path
-import json
 
-from experiments.insight_tasks.remote_associates_test import (
-    RATDataset, RATEvaluator, RATItem
-)
+from experiments.insight_tasks.remote_associates_test import RATDataset, RATEvaluator, RATItem
 
 
 class TransformerBaseline(nn.Module):
@@ -47,7 +47,7 @@ class TransformerBaseline(nn.Module):
         hidden_dim: int = 256,
         num_heads: int = 8,
         num_layers: int = 4,
-        vocab_size: int = 10000
+        vocab_size: int = 10000,
     ):
         super().__init__()
 
@@ -59,15 +59,9 @@ class TransformerBaseline(nn.Module):
 
         # Transformer layers
         encoder_layer = nn.TransformerEncoderLayer(
-            d_model=hidden_dim,
-            nhead=num_heads,
-            dim_feedforward=hidden_dim * 4,
-            batch_first=True
+            d_model=hidden_dim, nhead=num_heads, dim_feedforward=hidden_dim * 4, batch_first=True
         )
-        self.transformer = nn.TransformerEncoder(
-            encoder_layer,
-            num_layers=num_layers
-        )
+        self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
 
         # Output projection
         self.output_proj = nn.Linear(hidden_dim, hidden_dim)
@@ -103,20 +97,14 @@ class BaselineSolver:
     """
 
     def __init__(
-        self,
-        hidden_dim: int = 256,
-        num_heads: int = 8,
-        num_layers: int = 4,
-        device: str = "cpu"
+        self, hidden_dim: int = 256, num_heads: int = 8, num_layers: int = 4, device: str = "cpu"
     ):
         self.device = device
         self.hidden_dim = hidden_dim
 
         # Initialize model
         self.model = TransformerBaseline(
-            hidden_dim=hidden_dim,
-            num_heads=num_heads,
-            num_layers=num_layers
+            hidden_dim=hidden_dim, num_heads=num_heads, num_layers=num_layers
         ).to(device)
 
         # Vocabulary (same as RAA solver)
@@ -134,8 +122,22 @@ class BaselineSolver:
             words.add(item.solution)
 
         common_words = [
-            "the", "and", "or", "but", "in", "on", "at", "to", "for",
-            "ball", "house", "time", "water", "light", "book", "tree"
+            "the",
+            "and",
+            "or",
+            "but",
+            "in",
+            "on",
+            "at",
+            "to",
+            "for",
+            "ball",
+            "house",
+            "time",
+            "water",
+            "light",
+            "book",
+            "tree",
         ]
         words.update(common_words)
 
@@ -153,10 +155,7 @@ class BaselineSolver:
     def _decode_embedding(self, embedding: torch.Tensor) -> str:
         """Convert embedding to nearest word."""
         all_embeddings = self.model.embeddings.weight
-        similarities = torch.matmul(
-            embedding.squeeze(),
-            all_embeddings.t()
-        )
+        similarities = torch.matmul(embedding.squeeze(), all_embeddings.t())
 
         top_k = 5
         top_indices = torch.topk(similarities, k=top_k).indices
@@ -168,11 +167,7 @@ class BaselineSolver:
 
         return "<UNK>"
 
-    def solve(
-        self,
-        item: RATItem,
-        verbose: bool = False
-    ) -> Tuple[str, List[float], int, float]:
+    def solve(self, item: RATItem, verbose: bool = False) -> Tuple[str, List[float], int, float]:
         """
         Solve RAT item using baseline transformer.
 
@@ -186,8 +181,7 @@ class BaselineSolver:
 
         # Encode cue words
         input_ids = torch.tensor(
-            [[self._encode_word(word) for word in item.cue_words]],
-            device=self.device
+            [[self._encode_word(word) for word in item.cue_words]], device=self.device
         )  # [1, 3]
 
         # Forward pass
@@ -204,9 +198,7 @@ class BaselineSolver:
 
 
 def run_baseline_evaluation(
-    output_dir: str = "experiments/results",
-    device: str = "cpu",
-    verbose: bool = True
+    output_dir: str = "experiments/results", device: str = "cpu", verbose: bool = True
 ) -> Dict:
     """
     Run baseline evaluation on RAT.
@@ -226,15 +218,10 @@ def run_baseline_evaluation(
     evaluator = RATEvaluator(dataset)
 
     # Initialize baseline solver
-    solver = BaselineSolver(
-        hidden_dim=256,
-        num_heads=8,
-        num_layers=4,
-        device=device
-    )
+    solver = BaselineSolver(hidden_dim=256, num_heads=8, num_layers=4, device=device)
 
     print(f"Starting Baseline Evaluation on {len(dataset)} items...")
-    print(f"Model: Standard Transformer (no manifold/search/reframing)")
+    print("Model: Standard Transformer (no manifold/search/reframing)")
     print(f"Device: {device}\n")
 
     # Evaluate each item
@@ -243,10 +230,7 @@ def run_baseline_evaluation(
             print(f"[{idx+1}/{len(dataset)}] Testing: {item.cue_words} → {item.solution}")
 
         # Solve
-        solution, entropy_traj, reframe_count, comp_time = solver.solve(
-            item,
-            verbose=False
-        )
+        solution, entropy_traj, reframe_count, comp_time = solver.solve(item, verbose=False)
 
         # Evaluate
         result = evaluator.evaluate_item(
@@ -254,7 +238,7 @@ def run_baseline_evaluation(
             model_output=solution,
             entropy_trajectory=entropy_traj,
             reframing_count=reframe_count,
-            computation_time=comp_time
+            computation_time=comp_time,
         )
 
         if verbose:
@@ -272,24 +256,31 @@ def run_baseline_evaluation(
     with open(results_file, "w") as f:
         serializable_results = []
         for r in evaluator.results:
-            serializable_results.append({
-                "cue_words": r["item"].cue_words,
-                "solution": r["item"].solution,
-                "difficulty": r["difficulty"],
-                "category": r["category"],
-                "correct": r["correct"],
-                "model_output": r["model_output"],
-                "entropy_reduction": None,  # Baseline doesn't track entropy
-                "entropy_trajectory": [],
-                "reframing_count": 0,
-                "computation_time": float(r["computation_time"])
-            })
+            serializable_results.append(
+                {
+                    "cue_words": r["item"].cue_words,
+                    "solution": r["item"].solution,
+                    "difficulty": r["difficulty"],
+                    "category": r["category"],
+                    "correct": r["correct"],
+                    "model_output": r["model_output"],
+                    "entropy_reduction": None,  # Baseline doesn't track entropy
+                    "entropy_trajectory": [],
+                    "reframing_count": 0,
+                    "computation_time": float(r["computation_time"]),
+                }
+            )
 
-        json.dump({
-            "summary": {k: float(v) if isinstance(v, (int, float)) else v
-                       for k, v in stats.items()},
-            "detailed_results": serializable_results
-        }, f, indent=2)
+        json.dump(
+            {
+                "summary": {
+                    k: float(v) if isinstance(v, (int, float)) else v for k, v in stats.items()
+                },
+                "detailed_results": serializable_results,
+            },
+            f,
+            indent=2,
+        )
 
     print(f"\nResults saved to: {results_file}")
 
@@ -300,17 +291,14 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="Run baseline evaluation")
-    parser.add_argument("--output-dir", type=str, default="experiments/results",
-                       help="Directory to save results")
-    parser.add_argument("--device", type=str, default="cpu",
-                       help="Device to run on")
-    parser.add_argument("--verbose", action="store_true",
-                       help="Print progress")
+    parser.add_argument(
+        "--output-dir", type=str, default="experiments/results", help="Directory to save results"
+    )
+    parser.add_argument("--device", type=str, default="cpu", help="Device to run on")
+    parser.add_argument("--verbose", action="store_true", help="Print progress")
 
     args = parser.parse_args()
 
     stats = run_baseline_evaluation(
-        output_dir=args.output_dir,
-        device=args.device,
-        verbose=args.verbose
+        output_dir=args.output_dir, device=args.device, verbose=args.verbose
     )

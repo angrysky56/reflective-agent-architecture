@@ -13,24 +13,28 @@ Metrics tracked:
 - Comparison to baseline (no manifold/search)
 """
 
-import sys
 import os
+import sys
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
+
+import json
+import time
+from pathlib import Path
+from typing import Dict, List, Tuple
 
 import torch
 import torch.nn as nn
-import time
-import json
-from typing import Dict, List, Tuple, Optional
-from pathlib import Path
 
 from experiments.insight_tasks.remote_associates_test import (
-    RATDataset, RATEvaluator, RATItem, create_rat_prompt
+    RATDataset,
+    RATEvaluator,
+    RATItem,
 )
-from src.manifold import AssociativeManifold
-from src.processor import ManifoldProcessor
-from src.director import ProcessingDirector
-from src.utils import PointerState
+from src.director import Director, DirectorConfig
+from src.manifold import HopfieldConfig, Manifold
+from src.pointer import PointerState
+from src.processor import Processor, ProcessorConfig
 
 
 class RATSolver:
@@ -48,28 +52,21 @@ class RATSolver:
         hidden_dim: int = 256,
         num_pointers: int = 8,
         manifold_layers: int = 4,
-        device: str = "cpu"
+        device: str = "cpu",
     ):
         self.device = device
         self.hidden_dim = hidden_dim
+        self.num_pointers = num_pointers
 
         # Initialize RAA components
-        self.manifold = AssociativeManifold(
-            hidden_dim=hidden_dim,
-            manifold_dim=hidden_dim,
-            num_layers=manifold_layers
-        ).to(device)
+        manifold_config = HopfieldConfig(embedding_dim=hidden_dim, device=device)
+        self.manifold = Manifold(config=manifold_config).to(device)
 
-        self.processor = ManifoldProcessor(
-            hidden_dim=hidden_dim,
-            num_pointers=num_pointers,
-            manifold_dim=hidden_dim
-        ).to(device)
+        processor_config = ProcessorConfig(embedding_dim=hidden_dim, device=device)
+        self.processor = Processor(config=processor_config).to(device)
 
-        self.director = ProcessingDirector(
-            hidden_dim=hidden_dim,
-            num_pointers=num_pointers
-        ).to(device)
+        director_config = DirectorConfig(device=device)
+        self.director = Director(manifold=self.manifold, config=director_config)
 
         # Simple embedding layer for words
         # In production, use pretrained embeddings (BERT, GPT, etc.)
@@ -91,8 +88,22 @@ class RATSolver:
 
         # Add common words that might appear in solutions
         common_words = [
-            "the", "and", "or", "but", "in", "on", "at", "to", "for",
-            "ball", "house", "time", "water", "light", "book", "tree"
+            "the",
+            "and",
+            "or",
+            "but",
+            "in",
+            "on",
+            "at",
+            "to",
+            "for",
+            "ball",
+            "house",
+            "time",
+            "water",
+            "light",
+            "book",
+            "tree",
         ]
         words.update(common_words)
 
@@ -121,10 +132,7 @@ class RATSolver:
         """
         # Compute similarity to all word embeddings
         all_embeddings = self.word_embeddings.weight  # [vocab_size, hidden_dim]
-        similarities = torch.matmul(
-            embedding.squeeze(),
-            all_embeddings.t()
-        )  # [vocab_size]
+        similarities = torch.matmul(embedding.squeeze(), all_embeddings.t())  # [vocab_size]
 
         # Get top-k most similar words
         top_k = 5
@@ -139,10 +147,7 @@ class RATSolver:
         return "<UNK>"
 
     def solve(
-        self,
-        item: RATItem,
-        max_steps: int = 50,
-        verbose: bool = False
+        self, item: RATItem, max_steps: int = 50, verbose: bool = False
     ) -> Tuple[str, List[float], int, float]:
         """
         Solve a single RAT item using RAA.
@@ -169,30 +174,37 @@ class RATSolver:
 
         # Initialize pointers
         pointer_state = PointerState(
-            positions=manifold_state.expand(self.processor.num_pointers, -1),
-            velocities=torch.zeros_like(manifold_state).expand(self.processor.num_pointers, -1),
-            attention_weights=torch.ones(self.processor.num_pointers, 1, device=self.device) / self.processor.num_pointers
+            positions=manifold_state.expand(self.num_pointers, -1),
+            velocities=torch.zeros_like(manifold_state).expand(self.num_pointers, -1),
+            attention_weights=torch.ones(self.num_pointers, 1, device=self.device)
+            / self.num_pointers,
         )
 
         # Tracking metrics
         entropy_trajectory = []
         reframing_count = 0
-        current_solution = None
+        current_solution = "<UNK>"
+
+        # NOTE: The actual processor and director APIs don't match this simplified interface.
+        # This needs to be refactored to use the actual TransformerDecoder and DirectorMVP APIs.
+        # For now, we're creating a stub implementation.
 
         for step in range(max_steps):
-            # Process one step
-            updated_pointers, metrics = self.processor(
-                manifold_state,
-                pointer_state,
-                context
-            )
+            # TODO: Fix this - processor API is different (expects token IDs, not pointer states)
+            # The actual Processor is a TransformerDecoder that works with tokens
+            # updated_pointers, metrics = self.processor(manifold_state, pointer_state, context)
+            updated_pointers = pointer_state  # Stub
 
-            # Director monitors and decides on reframing
-            should_reframe, director_metrics = self.director(
-                manifold_state,
-                updated_pointers,
-                context
+            # TODO: Fix this - director API is check_and_search(current_state, processor_logits, context)
+            # Create dummy logits for now
+            dummy_logits = torch.randn(1, 10, device=self.device)
+            new_goal = self.director.check_and_search(
+                current_state=manifold_state.squeeze(0),
+                processor_logits=dummy_logits,
+                context={"step": step},
             )
+            should_reframe = new_goal is not None
+            director_metrics = {"entropy": 0.0}
 
             # Track entropy
             entropy = director_metrics.get("entropy", 0.0)
@@ -212,7 +224,7 @@ class RATSolver:
                 updated_pointers = PointerState(
                     positions=updated_pointers.positions + noise,
                     velocities=updated_pointers.velocities,
-                    attention_weights=updated_pointers.attention_weights
+                    attention_weights=updated_pointers.attention_weights,
                 )
 
             # Update for next iteration
@@ -220,9 +232,10 @@ class RATSolver:
 
             # Extract potential solution from pointer consensus
             consensus = (
-                updated_pointers.positions *
-                updated_pointers.attention_weights.unsqueeze(-1)
-            ).sum(dim=0, keepdim=True)  # [1, hidden_dim]
+                updated_pointers.positions * updated_pointers.attention_weights.unsqueeze(-1)
+            ).sum(
+                dim=0, keepdim=True
+            )  # [1, hidden_dim]
 
             # Decode to word
             current_solution = self._decode_embedding(consensus)
@@ -245,9 +258,7 @@ class RATSolver:
 
 
 def run_evaluation(
-    output_dir: str = "experiments/results",
-    device: str = "cpu",
-    verbose: bool = True
+    output_dir: str = "experiments/results", device: str = "cpu", verbose: bool = True
 ) -> Dict:
     """
     Run full RAT evaluation.
@@ -268,12 +279,7 @@ def run_evaluation(
     evaluator = RATEvaluator(dataset)
 
     # Initialize solver
-    solver = RATSolver(
-        hidden_dim=256,
-        num_pointers=8,
-        manifold_layers=4,
-        device=device
-    )
+    solver = RATSolver(hidden_dim=256, num_pointers=8, manifold_layers=4, device=device)
 
     print(f"Starting RAT Evaluation on {len(dataset)} items...")
     print(f"Device: {device}\n")
@@ -285,9 +291,7 @@ def run_evaluation(
 
         # Solve
         solution, entropy_traj, reframe_count, comp_time = solver.solve(
-            item,
-            max_steps=50,
-            verbose=False
+            item, max_steps=50, verbose=False
         )
 
         # Evaluate
@@ -296,12 +300,14 @@ def run_evaluation(
             model_output=solution,
             entropy_trajectory=entropy_traj,
             reframing_count=reframe_count,
-            computation_time=comp_time
+            computation_time=comp_time,
         )
 
         if verbose:
             status = "✓" if result["correct"] else "✗"
-            print(f"  {status} Predicted: {solution} | Entropy Δ: {result['entropy_reduction']:.3f} | Reframes: {reframe_count}\n")
+            print(
+                f"  {status} Predicted: {solution} | Entropy Δ: {result['entropy_reduction']:.3f} | Reframes: {reframe_count}\n"
+            )
 
     # Generate report
     stats = evaluator.compute_summary_statistics()
@@ -315,24 +321,33 @@ def run_evaluation(
         # Convert to serializable format
         serializable_results = []
         for r in evaluator.results:
-            serializable_results.append({
-                "cue_words": r["item"].cue_words,
-                "solution": r["item"].solution,
-                "difficulty": r["difficulty"],
-                "category": r["category"],
-                "correct": r["correct"],
-                "model_output": r["model_output"],
-                "entropy_reduction": float(r["entropy_reduction"]) if r["entropy_reduction"] else None,
-                "entropy_trajectory": [float(e) for e in r["entropy_trajectory"]],
-                "reframing_count": int(r["reframing_count"]),
-                "computation_time": float(r["computation_time"])
-            })
+            serializable_results.append(
+                {
+                    "cue_words": r["item"].cue_words,
+                    "solution": r["item"].solution,
+                    "difficulty": r["difficulty"],
+                    "category": r["category"],
+                    "correct": r["correct"],
+                    "model_output": r["model_output"],
+                    "entropy_reduction": (
+                        float(r["entropy_reduction"]) if r["entropy_reduction"] else None
+                    ),
+                    "entropy_trajectory": [float(e) for e in r["entropy_trajectory"]],
+                    "reframing_count": int(r["reframing_count"]),
+                    "computation_time": float(r["computation_time"]),
+                }
+            )
 
-        json.dump({
-            "summary": {k: float(v) if isinstance(v, (int, float)) else v
-                       for k, v in stats.items()},
-            "detailed_results": serializable_results
-        }, f, indent=2)
+        json.dump(
+            {
+                "summary": {
+                    k: float(v) if isinstance(v, (int, float)) else v for k, v in stats.items()
+                },
+                "detailed_results": serializable_results,
+            },
+            f,
+            indent=2,
+        )
 
     print(f"\nResults saved to: {results_file}")
 
@@ -343,17 +358,12 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="Run RAT evaluation on RAA")
-    parser.add_argument("--output-dir", type=str, default="experiments/results",
-                       help="Directory to save results")
-    parser.add_argument("--device", type=str, default="cpu",
-                       help="Device to run on (cpu/cuda)")
-    parser.add_argument("--verbose", action="store_true",
-                       help="Print detailed progress")
+    parser.add_argument(
+        "--output-dir", type=str, default="experiments/results", help="Directory to save results"
+    )
+    parser.add_argument("--device", type=str, default="cpu", help="Device to run on (cpu/cuda)")
+    parser.add_argument("--verbose", action="store_true", help="Print detailed progress")
 
     args = parser.parse_args()
 
-    stats = run_evaluation(
-        output_dir=args.output_dir,
-        device=args.device,
-        verbose=args.verbose
-    )
+    stats = run_evaluation(output_dir=args.output_dir, device=args.device, verbose=args.verbose)
