@@ -91,6 +91,8 @@ class ReflectiveAgentArchitecture:
         4. If clash detected, search and update goal
         5. Regenerate with new goal
 
+        CRITICAL: Enforces max_reframing_attempts to prevent infinite loops.
+
         Args:
             input_ids: Input token sequence (batch, seq_length)
             temperature: Sampling temperature
@@ -101,6 +103,7 @@ class ReflectiveAgentArchitecture:
                 - entropy: Output entropy
                 - reframed: Whether goal was reframed
                 - new_goal: New goal if reframed
+                - reframing_attempts: Number of reframing attempts made
         """
         # Step 1: Get current goal
         current_goal = self.pointer.get_current_goal()
@@ -119,39 +122,67 @@ class ReflectiveAgentArchitecture:
             'reframed': False,
             'new_goal': None,
             'search_result': None,
+            'reframing_attempts': 0,
         }
 
-        # Step 3-6: Metacognitive intervention
+        # Step 3-6: Metacognitive intervention with bounded attempts
         if self.config.enable_metacognition:
-            new_goal = self.director.check_and_search(
-                current_state=current_goal,
-                processor_logits=logits,
-                context={'input_ids': input_ids},
-            )
+            attempts = 0
+            current_entropy = entropy
+            best_result = (next_token, logits, entropy)
 
-            if new_goal is not None:
-                # Goal reframing triggered!
-                logger.info("Metacognitive intervention: Reframing goal")
+            while attempts < self.config.max_reframing_attempts:
+                new_goal = self.director.check_and_search(
+                    current_state=current_goal,
+                    processor_logits=logits,
+                    context={'input_ids': input_ids, 'attempt': attempts},
+                )
+
+                if new_goal is None:
+                    # No intervention needed or search failed
+                    break
+
+                attempts += 1
+                logger.info(f"Metacognitive intervention: Reframing goal (attempt {attempts}/{self.config.max_reframing_attempts})")
 
                 # Update Pointer with new goal
                 self.pointer.set_goal(new_goal)
+                current_goal = new_goal
 
                 # Regenerate with new goal
-                next_token, logits, entropy = self.processor.generate_next_token(
+                next_token_new, logits_new, entropy_new = self.processor.generate_next_token(
                     input_ids,
                     goal_state=new_goal,
                     temperature=temperature,
                 )
 
-                result.update({
-                    'next_token': next_token,
-                    'logits': logits,
-                    'entropy': entropy,
-                    'reframed': True,
-                    'new_goal': new_goal,
-                })
+                logger.info(f"Reframing result: entropy {current_entropy:.3f} → {entropy_new:.3f}")
 
-                logger.info(f"Reframing successful. New entropy: {entropy:.3f}")
+                # Check if entropy improved
+                if entropy_new < current_entropy:
+                    # Accept improvement
+                    best_result = (next_token_new, logits_new, entropy_new)
+                    current_entropy = entropy_new
+
+                    result.update({
+                        'next_token': next_token_new,
+                        'logits': logits_new,
+                        'entropy': entropy_new,
+                        'reframed': True,
+                        'new_goal': new_goal,
+                        'reframing_attempts': attempts,
+                    })
+
+                    logger.info(f"Entropy reduced! Accepting new goal.")
+                    break  # Success - exit loop
+                else:
+                    # No improvement - continue searching
+                    logger.warning(f"Reframing did not reduce entropy. Continuing search...")
+                    logits = logits_new  # Update for next entropy check
+
+            if attempts >= self.config.max_reframing_attempts:
+                logger.warning(f"Reached max reframing attempts ({self.config.max_reframing_attempts}). Using best result.")
+                # Keep the best result found (could be original or an intermediate)
 
         return result
 
