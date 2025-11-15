@@ -116,13 +116,13 @@ class ReflectiveAgentArchitecture:
         )
 
         result = {
-            'next_token': next_token,
-            'logits': logits,
-            'entropy': entropy,
-            'reframed': False,
-            'new_goal': None,
-            'search_result': None,
-            'reframing_attempts': 0,
+            "next_token": next_token,
+            "logits": logits,
+            "entropy": entropy,
+            "reframed": False,
+            "new_goal": None,
+            "search_result": None,
+            "reframing_attempts": 0,
         }
 
         # Step 3-6: Metacognitive intervention with bounded attempts
@@ -135,7 +135,7 @@ class ReflectiveAgentArchitecture:
                 new_goal = self.director.check_and_search(
                     current_state=current_goal,
                     processor_logits=logits,
-                    context={'input_ids': input_ids, 'attempt': attempts},
+                    context={"input_ids": input_ids, "attempt": attempts},
                 )
 
                 if new_goal is None:
@@ -143,7 +143,9 @@ class ReflectiveAgentArchitecture:
                     break
 
                 attempts += 1
-                logger.info(f"Metacognitive intervention: Reframing goal (attempt {attempts}/{self.config.max_reframing_attempts})")
+                logger.info(
+                    f"Metacognitive intervention: Reframing goal (attempt {attempts}/{self.config.max_reframing_attempts})"
+                )
 
                 # Update Pointer with new goal
                 self.pointer.set_goal(new_goal)
@@ -164,20 +166,22 @@ class ReflectiveAgentArchitecture:
                     best_result = (next_token_new, logits_new, entropy_new, new_goal)
                     current_entropy = entropy_new
 
-                    result.update({
-                        'next_token': next_token_new,
-                        'logits': logits_new,
-                        'entropy': entropy_new,
-                        'reframed': True,
-                        'new_goal': new_goal,
-                        'reframing_attempts': attempts,
-                    })
+                    result.update(
+                        {
+                            "next_token": next_token_new,
+                            "logits": logits_new,
+                            "entropy": entropy_new,
+                            "reframed": True,
+                            "new_goal": new_goal,
+                            "reframing_attempts": attempts,
+                        }
+                    )
 
-                    logger.info(f"Entropy reduced! Accepting new goal.")
+                    logger.info("Entropy reduced! Accepting new goal.")
                     break  # Success - exit loop
                 else:
                     # No improvement - continue searching
-                    logger.warning(f"Reframing did not reduce entropy. Continuing search...")
+                    logger.warning("Reframing did not reduce entropy. Continuing search...")
                     logits = logits_new  # Update for next entropy check
 
             if attempts >= self.config.max_reframing_attempts:
@@ -227,11 +231,11 @@ class ReflectiveAgentArchitecture:
             step_result = self.generate_step(current_ids, temperature)
 
             # Track reframings
-            if step_result['reframed']:
+            if step_result["reframed"]:
                 num_reframings += 1
 
             # Append token
-            next_token = step_result['next_token']
+            next_token = step_result["next_token"]
             current_ids = torch.cat([current_ids, next_token.unsqueeze(-1)], dim=-1)
 
             if return_history:
@@ -241,12 +245,12 @@ class ReflectiveAgentArchitecture:
             # Could add stopping criteria here
 
         result = {
-            'output_ids': current_ids,
-            'num_reframings': num_reframings,
+            "output_ids": current_ids,
+            "num_reframings": num_reframings,
         }
 
         if return_history:
-            result['generation_history'] = history
+            result["generation_history"] = history
 
         logger.info(f"Generation complete. Reframings: {num_reframings}")
 
@@ -298,15 +302,15 @@ class ReflectiveAgentArchitecture:
             Dictionary with component statistics
         """
         return {
-            'manifold': {
-                'num_patterns': self.manifold.num_patterns,
-                'embedding_dim': self.manifold.embedding_dim,
+            "manifold": {
+                "num_patterns": self.manifold.num_patterns,
+                "embedding_dim": self.manifold.embedding_dim,
             },
-            'director': self.director.get_statistics(),
-            'config': {
-                'max_reframing_attempts': self.config.max_reframing_attempts,
-                'metacognition_enabled': self.config.enable_metacognition,
-            }
+            "director": self.director.get_statistics(),
+            "config": {
+                "max_reframing_attempts": self.config.max_reframing_attempts,
+                "metacognition_enabled": self.config.enable_metacognition,
+            },
         }
 
     def __repr__(self) -> str:
