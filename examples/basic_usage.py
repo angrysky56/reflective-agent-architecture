@@ -4,15 +4,15 @@ Basic Usage Example of Reflective Agent Architecture
 Demonstrates the core "Aha!" loop with all components.
 """
 
-import torch
 import logging
 
-from src.integration import ReflectiveAgentArchitecture, RAAConfig
-from src.manifold import HopfieldConfig
-from src.processor import ProcessorConfig
-from src.pointer import PointerConfig
-from src.director import DirectorConfig
+import torch
 
+from src.director import DirectorConfig
+from src.integration import RAAConfig, ReflectiveAgentArchitecture
+from src.manifold import HopfieldConfig
+from src.pointer import PointerConfig
+from src.processor import ProcessorConfig
 
 # Setup logging
 logging.basicConfig(

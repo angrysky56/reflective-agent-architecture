@@ -16,7 +16,7 @@ from typing import Any, Dict, Optional
 
 import torch
 
-from .entropy_monitor import EntropyMonitor, compute_entropy
+from .entropy_monitor import EntropyMonitor
 from .search_mvp import SearchResult, knn_search
 
 logger = logging.getLogger(__name__)

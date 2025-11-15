@@ -2,7 +2,10 @@
 name = "reflective-agent-architecture"
 version = "0.1.0"
 description = "A novel cognitive architecture integrating modern associative memory with metacognitive monitoring for insight-like problem solving"
-authors = ["Ty <angrysky56@github>"]
+authors = [
+    {name = "angrysky56"},
+]
+license = "MIT"
 readme = "README.md"
 requires-python = ">=3.10"
 
@@ -37,6 +40,8 @@ build-backend = "hatchling.build"
 
 [tool.ruff]
 line-length = 100
+
+[tool.ruff.lint]
 select = ["E", "F", "I", "N", "W"]
 ignore = ["E501"]
 

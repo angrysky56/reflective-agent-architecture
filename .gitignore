@@ -1,0 +1,80 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+
+# Virtual environments
+.env/
+.venv/
+env/
+venv/
+
+# VS Code
+.vscode/
+
+# Test and coverage
+.coverage
+htmlcov/
+*.cover
+*.py,cover
+
+# Build
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Hatch
+.hatch/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Misc
+*.bak
+*.tmp
+
+# Docs
+/docs/_build/
+
+# Pytest
+.cache/
+
+# Ignore secrets
+*.env
+.env.*
+
+# Ignore pip
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Ignore wheel
+*.whl
+
+# Ignore mypy
+.mypy_cache/
+.dmypy.json
+
+# Ignore Ruff
+.ruff_cache/
+
+# Ignore Black
+.black/
+
+# Ignore coverage
+.coverage
+
+# Ignore notebooks output
+**/.ipynb_checkpoints
+
+# Ignore examples output
+examples/*.out
