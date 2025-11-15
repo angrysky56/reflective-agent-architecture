@@ -5,17 +5,16 @@ Integrates Manifold, Processor, Pointer, and Director into the complete
 metacognitive loop for insight-like problem solving.
 """
 
-from dataclasses import dataclass
-from typing import Optional, List, Dict, Any
 import logging
+from dataclasses import dataclass
+from typing import Any, Dict, Optional
 
 import torch
 
-from ..manifold import Manifold, HopfieldConfig
-from ..processor import Processor, ProcessorConfig
-from ..pointer import Pointer, PointerConfig
 from ..director import Director, DirectorConfig
-
+from ..manifold import HopfieldConfig, Manifold
+from ..pointer import Pointer, PointerConfig
+from ..processor import Processor, ProcessorConfig
 
 logger = logging.getLogger(__name__)
 

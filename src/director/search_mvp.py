@@ -14,10 +14,10 @@ Based on SEARCH_MECHANISM_DESIGN.md Phase 1 specification.
 """
 
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
+from typing import Callable, List
 
 import torch
-import torch.nn.functional as F
+import torch.nn.functional as f
 
 
 @dataclass
@@ -38,7 +38,7 @@ def knn_search(
     exclude_threshold: float = 0.95,
 ) -> SearchResult:
     """
-    Find k nearest neighbor patterns in Hopfield memory.
+    find k nearest neighbor patterns in Hopfield memory.
 
     Implements Phase 1 search mechanism: retrieval-based search using
     geometric proximity as proxy for semantic similarity.
@@ -67,8 +67,8 @@ def knn_search(
     # Compute distances based on metric
     if metric == "cosine":
         # Normalize vectors for cosine similarity
-        current_norm = F.normalize(current_state, p=2, dim=-1)
-        patterns_norm = F.normalize(memory_patterns, p=2, dim=-1)
+        current_norm = f.normalize(current_state, p=2, dim=-1)
+        patterns_norm = f.normalize(memory_patterns, p=2, dim=-1)
 
         # Cosine similarity (higher = more similar)
         similarities = torch.matmul(current_norm, patterns_norm.T).squeeze(0)
@@ -116,7 +116,7 @@ def knn_search(
 def search_with_entropy_selection(
     current_state: torch.Tensor,
     memory_patterns: torch.Tensor,
-    entropy_evaluator: callable,
+    entropy_evaluator: Callable[[torch.Tensor], float],
     k: int = 5,
     metric: str = "cosine",
 ) -> SearchResult:
@@ -129,7 +129,7 @@ def search_with_entropy_selection(
     Args:
         current_state: Current embedding
         memory_patterns: Stored patterns
-        entropy_evaluator: Function that estimates entropy if pattern used as goal
+        entropy_evaluator: function that estimates entropy if pattern used as goal
                           Signature: (pattern: Tensor) -> float
         k: Number of neighbors to retrieve
         metric: Distance metric
@@ -153,6 +153,9 @@ def search_with_entropy_selection(
             best_entropy = estimated_entropy
             best_pattern = pattern
             best_idx = idx
+
+    if best_pattern is None:
+        raise ValueError("No valid pattern found during entropy-based selection.")
 
     # Update result with entropy-based selection
     result = SearchResult(

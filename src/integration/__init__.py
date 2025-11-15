@@ -12,6 +12,6 @@ Integrates all four components into the complete "Aha!" loop:
 7. Processor resumes with new framing → Success
 """
 
-from .raa_loop import ReflectiveAgentArchitecture, RAAConfig
+from .raa_loop import RAAConfig, ReflectiveAgentArchitecture
 
 __all__ = ["ReflectiveAgentArchitecture", "RAAConfig"]

@@ -12,9 +12,9 @@ Implementation follows the staged approach from SEARCH_MECHANISM_DESIGN.md:
 - Phase 3: Learned adaptive policy
 """
 
+from .director_core import DirectorConfig, DirectorMVP
 from .entropy_monitor import EntropyMonitor, compute_entropy
-from .search_mvp import knn_search, SearchResult
-from .director_core import DirectorMVP, DirectorConfig
+from .search_mvp import SearchResult, knn_search
 
 __all__ = [
     "EntropyMonitor",

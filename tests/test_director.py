@@ -5,8 +5,8 @@ Tests for Director (Metacognitive Monitor + Search)
 import pytest
 import torch
 
-from src.manifold import Manifold, HopfieldConfig
 from src.director import Director, DirectorConfig, compute_entropy
+from src.manifold import HopfieldConfig, Manifold
 
 
 def test_entropy_computation():

@@ -9,7 +9,7 @@ from typing import Optional
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
+import torch.nn.functional as f
 
 
 @dataclass
@@ -140,7 +140,7 @@ class TransformerDecoder(nn.Module):
         return_entropy: bool = False,
     ) -> tuple[torch.Tensor, Optional[torch.Tensor]]:
         """
-        Forward pass through transformer.
+        forward pass through transformer.
 
         Args:
             input_ids: Input token IDs (batch, seq_length)
@@ -162,7 +162,7 @@ class TransformerDecoder(nn.Module):
         causal_mask = self._create_causal_mask(seq_length)
 
         # Transformer forward pass
-        # Note: For decoder-only, we use tgt=memory=embeddings
+        # Note: for decoder-only, we use tgt=memory=embeddings
         hidden_states = self.transformer(
             tgt=embeddings,
             memory=embeddings,
@@ -176,8 +176,8 @@ class TransformerDecoder(nn.Module):
         # Compute entropy if requested
         entropy = None
         if return_entropy:
-            probs = F.softmax(logits, dim=-1)
-            log_probs = F.log_softmax(logits, dim=-1)
+            probs = f.softmax(logits, dim=-1)
+            log_probs = f.log_softmax(logits, dim=-1)
             entropy = -(probs * log_probs).sum(dim=-1)  # (batch, seq_length)
 
         return logits, entropy
@@ -201,7 +201,7 @@ class TransformerDecoder(nn.Module):
             logits: Output logits for last position (batch, vocab_size)
             entropy: Entropy of output distribution (scalar)
         """
-        # Forward pass
+        # forward pass
         logits, entropies = self.forward(
             input_ids,
             goal_state=goal_state,
@@ -212,11 +212,17 @@ class TransformerDecoder(nn.Module):
         next_token_logits = logits[:, -1, :] / temperature  # (batch, vocab_size)
 
         # Sample next token
-        probs = F.softmax(next_token_logits, dim=-1)
+        probs = f.softmax(next_token_logits, dim=-1)
         next_token = torch.multinomial(probs, num_samples=1).squeeze(-1)  # (batch,)
 
         # Entropy of last position
-        entropy = entropies[:, -1].mean().item()
+        if entropies is not None:
+            entropy = entropies[:, -1].mean().item()
+        else:
+            # Fallback: compute entropy from the last-position logits directly
+            probs_last = f.softmax(next_token_logits, dim=-1)
+            log_probs_last = f.log_softmax(next_token_logits, dim=-1)
+            entropy = -(probs_last * log_probs_last).sum(dim=-1).mean().item()
 
         return next_token, next_token_logits, entropy
 

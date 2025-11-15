@@ -2,7 +2,7 @@
 Modern Hopfield Network Implementation
 
 Implements continuous Modern Hopfield Network with energy-based retrieval.
-Based on Hopfield-Fenchel-Young framework (arXiv:2411.08590).
+Based on Hopfield-fenchel-Young framework (arXiv:2411.08590).
 """
 
 from dataclasses import dataclass
@@ -10,7 +10,7 @@ from typing import Optional, Tuple
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
+import torch.nn.functional as f
 
 
 @dataclass
@@ -63,7 +63,7 @@ class ModernHopfieldNetwork(nn.Module):
             pattern = pattern.unsqueeze(0)
 
         # Normalize pattern (important for energy landscape stability)
-        pattern = F.normalize(pattern, p=2, dim=-1)
+        pattern = f.normalize(pattern, p=2, dim=-1)
 
         # Add to pattern storage
         self.patterns = torch.cat([self.patterns, pattern.to(self.device)], dim=0)
@@ -126,7 +126,7 @@ class ModernHopfieldNetwork(nn.Module):
 
         # Compute attention weights over stored patterns
         similarities = torch.matmul(state, self.patterns.T)  # (batch, num_patterns)
-        attention = F.softmax(self.beta * similarities, dim=-1)  # (batch, num_patterns)
+        attention = f.softmax(self.beta * similarities, dim=-1)  # (batch, num_patterns)
 
         # Weighted combination of patterns (associative retrieval)
         new_state = torch.matmul(attention, self.patterns)  # (batch, embedding_dim)
@@ -147,7 +147,7 @@ class ModernHopfieldNetwork(nn.Module):
             num_steps: Number of update iterations (defaults to config value)
 
         Returns:
-            retrieved_state: Final converged state
+            retrieved_state: final converged state
             energy_trajectory: Energy at each iteration
         """
         if num_steps is None:
@@ -160,7 +160,7 @@ class ModernHopfieldNetwork(nn.Module):
             energies.append(self.energy(state))
             state = self.update_step(state)
 
-        # Final energy
+        # final energy
         energies.append(self.energy(state))
         energy_trajectory = torch.stack(energies)
 
@@ -168,7 +168,7 @@ class ModernHopfieldNetwork(nn.Module):
 
     def forward(self, query: torch.Tensor) -> torch.Tensor:
         """
-        Forward pass: retrieve from memory.
+        forward pass: retrieve from memory.
 
         Args:
             query: Query embedding (embedding_dim,) or (batch, embedding_dim)

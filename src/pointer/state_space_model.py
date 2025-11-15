@@ -5,9 +5,11 @@ Alternative implementation using simplified State-Space Model (S4/Mamba style).
 More efficient for long-range dependencies than RNN.
 """
 
+from typing import Optional
+
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
+import torch.nn.functional as f
 
 
 class StateSpaceGoalController(nn.Module):
@@ -39,7 +41,7 @@ class StateSpaceGoalController(nn.Module):
         self.D = nn.Parameter(torch.randn(embedding_dim, embedding_dim))
 
         # State variable
-        self.state = None
+        self.state: Optional[torch.Tensor] = None
 
     def reset(self, batch_size: int = 1) -> None:
         """Reset state to zero."""
@@ -59,11 +61,11 @@ class StateSpaceGoalController(nn.Module):
 
         if self.state is None:
             self.reset(batch_size)
+        assert self.state is not None, "Internal error: state should be initialized after reset()"
 
         # Update state based on goal
         # x = x + B @ goal
-        self.state = self.state + F.linear(goal_vector, self.B.T)
-
+        self.state = self.state + f.linear(goal_vector, self.B.T)
     def get_current_goal(self) -> torch.Tensor:
         """
         Get current goal from state.
@@ -73,10 +75,12 @@ class StateSpaceGoalController(nn.Module):
         """
         if self.state is None:
             return torch.zeros(1, self.embedding_dim).to(self.device)
+        assert self.state is not None, "Internal error: state should not be None here"
 
         # y = C @ x
-        goal = F.linear(self.state, self.C)
+        goal = f.linear(self.state, self.C)
 
+        return goal
         return goal
 
     def update(self, input_vec: torch.Tensor, dt: float = 0.1) -> torch.Tensor:
@@ -94,23 +98,25 @@ class StateSpaceGoalController(nn.Module):
             input_vec = input_vec.unsqueeze(0)
 
         batch_size = input_vec.shape[0]
-
         if self.state is None:
             self.reset(batch_size)
+        assert self.state is not None, "Internal error: state should be initialized after reset()"
 
         # Discretize continuous-time system (Euler method)
         # x_{t+1} = x_t + dt * (A @ x_t + B @ u_t)
-        state_derivative = F.linear(self.state, self.A.T) + F.linear(input_vec, self.B.T)
+        state_derivative = f.linear(self.state, self.A.T) + f.linear(input_vec, self.B.T)
+        self.state = self.state + dt * state_derivative
+        state_derivative = f.linear(self.state, self.A.T) + f.linear(input_vec, self.B.T)
         self.state = self.state + dt * state_derivative
 
         # Output: y = C @ x + D @ u
-        output = F.linear(self.state, self.C) + F.linear(input_vec, self.D)
+        output = f.linear(self.state, self.C) + f.linear(input_vec, self.D)
 
         return output
 
     def forward(self, input_vec: Optional[torch.Tensor] = None) -> torch.Tensor:
         """
-        Forward pass.
+        forward pass.
 
         Args:
             input_vec: Optional input for state update
