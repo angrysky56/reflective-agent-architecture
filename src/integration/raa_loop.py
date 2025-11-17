@@ -185,17 +185,23 @@ class ReflectiveAgentArchitecture:
                     logits = logits_new  # Update for next entropy check
 
             if attempts >= self.config.max_reframing_attempts:
-                logger.warning(f"Reached max reframing attempts ({self.config.max_reframing_attempts}). Using best result.")
+                logger.warning(
+                    f"Reached max reframing attempts ({self.config.max_reframing_attempts}). Using best result."
+                )
                 # Restore the best result found (could be original or an intermediate)
                 best_token, best_logits, best_entropy, best_goal = best_result
-                result.update({
-                    'next_token': best_token,
-                    'logits': best_logits,
-                    'entropy': best_entropy,
-                    'new_goal': best_goal if best_goal != self.pointer.get_current_goal() else None,
-                    'reframed': best_goal != self.pointer.get_current_goal(),
-                    'reframing_attempts': attempts,
-                })
+                current_goal = self.pointer.get_current_goal()
+                goal_changed = not torch.equal(best_goal, current_goal)
+                result.update(
+                    {
+                        "next_token": best_token,
+                        "logits": best_logits,
+                        "entropy": best_entropy,
+                        "new_goal": best_goal if goal_changed else None,
+                        "reframed": goal_changed,
+                        "reframing_attempts": attempts,
+                    }
+                )
                 self.pointer.set_goal(best_goal)
 
         return result

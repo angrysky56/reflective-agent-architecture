@@ -1,0 +1,35 @@
+{
+  "timestamp": "20251117_011412",
+  "device": "cpu",
+  "raa_accuracy": 0.11428571428571428,
+  "baseline_accuracy": 0.0,
+  "improvement_percentage": 0,
+  "raa_stats": {
+    "total_items": 35,
+    "correct": 4,
+    "accuracy": 0.11428571428571428,
+    "avg_entropy_reduction": NaN,
+    "avg_reframing_count": 0.0,
+    "avg_computation_time": 0.0025606904711042134,
+    "accuracy_easy": 0.1,
+    "count_easy": 10,
+    "accuracy_medium": 0.1,
+    "count_medium": 10,
+    "accuracy_hard": 0.13333333333333333,
+    "count_hard": 15
+  },
+  "baseline_stats": {
+    "total_items": 35,
+    "correct": 0,
+    "accuracy": 0.0,
+    "avg_entropy_reduction": NaN,
+    "avg_reframing_count": 0.0,
+    "avg_computation_time": 0.0027641228267124723,
+    "accuracy_easy": 0.0,
+    "count_easy": 10,
+    "accuracy_medium": 0.0,
+    "count_medium": 10,
+    "accuracy_hard": 0.0,
+    "count_hard": 15
+  }
+}

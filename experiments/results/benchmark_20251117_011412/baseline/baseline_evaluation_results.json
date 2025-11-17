@@ -1,0 +1,578 @@
+{
+  "summary": {
+    "total_items": 35.0,
+    "correct": 0.0,
+    "accuracy": 0.0,
+    "avg_entropy_reduction": NaN,
+    "avg_reframing_count": 0.0,
+    "avg_computation_time": 0.0027641228267124723,
+    "accuracy_easy": 0.0,
+    "count_easy": 10.0,
+    "accuracy_medium": 0.0,
+    "count_medium": 10.0,
+    "accuracy_hard": 0.0,
+    "count_hard": 15.0
+  },
+  "detailed_results": [
+    {
+      "cue_words": [
+        "cottage",
+        "swiss",
+        "cake"
+      ],
+      "solution": "cheese",
+      "difficulty": "easy",
+      "category": "food",
+      "correct": false,
+      "model_output": "<UNK>",
+      "entropy_reduction": null,
+      "entropy_trajectory": [],
+      "reframing_count": 0,
+      "computation_time": 0.0042819976806640625
+    },
+    {
+      "cue_words": [
+        "cream",
+        "skate",
+        "water"
+      ],
+      "solution": "ice",
+      "difficulty": "easy",
+      "category": "states_of_matter",
+      "correct": false,
+      "model_output": "<UNK>",
+      "entropy_reduction": null,
+      "entropy_trajectory": [],
+      "reframing_count": 0,
+      "computation_time": 0.0028226375579833984
+    },
+    {
+      "cue_words": [
+        "loser",
+        "throat",
+        "spot"
+      ],
+      "solution": "sore",
+      "difficulty": "easy",
+      "category": "body",
+      "correct": false,
+      "model_output": "<UNK>",
+      "entropy_reduction": null,
+      "entropy_trajectory": [],
+      "reframing_count": 0,
+      "computation_time": 0.002671480178833008
+    },
+    {
+      "cue_words": [
+        "show",
+        "life",
+        "row"
+      ],
+      "solution": "boat",
+      "difficulty": "easy",
+      "category": "objects",
+      "correct": false,
+      "model_output": "<UNK>",
+      "entropy_reduction": null,
+      "entropy_trajectory": [],
+      "reframing_count": 0,
+      "computation_time": 0.0028078556060791016
+    },
+    {
+      "cue_words": [
+        "night",
+        "wrist",
+        "stop"
+      ],
+      "solution": "watch",
+      "difficulty": "easy",
+      "category": "time",
+      "correct": false,
+      "model_output": "<UNK>",
+      "entropy_reduction": null,
+      "entropy_trajectory": [],
+      "reframing_count": 0,
+      "computation_time": 0.002838611602783203
+    },
+    {
+      "cue_words": [
+        "duck",
+        "fold",
+        "dollar"
+      ],
+      "solution": "bill",
+      "difficulty": "easy",
+      "category": "money",
+      "correct": false,
+      "model_output": "<UNK>",
+      "entropy_reduction": null,
+      "entropy_trajectory": [],
+      "reframing_count": 0,
+      "computation_time": 0.002769947052001953
+    },
+    {
+      "cue_words": [
+        "rocking",
+        "wheel",
+        "high"
+      ],
+      "solution": "chair",
+      "difficulty": "easy",
+      "category": "furniture",
+      "correct": false,
+      "model_output": "<UNK>",
+      "entropy_reduction": null,
+      "entropy_trajectory": [],
+      "reframing_count": 0,
+      "computation_time": 0.0030739307403564453
+    },
+    {
+      "cue_words": [
+        "pine",
+        "crab",
+        "sauce"
+      ],
+      "solution": "apple",
+      "difficulty": "easy",
+      "category": "food",
+      "correct": false,
+      "model_output": "<UNK>",
+      "entropy_reduction": null,
+      "entropy_trajectory": [],
+      "reframing_count": 0,
+      "computation_time": 0.002638101577758789
+    },
+    {
+      "cue_words": [
+        "surprise",
+        "line",
+        "birthday"
+      ],
+      "solution": "party",
+      "difficulty": "easy",
+      "category": "events",
+      "correct": false,
+      "model_output": "<UNK>",
+      "entropy_reduction": null,
+      "entropy_trajectory": [],
+      "reframing_count": 0,
+      "computation_time": 0.002573728561401367
+    },
+    {
+      "cue_words": [
+        "base",
+        "snow",
+        "dance"
+      ],
+      "solution": "ball",
+      "difficulty": "easy",
+      "category": "sports",
+      "correct": false,
+      "model_output": "<UNK>",
+      "entropy_reduction": null,
+      "entropy_trajectory": [],
+      "reframing_count": 0,
+      "computation_time": 0.002970457077026367
+    },
+    {
+      "cue_words": [
+        "flake",
+        "mobile",
+        "cone"
+      ],
+      "solution": "snow",
+      "difficulty": "medium",
+      "category": "weather",
+      "correct": false,
+      "model_output": "<UNK>",
+      "entropy_reduction": null,
+      "entropy_trajectory": [],
+      "reframing_count": 0,
+      "computation_time": 0.003789186477661133
+    },
+    {
+      "cue_words": [
+        "fish",
+        "mine",
+        "rush"
+      ],
+      "solution": "gold",
+      "difficulty": "medium",
+      "category": "minerals",
+      "correct": false,
+      "model_output": "<UNK>",
+      "entropy_reduction": null,
+      "entropy_trajectory": [],
+      "reframing_count": 0,
+      "computation_time": 0.0027115345001220703
+    },
+    {
+      "cue_words": [
+        "stick",
+        "maker",
+        "point"
+      ],
+      "solution": "match",
+      "difficulty": "medium",
+      "category": "tools",
+      "correct": false,
+      "model_output": "<UNK>",
+      "entropy_reduction": null,
+      "entropy_trajectory": [],
+      "reframing_count": 0,
+      "computation_time": 0.002597332000732422
+    },
+    {
+      "cue_words": [
+        "chamber",
+        "staff",
+        "box"
+      ],
+      "solution": "music",
+      "difficulty": "medium",
+      "category": "arts",
+      "correct": false,
+      "model_output": "<UNK>",
+      "entropy_reduction": null,
+      "entropy_trajectory": [],
+      "reframing_count": 0,
+      "computation_time": 0.0025637149810791016
+    },
+    {
+      "cue_words": [
+        "piece",
+        "mind",
+        "dating"
+      ],
+      "solution": "game",
+      "difficulty": "medium",
+      "category": "activities",
+      "correct": false,
+      "model_output": "<UNK>",
+      "entropy_reduction": null,
+      "entropy_trajectory": [],
+      "reframing_count": 0,
+      "computation_time": 0.002576112747192383
+    },
+    {
+      "cue_words": [
+        "river",
+        "note",
+        "account"
+      ],
+      "solution": "bank",
+      "difficulty": "medium",
+      "category": "finance",
+      "correct": false,
+      "model_output": "<UNK>",
+      "entropy_reduction": null,
+      "entropy_trajectory": [],
+      "reframing_count": 0,
+      "computation_time": 0.002713441848754883
+    },
+    {
+      "cue_words": [
+        "print",
+        "berry",
+        "bird"
+      ],
+      "solution": "blue",
+      "difficulty": "medium",
+      "category": "colors",
+      "correct": false,
+      "model_output": "<UNK>",
+      "entropy_reduction": null,
+      "entropy_trajectory": [],
+      "reframing_count": 0,
+      "computation_time": 0.0031189918518066406
+    },
+    {
+      "cue_words": [
+        "shock",
+        "shave",
+        "taste"
+      ],
+      "solution": "after",
+      "difficulty": "medium",
+      "category": "time",
+      "correct": false,
+      "model_output": "<UNK>",
+      "entropy_reduction": null,
+      "entropy_trajectory": [],
+      "reframing_count": 0,
+      "computation_time": 0.002557992935180664
+    },
+    {
+      "cue_words": [
+        "preserve",
+        "ranger",
+        "tropical"
+      ],
+      "solution": "forest",
+      "difficulty": "medium",
+      "category": "nature",
+      "correct": false,
+      "model_output": "<UNK>",
+      "entropy_reduction": null,
+      "entropy_trajectory": [],
+      "reframing_count": 0,
+      "computation_time": 0.002496480941772461
+    },
+    {
+      "cue_words": [
+        "cadet",
+        "capsule",
+        "ship"
+      ],
+      "solution": "space",
+      "difficulty": "medium",
+      "category": "astronomy",
+      "correct": false,
+      "model_output": "<UNK>",
+      "entropy_reduction": null,
+      "entropy_trajectory": [],
+      "reframing_count": 0,
+      "computation_time": 0.0024785995483398438
+    },
+    {
+      "cue_words": [
+        "hound",
+        "pressure",
+        "shot"
+      ],
+      "solution": "blood",
+      "difficulty": "hard",
+      "category": "medical",
+      "correct": false,
+      "model_output": "<UNK>",
+      "entropy_reduction": null,
+      "entropy_trajectory": [],
+      "reframing_count": 0,
+      "computation_time": 0.002612590789794922
+    },
+    {
+      "cue_words": [
+        "opera",
+        "hand",
+        "dish"
+      ],
+      "solution": "soap",
+      "difficulty": "hard",
+      "category": "household",
+      "correct": false,
+      "model_output": "<UNK>",
+      "entropy_reduction": null,
+      "entropy_trajectory": [],
+      "reframing_count": 0,
+      "computation_time": 0.0026667118072509766
+    },
+    {
+      "cue_words": [
+        "nuclear",
+        "feud",
+        "album"
+      ],
+      "solution": "family",
+      "difficulty": "hard",
+      "category": "social",
+      "correct": false,
+      "model_output": "<UNK>",
+      "entropy_reduction": null,
+      "entropy_trajectory": [],
+      "reframing_count": 0,
+      "computation_time": 0.003245115280151367
+    },
+    {
+      "cue_words": [
+        "fox",
+        "man",
+        "peep"
+      ],
+      "solution": "hole",
+      "difficulty": "hard",
+      "category": "structures",
+      "correct": false,
+      "model_output": "<UNK>",
+      "entropy_reduction": null,
+      "entropy_trajectory": [],
+      "reframing_count": 0,
+      "computation_time": 0.0025742053985595703
+    },
+    {
+      "cue_words": [
+        "measure",
+        "worm",
+        "video"
+      ],
+      "solution": "tape",
+      "difficulty": "hard",
+      "category": "recording",
+      "correct": false,
+      "model_output": "<UNK>",
+      "entropy_reduction": null,
+      "entropy_trajectory": [],
+      "reframing_count": 0,
+      "computation_time": 0.0024902820587158203
+    },
+    {
+      "cue_words": [
+        "baldness",
+        "ring",
+        "cut"
+      ],
+      "solution": "worm",
+      "difficulty": "hard",
+      "category": "biology",
+      "correct": false,
+      "model_output": "<UNK>",
+      "entropy_reduction": null,
+      "entropy_trajectory": [],
+      "reframing_count": 0,
+      "computation_time": 0.0024535655975341797
+    },
+    {
+      "cue_words": [
+        "fur",
+        "rack",
+        "tail"
+      ],
+      "solution": "coat",
+      "difficulty": "hard",
+      "category": "clothing",
+      "correct": false,
+      "model_output": "<UNK>",
+      "entropy_reduction": null,
+      "entropy_trajectory": [],
+      "reframing_count": 0,
+      "computation_time": 0.0024607181549072266
+    },
+    {
+      "cue_words": [
+        "envy",
+        "golf",
+        "beans"
+      ],
+      "solution": "green",
+      "difficulty": "hard",
+      "category": "colors",
+      "correct": false,
+      "model_output": "<UNK>",
+      "entropy_reduction": null,
+      "entropy_trajectory": [],
+      "reframing_count": 0,
+      "computation_time": 0.0025396347045898438
+    },
+    {
+      "cue_words": [
+        "date",
+        "alley",
+        "fold"
+      ],
+      "solution": "blind",
+      "difficulty": "hard",
+      "category": "vision",
+      "correct": false,
+      "model_output": "<UNK>",
+      "entropy_reduction": null,
+      "entropy_trajectory": [],
+      "reframing_count": 0,
+      "computation_time": 0.003386259078979492
+    },
+    {
+      "cue_words": [
+        "light",
+        "birthday",
+        "stick"
+      ],
+      "solution": "candle",
+      "difficulty": "hard",
+      "category": "objects",
+      "correct": false,
+      "model_output": "<UNK>",
+      "entropy_reduction": null,
+      "entropy_trajectory": [],
+      "reframing_count": 0,
+      "computation_time": 0.0026273727416992188
+    },
+    {
+      "cue_words": [
+        "rat",
+        "blue",
+        "cottage"
+      ],
+      "solution": "cheese",
+      "difficulty": "hard",
+      "category": "food",
+      "correct": false,
+      "model_output": "<UNK>",
+      "entropy_reduction": null,
+      "entropy_trajectory": [],
+      "reframing_count": 0,
+      "computation_time": 0.002535104751586914
+    },
+    {
+      "cue_words": [
+        "boot",
+        "summer",
+        "ground"
+      ],
+      "solution": "camp",
+      "difficulty": "hard",
+      "category": "activities",
+      "correct": false,
+      "model_output": "<UNK>",
+      "entropy_reduction": null,
+      "entropy_trajectory": [],
+      "reframing_count": 0,
+      "computation_time": 0.002498626708984375
+    },
+    {
+      "cue_words": [
+        "motion",
+        "poke",
+        "down"
+      ],
+      "solution": "slow",
+      "difficulty": "hard",
+      "category": "speed",
+      "correct": false,
+      "model_output": "<UNK>",
+      "entropy_reduction": null,
+      "entropy_trajectory": [],
+      "reframing_count": 0,
+      "computation_time": 0.0024526119232177734
+    },
+    {
+      "cue_words": [
+        "tooth",
+        "potato",
+        "heart"
+      ],
+      "solution": "sweet",
+      "difficulty": "hard",
+      "category": "taste",
+      "correct": false,
+      "model_output": "<UNK>",
+      "entropy_reduction": null,
+      "entropy_trajectory": [],
+      "reframing_count": 0,
+      "computation_time": 0.0024709701538085938
+    },
+    {
+      "cue_words": [
+        "up",
+        "book",
+        "charge"
+      ],
+      "solution": "cover",
+      "difficulty": "hard",
+      "category": "protection",
+      "correct": false,
+      "model_output": "<UNK>",
+      "entropy_reduction": null,
+      "entropy_trajectory": [],
+      "reframing_count": 0,
+      "computation_time": 0.002678394317626953
+    }
+  ]
+}

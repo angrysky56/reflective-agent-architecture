@@ -152,9 +152,13 @@ class DirectorMVP:
         context: Optional[Dict[str, Any]] = None,
     ) -> Optional[torch.Tensor]:
         """
-        Main Director loop: monitor → detect → search → return new goal.
+        Main Director loop: monitor → detect → compute adaptive beta → search → return.
 
         This is the primary interface used by the RAA integration.
+
+        The Director now dynamically adjusts exploration based on confusion:
+        - High entropy (confusion) → low beta → more exploratory search
+        - Low entropy (confidence) → high beta → more focused search
 
         Args:
             current_state: Current goal state from Pointer
@@ -183,14 +187,49 @@ class DirectorMVP:
             f"threshold={self.monitor.get_threshold():.3f}"
         )
 
-        # Step 3: Search for alternative
-        search_result = self.search(current_state, context)
+        # --- ADAPTIVE BETA LOGIC ---
+        # Store original beta to reset it after search
+        original_beta = self.manifold.beta
+        search_result = None
+
+        try:
+            # Step 3: Compute adaptive beta based on confusion (entropy)
+            # Let compute_adaptive_beta calculate max_entropy internally
+            adaptive_beta = self.manifold.compute_adaptive_beta(
+                entropy=entropy_value, max_entropy=None
+            )
+
+            logger.info(
+                f"Setting adaptive beta: {adaptive_beta:.3f} (original: {original_beta:.3f}, "
+                f"entropy: {entropy_value:.3f})"
+            )
+
+            # Temporarily set the manifold's beta for this search
+            self.manifold.set_beta(adaptive_beta)
+
+            # Add adaptive beta to context for logging
+            context["adaptive_beta"] = adaptive_beta
+            context["original_beta"] = original_beta
+
+            # Step 4: Search for alternative using the adaptive beta
+            search_result = self.search(current_state, context)
+
+        except Exception as e:
+            logger.error(f"Search with adaptive beta failed: {e}")
+            # The 'finally' block will still run to clean up beta
+        finally:
+            # Step 5: CRITICAL - Reset beta to its original value
+            # This ensures the next generation step doesn't use the temporary exploratory beta
+            logger.debug(f"Resetting beta to original value: {original_beta:.3f}")
+            self.manifold.set_beta(original_beta)
+
+        # --- END ADAPTIVE BETA LOGIC ---
 
         if search_result is None:
             logger.warning("Search failed to find alternative")
             return None
 
-        # Step 4: Return new goal
+        # Step 6: Return new goal
         new_goal = search_result.best_pattern
 
         logger.info(
@@ -214,6 +253,8 @@ class DirectorMVP:
             "selection_score": result.selection_score,
             "entropy": context.get("entropy") if context else None,
             "threshold": context.get("threshold") if context else None,
+            "adaptive_beta": context.get("adaptive_beta") if context else None,
+            "original_beta": context.get("original_beta") if context else None,
         }
 
         self.search_episodes.append(episode)

@@ -1,0 +1,21 @@
+
+======================================================================
+RAA vs BASELINE: Comparative Analysis
+======================================================================
+
+Overall Performance:
+  RAA Accuracy:      20.0%
+  Baseline Accuracy: 0.0%
+  Improvement:       +inf%
+  Effect Size (d):   0.707
+
+Performance by Difficulty:
+  Easy    : RAA 30.0% vs Baseline 0.0% (+30.0pp)
+  Medium  : RAA 20.0% vs Baseline 0.0% (+20.0pp)
+  Hard    : RAA 13.3% vs Baseline 0.0% (+13.3pp)
+
+RAA-Specific Metrics:
+  Avg Entropy Reduction:  nan
+  Avg Reframing Count:    16.6
+
+======================================================================

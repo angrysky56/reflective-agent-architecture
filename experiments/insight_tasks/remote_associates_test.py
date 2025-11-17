@@ -193,13 +193,16 @@ class RATEvaluator:
         correct = sum(1 for r in self.results if r["correct"])
 
         # Overall metrics
+        entropy_reductions = [
+            r["entropy_reduction"] for r in self.results if r["entropy_reduction"] is not None
+        ]
+        avg_entropy_reduction = np.mean(entropy_reductions) if entropy_reductions else 0.0
+
         stats = {
             "total_items": total,
             "correct": correct,
             "accuracy": correct / total,
-            "avg_entropy_reduction": np.mean(
-                [r["entropy_reduction"] for r in self.results if r["entropy_reduction"] is not None]
-            ),
+            "avg_entropy_reduction": avg_entropy_reduction,
             "avg_reframing_count": np.mean([r["reframing_count"] for r in self.results]),
             "avg_computation_time": np.mean([r["computation_time"] for r in self.results]),
         }

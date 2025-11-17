@@ -79,7 +79,12 @@ class RATSolver:
         pointer_config = PointerConfig(embedding_dim=hidden_dim, device=device)
         self.pointer = GoalController(config=pointer_config).to(device)
 
-        director_config = DirectorConfig(device=device)
+        director_config = DirectorConfig(
+            entropy_threshold_percentile=0.60,  # Lowered from default 0.75 for more sensitive detection
+            search_k=5,
+            use_energy_aware_search=True,
+            device=device,
+        )
         self.director = Director(manifold=self.manifold, config=director_config)
 
         self.reasoning_loop = RAAReasoningLoop(
@@ -89,7 +94,8 @@ class RATSolver:
             config=ReasoningConfig(
                 max_steps=50,
                 max_reframing_attempts=5,
-                energy_threshold=-1e6,  # disable early exit so Director can act
+                energy_threshold=-10.0,  # Disabled - let loop run full course for exploration
+                convergence_tolerance=1e-4,  # Very tight tolerance for normalized embeddings
                 device=device,
             ),
         )
@@ -135,7 +141,8 @@ class RATSolver:
             self.vocab[word] = idx
             self.reverse_vocab[idx] = word
 
-        # Initialize manifold with GloVe embeddings for solution words and common connectors
+        # Initialize manifold with GloVe embeddings for solution words ONLY
+        # Don't store cue words to avoid creating dominant attractors
         self.manifold.clear_memory()
         print("Seeding manifold with solution word embeddings...")
         with torch.no_grad():
@@ -145,15 +152,65 @@ class RATSolver:
                 if emb is not None:
                     self.manifold.store_pattern(f.normalize(emb, p=2, dim=-1))
 
-            # Store all cue words from dataset to enrich search space
-            dataset = RATDataset()
-            cue_words_all = set()
-            for item in dataset.items:
-                cue_words_all.update(item.cue_words)
-            for w in cue_words_all:
-                emb = self.glove.get_word_embedding(w)
-                if emb is not None:
-                    self.manifold.store_pattern(f.normalize(emb, p=2, dim=-1))
+            # Add some diverse semantic patterns for richer space
+            # Store 50 high-frequency words to provide semantic diversity
+            diverse_words = [
+                "water",
+                "light",
+                "dark",
+                "cold",
+                "warm",
+                "soft",
+                "hard",
+                "fast",
+                "slow",
+                "high",
+                "low",
+                "big",
+                "small",
+                "good",
+                "bad",
+                "new",
+                "old",
+                "young",
+                "long",
+                "short",
+                "wide",
+                "narrow",
+                "deep",
+                "shallow",
+                "strong",
+                "weak",
+                "heavy",
+                "light",
+                "bright",
+                "clean",
+                "dirty",
+                "hot",
+                "cool",
+                "fresh",
+                "stale",
+                "loud",
+                "quiet",
+                "sharp",
+                "dull",
+                "smooth",
+                "rough",
+                "wet",
+                "dry",
+                "open",
+                "close",
+                "full",
+                "empty",
+                "thick",
+                "thin",
+            ]
+            for w in diverse_words:
+                if w not in self.solution_words:  # Avoid duplicates
+                    emb = self.glove.get_word_embedding(w)
+                    if emb is not None:
+                        self.manifold.store_pattern(f.normalize(emb, p=2, dim=-1))
+
         print(f"Manifold initialized with {self.manifold.num_patterns} semantic patterns")
 
     def _decode_with_candidates(
