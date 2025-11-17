@@ -81,3 +81,9 @@ pip-delete-this-directory.txt
 
 # Ignore examples output
 examples/*.out
+
+# Ignore large embedding files
+data/embeddings/*.txt
+data/embeddings/*.bin
+data/embeddings/*.vec
+data/embeddings/*.zip
