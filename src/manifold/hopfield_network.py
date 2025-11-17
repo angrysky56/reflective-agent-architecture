@@ -18,12 +18,14 @@ class HopfieldConfig:
     """Configuration for Modern Hopfield Network."""
 
     embedding_dim: int = 512
-    beta: float = 1.0  # Inverse temperature for softmax
+    beta: float = (
+        10.0  # Inverse temperature for softmax (increased from 1.0 for meaningful variance)
+    )
     max_patterns: int = 1000
     update_steps: int = 10  # Number of iterations for convergence
     adaptive_beta: bool = False  # Enable context-dependent beta
-    beta_min: float = 0.5  # Minimum beta (soft retrieval, exploration)
-    beta_max: float = 2.0  # Maximum beta (sharp retrieval, exploitation)
+    beta_min: float = 5.0  # Minimum beta (soft retrieval, exploration) - increased from 0.5
+    beta_max: float = 50.0  # Maximum beta (sharp retrieval, exploitation) - increased from 2.0
     device: str = "cpu"
 
 
@@ -100,7 +102,7 @@ class ModernHopfieldNetwork(nn.Module):
         lse_term = torch.logsumexp(self.beta * similarities, dim=-1) / self.beta
 
         # Quadratic regularization
-        norm_term = 0.5 * torch.sum(state ** 2, dim=-1)
+        norm_term = 0.5 * torch.sum(state**2, dim=-1)
 
         # Energy: negative LSE + regularization
         energy = -lse_term + norm_term
@@ -210,8 +212,8 @@ class ModernHopfieldNetwork(nn.Module):
         # Map to beta range: high entropy → low beta
         # Formula: beta = beta_max - (beta_max - beta_min) * normalized_entropy
         adaptive_beta = (
-            self.config.beta_max -
-            (self.config.beta_max - self.config.beta_min) * normalized_entropy
+            self.config.beta_max
+            - (self.config.beta_max - self.config.beta_min) * normalized_entropy
         )
 
         return adaptive_beta

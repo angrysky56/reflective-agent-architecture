@@ -19,11 +19,24 @@
 - **No more warnings: Mean of empty slice warning eliminated**
 - **Time per item: 0.16s (reasonable for 50 reasoning steps)**
 
-## Remaining Opportunities
-- [ ] Entropy reduction is very small (0.0001) - pseudo-logits distribution too uniform
-- [ ] Could improve accuracy further (currently 20%, baseline 0%)
-- [ ] Easy items: 30%, Medium: 20%, Hard: 13.3% - room for improvement
-- [ ] Could tune Director entropy threshold for more/less reframing
+## Insights & Remaining Opportunities
+
+### Beta Scaling Discovery ✓
+- [x] **Diagnosed**: Beta needs ~10x range (not 2x) for meaningful entropy variation
+- [x] **Fixed**: Updated defaults from beta_min=0.5, beta_max=2.0 → beta_min=5.0, beta_max=50.0
+- [x] **Documented**: See `docs/BETA_SCALING_AND_TESTING.md`
+
+### Testing Methodology ✓
+- [x] **Identified issue**: RAT test uses pseudo-logits (uniform) instead of real NN logits
+- [x] **Created solution**: Full system test with Processor (`examples/full_system_generation_test.py`)
+- [x] **Recommendation**: Test holistically with ReflectiveAgentArchitecture, not components in isolation
+
+### Future Improvements
+- [ ] Add small NN for RAT: Map embeddings → logits with learned structure
+- [ ] Create generation benchmarks: Story completion, code generation tasks
+- [ ] Tune adaptive beta formula: Consider non-linear mapping (exponential)
+- [ ] Improve RAT accuracy further (currently 20%, baseline 0%)
+- [ ] Test with trained/fine-tuned Processor models
 
 ## Files Modified
 - [x] src/integration/reasoning_loop.py - Added entropy tracking, adjusted thresholds
