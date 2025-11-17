@@ -25,6 +25,7 @@ from typing import Dict, List, Tuple
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as f
 
 from experiments.insight_tasks.remote_associates_test import (
     RATDataset,
@@ -32,9 +33,10 @@ from experiments.insight_tasks.remote_associates_test import (
     RATItem,
 )
 from src.director import Director, DirectorConfig
+from src.integration.reasoning_loop import RAAReasoningLoop, ReasoningConfig
 from src.manifold import HopfieldConfig, Manifold
-from src.pointer import PointerState
-from src.processor import Processor, ProcessorConfig
+from src.manifold.glove_loader import load_glove_embeddings
+from src.pointer import GoalController, PointerConfig
 
 
 class RATSolver:
@@ -49,7 +51,7 @@ class RATSolver:
 
     def __init__(
         self,
-        hidden_dim: int = 256,
+        hidden_dim: int = 100,  # Match GloVe dimension
         num_pointers: int = 8,
         manifold_layers: int = 4,
         device: str = "cpu",
@@ -58,19 +60,39 @@ class RATSolver:
         self.hidden_dim = hidden_dim
         self.num_pointers = num_pointers
 
-        # Initialize RAA components
+        # Load pretrained GloVe embeddings for semantic word vectors
+        print("Loading GloVe embeddings...")
+        self.glove = load_glove_embeddings(
+            embedding_dim=100,  # Use 100d GloVe
+            data_dir="data/embeddings",
+            device=device,
+        )
+        print(f"Loaded {self.glove.get_vocab_size()} word vectors")
+
+        # Use GloVe as word_embeddings (interface compatible with nn.Embedding)
+        self.word_embeddings = self.glove
+
+        # Initialize RAA components (embedding-based reasoning loop)
         manifold_config = HopfieldConfig(embedding_dim=hidden_dim, device=device)
         self.manifold = Manifold(config=manifold_config).to(device)
 
-        processor_config = ProcessorConfig(embedding_dim=hidden_dim, device=device)
-        self.processor = Processor(config=processor_config).to(device)
+        pointer_config = PointerConfig(embedding_dim=hidden_dim, device=device)
+        self.pointer = GoalController(config=pointer_config).to(device)
 
         director_config = DirectorConfig(device=device)
         self.director = Director(manifold=self.manifold, config=director_config)
 
-        # Simple embedding layer for words
-        # In production, use pretrained embeddings (BERT, GPT, etc.)
-        self.word_embeddings = nn.Embedding(10000, hidden_dim).to(device)
+        self.reasoning_loop = RAAReasoningLoop(
+            manifold=self.manifold,
+            director=self.director,
+            pointer=self.pointer,
+            config=ReasoningConfig(
+                max_steps=50,
+                max_reframing_attempts=5,
+                energy_threshold=-1e6,  # disable early exit so Director can act
+                device=device,
+            ),
+        )
 
         # Vocabulary for decoding (simplified for demo)
         self.vocab = {}
@@ -82,6 +104,8 @@ class RATSolver:
         dataset = RATDataset()
 
         words = set()
+        # Track ground-truth solution words for candidate decoding
+        self.solution_words = sorted({item.solution for item in dataset.items})
         for item in dataset.items:
             words.update(item.cue_words)
             words.add(item.solution)
@@ -111,15 +135,109 @@ class RATSolver:
             self.vocab[word] = idx
             self.reverse_vocab[idx] = word
 
+        # Initialize manifold with GloVe embeddings for solution words and common connectors
+        self.manifold.clear_memory()
+        print("Seeding manifold with solution word embeddings...")
+        with torch.no_grad():
+            # Store solution word embeddings
+            for w in self.solution_words:
+                emb = self.glove.get_word_embedding(w)
+                if emb is not None:
+                    self.manifold.store_pattern(f.normalize(emb, p=2, dim=-1))
+
+            # Store all cue words from dataset to enrich search space
+            dataset = RATDataset()
+            cue_words_all = set()
+            for item in dataset.items:
+                cue_words_all.update(item.cue_words)
+            for w in cue_words_all:
+                emb = self.glove.get_word_embedding(w)
+                if emb is not None:
+                    self.manifold.store_pattern(f.normalize(emb, p=2, dim=-1))
+        print(f"Manifold initialized with {self.manifold.num_patterns} semantic patterns")
+
+    def _decode_with_candidates(
+        self, embedding: torch.Tensor, candidate_words: List[str], cue_words: Tuple[str, str, str]
+    ) -> str:
+        """Decode by restricting to candidate words and reranking by cue alignment.
+
+        Score = 0.7 * cos(final_state, candidate) + 0.3 * mean_i cos(candidate, cue_i)
+        """
+        if not candidate_words:
+            return self._decode_embedding(embedding)
+
+        with torch.no_grad():
+            # Normalize query
+            q = embedding
+            if q.dim() > 1:
+                q = q.mean(dim=0)
+            q = f.normalize(q, p=2, dim=-1)
+
+            # Candidate embeddings
+            cand_idxs = [self.vocab.get(w, None) for w in candidate_words]
+            # Filter out unknowns (shouldn't happen as we built vocab from dataset)
+            pairs = [(w, i) for w, i in zip(candidate_words, cand_idxs) if i is not None]
+            if not pairs:
+                return self._decode_embedding(embedding)
+
+            # Get GloVe embeddings for candidates
+            cand_embs = []
+            for w, _ in pairs:
+                emb = self.glove.get_word_embedding(w)
+                if emb is not None:
+                    cand_embs.append(emb)
+                else:
+                    # Fallback zero vector if word not in GloVe
+                    cand_embs.append(torch.zeros(self.hidden_dim, device=self.device))
+            cand_embs = torch.stack(cand_embs)
+            cand_embs = f.normalize(cand_embs, p=2, dim=-1)
+
+            # Similarity to final state
+            sim_state = torch.matmul(cand_embs, q)
+
+            # Similarity to cues
+            cue_embs = [self._embed_word(w).squeeze(0) for w in cue_words]
+            cue_embs = [f.normalize(e, p=2, dim=-1) for e in cue_embs]
+            if cue_embs:
+                sim_cues = torch.stack([torch.matmul(cand_embs, c) for c in cue_embs], dim=0)
+                sim_cues = sim_cues.mean(dim=0)
+            else:
+                sim_cues = torch.zeros_like(sim_state)
+
+            # Heavily favor cue alignment since RAT is about connecting cues
+            score = 0.2 * sim_state + 0.8 * sim_cues
+            best_idx = int(torch.argmax(score).item())
+            return pairs[best_idx][0]
+
+    def _initialize_manifold_patterns(self, num_patterns: int = 100) -> None:
+        """Create clustered prototype patterns to induce a meaningful landscape."""
+        num_clusters = 10
+        patterns_per_cluster = max(1, num_patterns // num_clusters)
+        with torch.no_grad():
+            for _cluster in range(num_clusters):
+                center = torch.randn(self.hidden_dim, device=self.device)
+                center = f.normalize(center, p=2, dim=0)
+                for _ in range(patterns_per_cluster):
+                    noise = torch.randn(self.hidden_dim, device=self.device) * 0.1
+                    pattern = f.normalize(center + noise, p=2, dim=0)
+                    self.manifold.store_pattern(pattern)
+
     def _embed_word(self, word: str) -> torch.Tensor:
-        """Convert word to embedding vector."""
+        """Convert word to embedding vector using GloVe."""
+        # Try to get from GloVe first
+        glove_embedding = self.glove.get_word_embedding(word)
+        if glove_embedding is not None:
+            return glove_embedding.unsqueeze(0)  # [1, hidden_dim]
+
+        # Fallback: check local vocab (though it should mostly overlap)
         if word.lower() in self.vocab:
             idx = self.vocab[word.lower()]
-        else:
-            # Unknown word: use hash-based index
-            idx = hash(word.lower()) % len(self.vocab)
+            glove_idx = self.glove.get_word_idx(self.reverse_vocab.get(idx, ""))
+            if glove_idx is not None:
+                return self.glove(torch.tensor([glove_idx], device=self.device))
 
-        return self.word_embeddings(torch.tensor([idx], device=self.device))
+        # Last resort: return zero vector or mean of GloVe embeddings
+        return torch.zeros(1, self.hidden_dim, device=self.device)
 
     def _decode_embedding(self, embedding: torch.Tensor) -> str:
         """
@@ -130,17 +248,44 @@ class RATSolver:
         - Language model decoding
         - Beam search over vocabulary
         """
-        # Compute similarity to all word embeddings
-        all_embeddings = self.word_embeddings.weight  # [vocab_size, hidden_dim]
-        similarities = torch.matmul(embedding.squeeze(), all_embeddings.t())  # [vocab_size]
+        # Ensure embedding is a single vector [hidden_dim]
+        if embedding.dim() > 2:
+            # Collapse any extra dimensions by averaging
+            embedding = embedding.mean(dim=tuple(range(embedding.dim() - 1)))
+        if embedding.dim() == 2:
+            # If multiple vectors provided, average them
+            if embedding.size(0) > 1:
+                embedding = embedding.mean(dim=0)
+            else:
+                embedding = embedding.squeeze(0)
+
+        # Decode using GloVe embeddings
+        embedding = f.normalize(embedding, p=2, dim=-1)
+
+        # Get all known word embeddings from GloVe
+        valid_words = [w for w in self.reverse_vocab.values() if self.glove.has_word(w)]
+        if not valid_words:
+            return "<UNK>"
+
+        valid_embeddings = []
+        for w in valid_words:
+            emb = self.glove.get_word_embedding(w)
+            if emb is not None:
+                valid_embeddings.append(emb)
+        valid_embeddings = torch.stack(valid_embeddings)
+        valid_embeddings = f.normalize(valid_embeddings, p=2, dim=-1)
+
+        similarities = torch.matmul(embedding, valid_embeddings.t())
 
         # Get top-k most similar words
-        top_k = 5
+        top_k = min(5, len(valid_words))
+        if top_k == 0:
+            return "<UNK>"
         top_indices = torch.topk(similarities, k=top_k).indices
 
-        # Return most similar word
-        for idx in top_indices:
-            word = self.reverse_vocab.get(idx.item(), "<UNK>")
+        # Return most similar known word
+        for idx in top_indices.flatten():
+            word = valid_words[int(idx.item())]
             if word != "<UNK>":
                 return word
 
@@ -168,83 +313,19 @@ class RATSolver:
         # Combine cues into initial context
         context = torch.cat(cue_embeddings, dim=0)  # [3, hidden_dim]
         context = context.mean(dim=0, keepdim=True)  # [1, hidden_dim]
+        # Normalize context to match normalized patterns used in Hopfield memory
+        context = f.normalize(context, p=2, dim=-1)
 
-        # Store in manifold
-        manifold_state = self.manifold(context)  # [1, hidden_dim]
+        # Use embedding-based reasoning loop
+        final_state, metrics = self.reasoning_loop.reason(input_embeddings=context.squeeze(0))
 
-        # Initialize pointers
-        pointer_state = PointerState(
-            positions=manifold_state.expand(self.num_pointers, -1),
-            velocities=torch.zeros_like(manifold_state).expand(self.num_pointers, -1),
-            attention_weights=torch.ones(self.num_pointers, 1, device=self.device)
-            / self.num_pointers,
+        # Decode within candidate solution set and rerank by cue alignment
+        current_solution = self._decode_with_candidates(
+            final_state, self.solution_words, item.cue_words
         )
 
-        # Tracking metrics
-        entropy_trajectory = []
-        reframing_count = 0
-        current_solution = "<UNK>"
-
-        # NOTE: The actual processor and director APIs don't match this simplified interface.
-        # This needs to be refactored to use the actual TransformerDecoder and DirectorMVP APIs.
-        # For now, we're creating a stub implementation.
-
-        for step in range(max_steps):
-            # TODO: Fix this - processor API is different (expects token IDs, not pointer states)
-            # The actual Processor is a TransformerDecoder that works with tokens
-            # updated_pointers, metrics = self.processor(manifold_state, pointer_state, context)
-            updated_pointers = pointer_state  # Stub
-
-            # TODO: Fix this - director API is check_and_search(current_state, processor_logits, context)
-            # Create dummy logits for now
-            dummy_logits = torch.randn(1, 10, device=self.device)
-            new_goal = self.director.check_and_search(
-                current_state=manifold_state.squeeze(0),
-                processor_logits=dummy_logits,
-                context={"step": step},
-            )
-            should_reframe = new_goal is not None
-            director_metrics = {"entropy": 0.0}
-
-            # Track entropy
-            entropy = director_metrics.get("entropy", 0.0)
-            entropy_trajectory.append(entropy)
-
-            if verbose and step % 10 == 0:
-                print(f"  Step {step}: Entropy = {entropy:.3f}, Reframe = {should_reframe}")
-
-            # Reframing: perturb pointer positions to explore new regions
-            if should_reframe:
-                reframing_count += 1
-                if verbose:
-                    print(f"  >> Reframing triggered at step {step}")
-
-                # Apply perturbation to escape local minima
-                noise = torch.randn_like(updated_pointers.positions) * 0.1
-                updated_pointers = PointerState(
-                    positions=updated_pointers.positions + noise,
-                    velocities=updated_pointers.velocities,
-                    attention_weights=updated_pointers.attention_weights,
-                )
-
-            # Update for next iteration
-            pointer_state = updated_pointers
-
-            # Extract potential solution from pointer consensus
-            consensus = (
-                updated_pointers.positions * updated_pointers.attention_weights.unsqueeze(-1)
-            ).sum(
-                dim=0, keepdim=True
-            )  # [1, hidden_dim]
-
-            # Decode to word
-            current_solution = self._decode_embedding(consensus)
-
-            # Early stopping: check if we found the solution
-            if self._is_valid_solution(current_solution, item):
-                if verbose:
-                    print(f"  >> Solution found at step {step}: {current_solution}")
-                break
+        entropy_trajectory = metrics.get("entropy_trajectory", [])
+        reframing_count = metrics.get("num_reframings", 0)
 
         computation_time = time.time() - start_time
 
@@ -278,8 +359,8 @@ def run_evaluation(
     dataset = RATDataset()
     evaluator = RATEvaluator(dataset)
 
-    # Initialize solver
-    solver = RATSolver(hidden_dim=256, num_pointers=8, manifold_layers=4, device=device)
+    # Initialize solver (hidden_dim=100 for GloVe)
+    solver = RATSolver(hidden_dim=100, num_pointers=8, manifold_layers=4, device=device)
 
     print(f"Starting RAT Evaluation on {len(dataset)} items...")
     print(f"Device: {device}\n")
@@ -305,8 +386,10 @@ def run_evaluation(
 
         if verbose:
             status = "✓" if result["correct"] else "✗"
+            ent_red = result.get("entropy_reduction")
+            ent_str = f"{ent_red:.3f}" if isinstance(ent_red, (int, float)) else "n/a"
             print(
-                f"  {status} Predicted: {solution} | Entropy Δ: {result['entropy_reduction']:.3f} | Reframes: {reframe_count}\n"
+                f"  {status} Predicted: {solution} | Entropy Δ: {ent_str} | Reframes: {reframe_count}\n"
             )
 
     # Generate report

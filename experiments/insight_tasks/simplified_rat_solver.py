@@ -10,8 +10,8 @@ from typing import List, Tuple
 import torch
 import torch.nn as nn
 
-from experiments.insight_tasks.reasoning_loop import RAAReasoningLoop, ReasoningConfig
 from src.director import Director, DirectorConfig
+from src.integration.reasoning_loop import RAAReasoningLoop, ReasoningConfig
 from src.manifold import HopfieldConfig, Manifold
 from src.pointer import GoalController, PointerConfig
 
