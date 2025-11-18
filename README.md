@@ -144,6 +144,30 @@ uv run python experiments/insight_tasks/run_rat_evaluation.py
 uv run python examples/full_system_generation_test.py
 ```
 
+### CWD Integration (Ollama) Quick Start
+
+```bash
+# 1) Configure environment
+cp .env.example .env
+# Edit .env and set NEO4J_PASSWORD
+
+# 2) Install server extras (CWD + Ollama)
+uv sync --extra server
+
+# 3) Start services and pull models
+ollama serve
+ollama pull qwen2.5:3b
+ollama pull nomic-embed-text
+# Start Neo4j (example)
+docker run -p 7687:7687 -p 7474:7474 -e NEO4J_AUTH=neo4j:<your_password> neo4j
+
+# 4) Run integration example (monitored CWD ops + RAA search)
+python examples/cwd_integration_example.py
+
+# 5) Run the MCP server (stdio)
+raa-cwd-server
+```
+
 ## Installation
 
 ### Prerequisites
@@ -166,6 +190,7 @@ uv sync --extra dev
 # Install with optional dependencies
 uv sync --extra notebooks
 uv sync --extra geometric
+uv sync --extra server  # CWD/Ollama MCP server
 ```
 
 ### Using pip
@@ -248,6 +273,7 @@ Development tools:
 Optional:
 - PyTorch Geometric (if using hybrid GNN approach)
 - Jupyter (for notebooks)
+- Server (CWD/Ollama): available via `--extra server` (chromadb, neo4j, sentence-transformers, pydantic-settings, ollama)
 
 ## Project Structure
 
@@ -258,7 +284,8 @@ reflective-agent-architecture/
 │   ├── processor/          # Transformer components
 │   ├── pointer/            # Goal controller
 │   ├── director/           # Metacognitive monitor + search
-│   └── integration/        # Full RAA loop + CWD integration
+│   ├── integration/        # Full RAA loop + CWD integration
+│   └── server.py           # MCP server (CWD + RAA bridge)
 ├── tests/                  # Unit and integration tests (all passing ✅)
 ├── docs/                   # Detailed documentation and theory
 │   ├── REFERENCES.md       # Theoretical foundations bibliography
@@ -271,7 +298,9 @@ reflective-agent-architecture/
 │   └── results/            # Evaluation results (JSON)
 ├── examples/               # Usage examples
 │   ├── basic_usage.py      # Simple RAA demo
-│   └── full_system_generation_test.py  # Complete system test
+│   ├── full_system_generation_test.py  # Complete system test
+│   └── cwd_integration_example.py      # CWD + RAA (Ollama) demo
+├── .env.example            # Example config for Neo4j/Ollama
 └── data/                   # Embeddings and datasets
     └── embeddings/         # GloVe 100d embeddings
 ```
@@ -279,6 +308,7 @@ reflective-agent-architecture/
 ## References
 
 See `docs/REFERENCES.md` for complete bibliography of theoretical foundations.
+See `src/integration/README.md` for CWD-RAA bridge details and quick start.
 
 ## License
 

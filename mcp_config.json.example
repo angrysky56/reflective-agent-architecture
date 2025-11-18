@@ -1,0 +1,24 @@
+{
+  "mcpServers": {
+    "reflective_agent_architecture": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/path/to/reflective_agent_architecture/src",
+        "run",
+        "server.py"
+      ],
+      "env": {
+        "_comment": "Environment variables are optional - defaults to .env file in project root"
+      }
+    }
+  },
+  "_instructions": {
+    "step1": "Copy this config to your Claude Desktop configuration file",
+    "step2": "Replace '/path/to/cognitive-workspace-db/src' with the actual path to your src directory",
+    "step3": "Linux/Mac: ~/.config/Claude/claude_desktop_config.json",
+    "step4": "Windows: %APPDATA%\\Claude\\claude_desktop_config.json",
+    "step5": "Restart Claude Desktop",
+    "note": "Make sure Neo4j is running and .env file is configured with NEO4J_PASSWORD"
+  }
+}

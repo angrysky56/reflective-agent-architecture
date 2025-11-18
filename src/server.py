@@ -45,6 +45,12 @@ from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sentence_transformers import SentenceTransformer
 
+# RAA imports
+from src.director import Director, DirectorConfig
+from src.integration.cwd_raa_bridge import BridgeConfig, CWDRAABridge
+from src.manifold import HopfieldConfig, Manifold
+from src.pointer import GoalController, PointerConfig
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("cwd-mcp")
@@ -57,6 +63,7 @@ server = Server("cognitive-workspace-db")
 # Configuration
 # ============================================================================
 
+
 class CWDConfig(BaseSettings):
     """
     Configuration for Cognitive Workspace Database.
@@ -68,13 +75,14 @@ class CWDConfig(BaseSettings):
     1. Current directory
     2. Parent directory (project root when running from src/)
     """
+
     # Find .env file in project root (one level up from src/)
     _env_file = Path(__file__).parent.parent / ".env"
 
     model_config = SettingsConfigDict(
         env_file=str(_env_file) if _env_file.exists() else ".env",
         env_file_encoding="utf-8",
-        extra="ignore"
+        extra="ignore",
     )
 
     neo4j_uri: str = Field(default="bolt://localhost:7687")
@@ -100,15 +108,13 @@ class CognitiveWorkspace:
 
         # Initialize Neo4j
         self.neo4j_driver = GraphDatabase.driver(
-            config.neo4j_uri,
-            auth=(config.neo4j_user, config.neo4j_password)
+            config.neo4j_uri, auth=(config.neo4j_user, config.neo4j_password)
         )
 
         # Initialize Chroma
-        self.chroma_client = chromadb.Client(Settings(
-            persist_directory=config.chroma_path,
-            anonymized_telemetry=False
-        ))
+        self.chroma_client = chromadb.Client(
+            Settings(persist_directory=config.chroma_path, anonymized_telemetry=False)
+        )
 
         # Initialize embedding model
         # For Qwen embeddings, optimize with flash_attention_2 if GPU available
@@ -121,21 +127,19 @@ class CognitiveWorkspace:
                 self.embedding_model = SentenceTransformer(
                     config.embedding_model,
                     model_kwargs={"attn_implementation": "flash_attention_2", "device_map": "auto"},
-                    tokenizer_kwargs={"padding_side": "left"}
+                    tokenizer_kwargs={"padding_side": "left"},
                 )
                 logger.info("Initialized Qwen embedding model with flash_attention_2 (GPU)")
             except Exception as e:
                 # Fallback to standard (works on CPU and GPU without flash-attn)
                 logger.info(f"flash_attention_2 not available, using standard attention: {e}")
                 self.embedding_model = SentenceTransformer(
-                    config.embedding_model,
-                    tokenizer_kwargs={"padding_side": "left"}
+                    config.embedding_model, tokenizer_kwargs={"padding_side": "left"}
                 )
         elif is_qwen:
             # CPU mode - just use left padding for Qwen
             self.embedding_model = SentenceTransformer(
-                config.embedding_model,
-                tokenizer_kwargs={"padding_side": "left"}
+                config.embedding_model, tokenizer_kwargs={"padding_side": "left"}
             )
             logger.info("Initialized Qwen embedding model (CPU)")
         else:
@@ -144,8 +148,7 @@ class CognitiveWorkspace:
 
         # Create Chroma collection
         self.collection = self.chroma_client.get_or_create_collection(
-            name="thought_nodes",
-            metadata={"description": "Cognitive workspace thought-nodes"}
+            name="thought_nodes", metadata={"description": "Cognitive workspace thought-nodes"}
         )
 
         # Gen 3 Enhancement: Active goals for utility-guided exploration
@@ -155,7 +158,9 @@ class CognitiveWorkspace:
         self.compression_history: dict[str, list[float]] = {}  # node_id -> [scores over time]
 
         # Tool Library: Compressed knowledge as reusable patterns
-        self.tool_library: dict[str, dict[str, Any]] = {}  # tool_id -> {pattern, usage_count, success_rate}
+        self.tool_library: dict[str, dict[str, Any]] = (
+            {}
+        )  # tool_id -> {pattern, usage_count, success_rate}
 
         # Initialize database schema enhancements
         self._initialize_gen3_schema()
@@ -178,30 +183,42 @@ class CognitiveWorkspace:
         """
         with self.neo4j_driver.session() as session:
             # Create constraints and indexes
-            session.run("""
+            session.run(
+                """
                 CREATE CONSTRAINT thought_id_unique IF NOT EXISTS
                 FOR (t:ThoughtNode) REQUIRE t.id IS UNIQUE
-            """)
-            session.run("""
+            """
+            )
+            session.run(
+                """
                 CREATE INDEX thought_cognitive_type IF NOT EXISTS
                 FOR (t:ThoughtNode) ON (t.cognitive_type)
-            """)
-            session.run("""
+            """
+            )
+            session.run(
+                """
                 CREATE INDEX thought_utility IF NOT EXISTS
                 FOR (t:ThoughtNode) ON (t.utility_score)
-            """)
-            session.run("""
+            """
+            )
+            session.run(
+                """
                 CREATE INDEX thought_compression IF NOT EXISTS
                 FOR (t:ThoughtNode) ON (t.compression_score)
-            """)
-            session.run("""
+            """
+            )
+            session.run(
+                """
                 CREATE CONSTRAINT goal_id_unique IF NOT EXISTS
                 FOR (g:Goal) REQUIRE g.id IS UNIQUE
-            """)
-            session.run("""
+            """
+            )
+            session.run(
+                """
                 CREATE CONSTRAINT tool_id_unique IF NOT EXISTS
                 FOR (t:Tool) REQUIRE t.id IS UNIQUE
-            """)
+            """
+            )
         logger.info("Gen 3 schema initialized")
 
     # ========================================================================
@@ -226,7 +243,8 @@ class CognitiveWorkspace:
         goal_id = f"goal_{int(time.time() * 1000000)}"
 
         with self.neo4j_driver.session() as session:
-            session.run("""
+            session.run(
+                """
                 CREATE (g:Goal {
                     id: $id,
                     description: $description,
@@ -234,12 +252,16 @@ class CognitiveWorkspace:
                     created_at: timestamp(),
                     active: true
                 })
-            """, id=goal_id, description=goal_description, weight=utility_weight)
+            """,
+                id=goal_id,
+                description=goal_description,
+                weight=utility_weight,
+            )
 
         self.active_goals[goal_id] = {
             "description": goal_description,
             "weight": utility_weight,
-            "created_at": time.time()
+            "created_at": time.time(),
         }
 
         logger.info(f"Goal set: {goal_description} (weight: {utility_weight})")
@@ -354,10 +376,7 @@ class CognitiveWorkspace:
     # ========================================================================
 
     def compress_to_tool(
-        self,
-        node_ids: list[str],
-        tool_name: str,
-        description: str | None = None
+        self, node_ids: list[str], tool_name: str, description: str | None = None
     ) -> dict[str, Any]:
         """
         Convert solved problem(s) into a reusable compressed tool.
@@ -382,11 +401,14 @@ class CognitiveWorkspace:
 
         with self.neo4j_driver.session() as session:
             # Get all node contents
-            nodes_result = session.run("""
+            nodes_result = session.run(
+                """
                 MATCH (n:ThoughtNode)
                 WHERE n.id IN $ids
                 RETURN n.id as id, n.content as content
-            """, ids=node_ids)
+            """,
+                ids=node_ids,
+            )
 
             nodes = {r["id"]: r["content"] for r in nodes_result}
 
@@ -403,7 +425,8 @@ class CognitiveWorkspace:
             # Create tool node
             tool_id = f"tool_{int(time.time() * 1000000)}"
 
-            session.run("""
+            session.run(
+                """
                 CREATE (t:Tool {
                     id: $id,
                     name: $name,
@@ -413,16 +436,24 @@ class CognitiveWorkspace:
                     success_rate: 1.0,
                     created_at: timestamp()
                 })
-            """, id=tool_id, name=tool_name, pattern=tool_pattern,
-                description=description or f"Compressed tool: {tool_name}")
+            """,
+                id=tool_id,
+                name=tool_name,
+                pattern=tool_pattern,
+                description=description or f"Compressed tool: {tool_name}",
+            )
 
             # Link to source nodes
             for node_id in node_ids:
-                session.run("""
+                session.run(
+                    """
                     MATCH (tool:Tool {id: $tool_id})
                     MATCH (node:ThoughtNode {id: $node_id})
                     CREATE (tool)-[:COMPRESSED_FROM]->(node)
-                """, tool_id=tool_id, node_id=node_id)
+                """,
+                    tool_id=tool_id,
+                    node_id=node_id,
+                )
 
             # Store in tool library
             self.tool_library[tool_id] = {
@@ -431,7 +462,7 @@ class CognitiveWorkspace:
                 "embedding": tool_embedding,
                 "usage_count": 0,
                 "success_rate": 1.0,
-                "source_nodes": node_ids
+                "source_nodes": node_ids,
             }
 
             logger.info(f"Tool created: {tool_name} ({tool_id})")
@@ -441,7 +472,7 @@ class CognitiveWorkspace:
                 "name": tool_name,
                 "pattern": tool_pattern,
                 "source_count": len(node_ids),
-                "message": f"Tool '{tool_name}' created and added to library"
+                "message": f"Tool '{tool_name}' created and added to library",
             }
 
     def _generate_tool_pattern(self, contents: list[str], tool_name: str) -> str:
@@ -461,9 +492,9 @@ class CognitiveWorkspace:
         content_previews = [f"{i+1}. {c[:300]}" for i, c in enumerate(contents[:5])]
 
         user_prompt = (
-            f"Extract a reusable pattern for tool '{tool_name}' from these solutions:\n\n" +
-            "\n\n".join(content_previews) +
-            "\n\nPattern:"
+            f"Extract a reusable pattern for tool '{tool_name}' from these solutions:\n\n"
+            + "\n\n".join(content_previews)
+            + "\n\nPattern:"
         )
 
         return self._llm_generate(system_prompt, user_prompt, max_tokens=1000)
@@ -473,9 +504,7 @@ class CognitiveWorkspace:
     # ========================================================================
 
     def explore_for_utility(
-        self,
-        focus_area: str | None = None,
-        max_candidates: int = 10
+        self, focus_area: str | None = None, max_candidates: int = 10
     ) -> dict[str, Any]:
         """
         Find thought-nodes with high utility × compression potential.
@@ -504,29 +533,35 @@ class CognitiveWorkspace:
                 focus_embedding = self._embed_text(focus_area, is_query=True)
                 results = self.collection.query(
                     query_embeddings=[focus_embedding],
-                    n_results=max_candidates * 3  # Over-fetch for filtering
+                    n_results=max_candidates * 3,  # Over-fetch for filtering
                 )
                 candidate_ids = results["ids"][0] if results["ids"] else []
             else:
                 # Get recent nodes
-                recent_result = session.run("""
+                recent_result = session.run(
+                    """
                     MATCH (t:ThoughtNode)
                     WHERE t.cognitive_type IN ['problem', 'sub_problem', 'hypothesis']
                     RETURN t.id as id
                     ORDER BY t.created_at DESC
                     LIMIT $limit
-                """, limit=max_candidates * 3)
+                """,
+                    limit=max_candidates * 3,
+                )
                 candidate_ids = [r["id"] for r in recent_result]
 
             # Score each candidate
             candidates = []
             for node_id in candidate_ids:
-                node = session.run("""
+                node = session.run(
+                    """
                     MATCH (t:ThoughtNode {id: $id})
                     RETURN t.content as content,
                            t.utility_score as utility,
                            t.compression_score as compression
-                """, id=node_id).single()
+                """,
+                    id=node_id,
+                ).single()
 
                 if not node:
                     continue
@@ -545,13 +580,15 @@ class CognitiveWorkspace:
                 # High utility + high compression potential = best exploration target
                 combined_score = utility * compression_potential
 
-                candidates.append({
-                    "node_id": node_id,
-                    "content": content[:200],  # Preview
-                    "utility_score": float(utility),
-                    "compression_potential": float(compression_potential),
-                    "combined_score": float(combined_score)
-                })
+                candidates.append(
+                    {
+                        "node_id": node_id,
+                        "content": content[:200],  # Preview
+                        "utility_score": float(utility),
+                        "compression_potential": float(compression_potential),
+                        "combined_score": float(combined_score),
+                    }
+                )
 
             # Sort by combined score and take top candidates
             candidates.sort(key=lambda x: x["combined_score"], reverse=True)
@@ -561,7 +598,7 @@ class CognitiveWorkspace:
                 "candidates": top_candidates,
                 "count": len(top_candidates),
                 "focus_area": focus_area,
-                "message": f"Found {len(top_candidates)} high-value exploration targets"
+                "message": f"Found {len(top_candidates)} high-value exploration targets",
             }
 
     def _embed_text(self, text: str, is_query: bool = False) -> list[float]:
@@ -587,7 +624,7 @@ class CognitiveWorkspace:
                 embedding = self.embedding_model.encode(text)
 
             # Convert to list of floats
-            if hasattr(embedding, 'tolist'):
+            if hasattr(embedding, "tolist"):
                 result = embedding.tolist()
             else:
                 result = list(embedding)
@@ -608,6 +645,12 @@ class CognitiveWorkspace:
         The LLM's role is to produce concise, clear outputs - not to do the reasoning itself.
         """
         try:
+            # Fast-path: avoid implicit model pull by verifying availability first
+            try:
+                _ = ollama.show(model=self.config.llm_model)
+            except Exception as avail_err:
+                logger.warning(f"LLM model '{self.config.llm_model}' not available: {avail_err}")
+                raise RuntimeError("LLM model unavailable")
             # Enhanced system prompt with framework context
             enhanced_system = f"""You are a text generation component in a cognitive reasoning system.
 
@@ -626,34 +669,31 @@ CRITICAL: Output your final answer directly. You may think internally, but end w
                 model=self.config.llm_model,
                 messages=[
                     {"role": "system", "content": enhanced_system},
-                    {"role": "user", "content": user_prompt}
+                    {"role": "user", "content": user_prompt},
                 ],
-                options={
-                    "num_predict": max_tokens,
-                    "temperature": 0.7
-                }
+                options={"num_predict": max_tokens, "temperature": 0.7},
             )
             content = response["message"]["content"].strip()
 
             # Strip reasoning artifacts that models add
             # Remove <think>...</think> blocks
-            content = re.sub(r'<think>.*?</think>', '', content, flags=re.DOTALL | re.IGNORECASE)
-            content = re.sub(r'<think>.*', '', content, flags=re.IGNORECASE)
+            content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL | re.IGNORECASE)
+            content = re.sub(r"<think>.*", "", content, flags=re.IGNORECASE)
 
             # Remove common reasoning prefixes (case-insensitive, at start of content)
             reasoning_patterns = [
-                r'^(?:Okay|Alright|Let me|Hmm|So|Well|First|Now)\s*[,:]?\s*',
-                r'^(?:The user|I need to|I should|Looking at)\s+.*?\.\s*',
+                r"^(?:Okay|Alright|Let me|Hmm|So|Well|First|Now)\s*[,:]?\s*",
+                r"^(?:The user|I need to|I should|Looking at)\s+.*?\.\s*",
             ]
 
             for pattern in reasoning_patterns:
-                content = re.sub(pattern, '', content, flags=re.IGNORECASE)
+                content = re.sub(pattern, "", content, flags=re.IGNORECASE)
 
             # Extract actual content after reasoning markers
             # Look for patterns like "...reasoning... [OUTPUT] actual content" or similar
             output_markers = [
-                r'(?:OUTPUT|ANSWER|RESULT|FINAL):\s*(.+)',  # Explicit markers
-                r'\n\n(.+?)$',  # Last paragraph after double newline
+                r"(?:OUTPUT|ANSWER|RESULT|FINAL):\s*(.+)",  # Explicit markers
+                r"\n\n(.+?)$",  # Last paragraph after double newline
             ]
 
             for marker_pattern in output_markers:
@@ -663,8 +703,8 @@ CRITICAL: Output your final answer directly. You may think internally, but end w
                     break
 
             # Clean up multiple spaces and newlines
-            content = re.sub(r'\n\s*\n\s*\n+', '\n\n', content)  # Max 2 newlines
-            content = re.sub(r'[ \t]+', ' ', content)  # Normalize spaces
+            content = re.sub(r"\n\s*\n\s*\n+", "\n\n", content)  # Max 2 newlines
+            content = re.sub(r"[ \t]+", " ", content)  # Normalize spaces
             content = content.strip()
 
             return content if content else "[No output generated]"
@@ -679,7 +719,7 @@ CRITICAL: Output your final answer directly. You may think internally, but end w
         cognitive_type: str,
         parent_problem: str | None = None,
         confidence: float = 0.5,
-        embedding: list[float] | None = None
+        embedding: list[float] | None = None,
     ) -> str:
         """
         Create a thought-node in both Neo4j and Chroma.
@@ -725,7 +765,7 @@ CRITICAL: Output your final answer directly. You may think internally, but end w
             parent_problem=parent_problem,
             utility_score=utility_score,
             compression_score=compression_score,
-            intrinsic_reward=intrinsic_reward
+            intrinsic_reward=intrinsic_reward,
         )
         result.single()
 
@@ -734,13 +774,15 @@ CRITICAL: Output your final answer directly. You may think internally, but end w
             ids=[thought_id],
             embeddings=[embedding],
             documents=[content],
-            metadatas=[{
-                "cognitive_type": cognitive_type,
-                "confidence": confidence,
-                "parent_problem": parent_problem or "",
-                "utility_score": utility_score,
-                "compression_score": compression_score
-            }]
+            metadatas=[
+                {
+                    "cognitive_type": cognitive_type,
+                    "confidence": confidence,
+                    "parent_problem": parent_problem or "",
+                    "utility_score": utility_score,
+                    "compression_score": compression_score,
+                }
+            ],
         )
 
         # Log significant insights
@@ -771,11 +813,7 @@ CRITICAL: Output your final answer directly. You may think internally, but end w
         with self.neo4j_driver.session() as session:
             # Create root problem node
             root_id = self._create_thought_node(
-                session,
-                problem,
-                "problem",
-                parent_problem=None,
-                confidence=1.0
+                session, problem, "problem", parent_problem=None, confidence=1.0
             )
 
             # Simple decomposition (in production, use LLM)
@@ -784,11 +822,7 @@ CRITICAL: Output your final answer directly. You may think internally, but end w
 
             for comp in components:
                 comp_id = self._create_thought_node(
-                    session,
-                    comp,
-                    "sub_problem",
-                    parent_problem=root_id,
-                    confidence=0.8
+                    session, comp, "sub_problem", parent_problem=root_id, confidence=0.8
                 )
                 component_ids.append(comp_id)
 
@@ -800,7 +834,7 @@ CRITICAL: Output your final answer directly. You may think internally, but end w
                     CREATE (parent)-[:DECOMPOSES_INTO]->(child)
                     """,
                     parent_id=root_id,
-                    child_id=comp_id
+                    child_id=comp_id,
                 )
 
             # Get decomposition tree
@@ -810,7 +844,7 @@ CRITICAL: Output your final answer directly. You may think internally, but end w
                 "root_id": root_id,
                 "component_ids": component_ids,
                 "tree": tree,
-                "message": f"Decomposed into {len(component_ids)} components"
+                "message": f"Decomposed into {len(component_ids)} components",
             }
 
     def _simple_decompose(self, text: str) -> list[str]:
@@ -825,29 +859,53 @@ CRITICAL: Output your final answer directly. You may think internally, but end w
             "Each component should be a clear, actionable sub-problem. "
             "No explanations, no reasoning - just the list."
         )
-        user_prompt = f"Decompose this problem into 2-50 logical sub-components:\n\n{text}\n\nComponents:"
+        user_prompt = (
+            f"Decompose this problem into 2-50 logical sub-components:\n\n{text}\n\nComponents:"
+        )
 
-        llm_output = self._llm_generate(system_prompt, user_prompt, max_tokens=8000)
+        llm_output = self._llm_generate(system_prompt, user_prompt, max_tokens=2000)
 
         # Parse numbered list into components
         components = []
-        for line in llm_output.split('\n'):
+        for line in llm_output.split("\n"):
             line = line.strip()
             # Remove numbering like "1.", "1)", "•", etc.
             if line and len(line) > 3:
                 # Strip common prefixes
-                for prefix in ['1.', '2.', '3.', '4.', '5.', '6.', '7.',
-                              '1)', '2)', '3)', '4)', '5)', '6)', '7)',
-                              '•', '-', '*', '→', '►']:
+                for prefix in [
+                    "1.",
+                    "2.",
+                    "3.",
+                    "4.",
+                    "5.",
+                    "6.",
+                    "7.",
+                    "1)",
+                    "2)",
+                    "3)",
+                    "4)",
+                    "5)",
+                    "6)",
+                    "7)",
+                    "•",
+                    "-",
+                    "*",
+                    "→",
+                    "►",
+                ]:
                     if line.startswith(prefix):
-                        line = line[len(prefix):].strip()
+                        line = line[len(prefix) :].strip()
                         break
-                if line and not line.startswith(('Ok', 'Here', 'The', 'I ')):
+                if line and not line.startswith(("Ok", "Here", "The", "I ")):
                     components.append(line)
 
-        # Return at least one component (fallback to sentence split if parsing fails)
-        if not components:
-            components = [s.strip() for s in text.split('.') if s.strip()][:50]
+        # Ensure at least 2 components; fallback to simple sentence/phrase split
+        if len(components) < 2:
+            # Basic phrase/sentence split
+            sentences = [
+                s.strip() for s in re.split(r"[\.;:]+|\band\b|\bthen\b", text) if s.strip()
+            ]
+            components = sentences[:50] if len(sentences) >= 2 else (components or [text])
 
         return components[:50]  # Cap at 50 components
 
@@ -859,7 +917,7 @@ CRITICAL: Output your final answer directly. You may think internally, but end w
             OPTIONAL MATCH (root)-[:DECOMPOSES_INTO]->(child:ThoughtNode)
             RETURN root, collect(child) as children
             """,
-            root_id=root_id
+            root_id=root_id,
         )
         record = result.single()
         if not record:
@@ -872,7 +930,7 @@ CRITICAL: Output your final answer directly. You may think internally, but end w
             "id": root["id"],
             "content": root["content"],
             "type": root["cognitive_type"],
-            "children": [{"id": c["id"], "content": c["content"]} for c in children]
+            "children": [{"id": c["id"], "content": c["content"]} for c in children],
         }
 
     # ========================================================================
@@ -882,10 +940,7 @@ CRITICAL: Output your final answer directly. You may think internally, but end w
     # ========================================================================
 
     def hypothesize(
-        self,
-        node_a_id: str,
-        node_b_id: str,
-        context: str | None = None
+        self, node_a_id: str, node_b_id: str, context: str | None = None
     ) -> dict[str, Any]:
         """
         Find novel connections between concepts in latent space (Topology Tunneling).
@@ -916,7 +971,7 @@ CRITICAL: Output your final answer directly. You may think internally, but end w
                        a.cognitive_type as type_a, b.cognitive_type as type_b
                 """,
                 id_a=node_a_id,
-                id_b=node_b_id
+                id_b=node_b_id,
             ).single()
 
             if not nodes:
@@ -933,13 +988,12 @@ CRITICAL: Output your final answer directly. You may think internally, but end w
                 LIMIT 5
                 """,
                 id_a=node_a_id,
-                id_b=node_b_id
+                id_b=node_b_id,
             ).values()
 
             # 2. Check vector similarity (semantic connection)
             similarity_score = self._cosine_similarity(
-                self._embed_text(content_a),
-                self._embed_text(content_b)
+                self._embed_text(content_a), self._embed_text(content_b)
             )
 
             # 3. Gen 3 Enhancement: Search for analogical patterns
@@ -948,11 +1002,7 @@ CRITICAL: Output your final answer directly. You may think internally, but end w
 
             # 4. Generate hypothesis using all connection types
             hypothesis_text = self._generate_hypothesis_with_analogy(
-                content_a,
-                content_b,
-                similarity_score,
-                analogical_tools,
-                context
+                content_a, content_b, similarity_score, analogical_tools, context
             )
 
             # 5. Calculate hypothesis quality (utility × novelty)
@@ -962,10 +1012,7 @@ CRITICAL: Output your final answer directly. You may think internally, but end w
 
             # Create hypothesis node
             hyp_id = self._create_thought_node(
-                session,
-                hypothesis_text,
-                "hypothesis",
-                confidence=float(hypothesis_quality)
+                session, hypothesis_text, "hypothesis", confidence=float(hypothesis_quality)
             )
 
             # Create relationships
@@ -981,7 +1028,7 @@ CRITICAL: Output your final answer directly. You may think internally, but end w
                 id_b=node_b_id,
                 hyp_id=hyp_id,
                 similarity=similarity_score,
-                quality=hypothesis_quality
+                quality=hypothesis_quality,
             )
 
             # Link to analogical tools if found
@@ -993,7 +1040,7 @@ CRITICAL: Output your final answer directly. You may think internally, but end w
                     CREATE (h)-[:INSPIRED_BY]->(t)
                     """,
                     hyp_id=hyp_id,
-                    tool_id=tool_id
+                    tool_id=tool_id,
                 )
 
             return {
@@ -1004,7 +1051,7 @@ CRITICAL: Output your final answer directly. You may think internally, but end w
                 "quality": float(hypothesis_quality),
                 "path_count": len(paths),
                 "analogical_tools": len(analogical_tools),
-                "message": "Hypothesis generated via topology tunneling"
+                "message": "Hypothesis generated via topology tunneling",
             }
 
     def _find_analogical_tools(self, content_a: str, content_b: str) -> list[str]:
@@ -1039,7 +1086,7 @@ CRITICAL: Output your final answer directly. You may think internally, but end w
         content_b: str,
         similarity: float,
         analogical_tools: list[str],
-        context: str | None
+        context: str | None,
     ) -> str:
         """
         Generate hypothesis using analogical reasoning.
@@ -1084,19 +1131,13 @@ CRITICAL: Output your final answer directly. You may think internally, but end w
         v2 = np.array(vec2)
         return float(np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2)))
 
-
-
     # ========================================================================
     # Cognitive Primitive 3: Synthesize
     # Merges multiple vectors in latent space (similar to hierarchical
     # reasoning models' latent transformations)
     # ========================================================================
 
-    def synthesize(
-        self,
-        node_ids: list[str],
-        goal: str | None = None
-    ) -> dict[str, Any]:
+    def synthesize(self, node_ids: list[str], goal: str | None = None) -> dict[str, Any]:
         """
         Merge multiple thought-nodes into a unified insight.
 
@@ -1117,7 +1158,7 @@ CRITICAL: Output your final answer directly. You may think internally, but end w
                 WHERE n.id IN $ids
                 RETURN n.id as id, n.content as content
                 """,
-                ids=node_ids
+                ids=node_ids,
             )
 
             nodes = {r["id"]: r["content"] for r in nodes_result}
@@ -1134,11 +1175,7 @@ CRITICAL: Output your final answer directly. You may think internally, but end w
 
             # Create synthesis node with centroid embedding (latent space position)
             synth_id = self._create_thought_node(
-                session,
-                synthesis_text,
-                "synthesis",
-                confidence=0.7,
-                embedding=centroid
+                session, synthesis_text, "synthesis", confidence=0.7, embedding=centroid
             )
 
             # Create relationships
@@ -1150,14 +1187,14 @@ CRITICAL: Output your final answer directly. You may think internally, but end w
                     CREATE (synth)-[:SYNTHESIZES_FROM]->(source)
                     """,
                     source_id=node_id,
-                    synth_id=synth_id
+                    synth_id=synth_id,
                 )
 
             return {
                 "synthesis_id": synth_id,
                 "synthesis": synthesis_text,
                 "source_count": len(node_ids),
-                "message": "Synthesis created"
+                "message": "Synthesis created",
             }
 
     def _generate_synthesis(self, contents: list[str], goal: str | None) -> str:
@@ -1183,9 +1220,7 @@ CRITICAL: Output your final answer directly. You may think internally, but end w
 
         user_prompt = (
             f"Synthesize these {len(contents)} concepts into a unified insight:{goal_text}\n\n"
-            "Concepts to integrate:\n" +
-            "\n\n".join(concept_list) +
-            "\n\nProvide a synthesis that:"
+            "Concepts to integrate:\n" + "\n\n".join(concept_list) + "\n\nProvide a synthesis that:"
             "\n- Identifies the common thread or pattern"
             "\n- Shows how concepts complement or build on each other"
             "\n- Captures emergent insights from the combination"
@@ -1216,7 +1251,7 @@ CRITICAL: Output your final answer directly. You may think internally, but end w
                 MATCH (n:ThoughtNode {id: $id})
                 RETURN n.content as content
                 """,
-                id=node_id
+                id=node_id,
             ).single()
 
             if not node:
@@ -1232,11 +1267,13 @@ CRITICAL: Output your final answer directly. You may think internally, but end w
                 rule_embedding = self._embed_text(rule, is_query=True)
                 similarity = self._cosine_similarity(content_embedding, rule_embedding)
 
-                rule_results.append({
-                    "rule": rule,
-                    "score": similarity,
-                    "satisfied": similarity > self.config.confidence_threshold
-                })
+                rule_results.append(
+                    {
+                        "rule": rule,
+                        "score": similarity,
+                        "satisfied": similarity > self.config.confidence_threshold,
+                    }
+                )
 
             # Calculate overall score
             avg_score = np.mean([r["score"] for r in rule_results])
@@ -1252,7 +1289,7 @@ CRITICAL: Output your final answer directly. You may think internally, but end w
                 """,
                 id=node_id,
                 score=float(avg_score),
-                satisfied=all_satisfied
+                satisfied=all_satisfied,
             )
 
             return {
@@ -1260,7 +1297,7 @@ CRITICAL: Output your final answer directly. You may think internally, but end w
                 "overall_score": float(avg_score),
                 "all_satisfied": all_satisfied,
                 "rule_results": rule_results,
-                "message": "Constraints applied"
+                "message": "Constraints applied",
             }
 
 
@@ -1269,6 +1306,7 @@ CRITICAL: Output your final answer directly. You may think internally, but end w
 # ============================================================================
 
 _workspace: CognitiveWorkspace | None = None
+_raa_context: dict[str, Any] | None = None
 
 
 def get_workspace() -> CognitiveWorkspace:
@@ -1279,6 +1317,93 @@ def get_workspace() -> CognitiveWorkspace:
         config = CWDConfig()  # type: ignore[call-arg]
         _workspace = CognitiveWorkspace(config)
     return _workspace
+
+
+def get_raa_context() -> dict[str, Any]:
+    """Initialize and cache RAA components + Bridge using server embedding dim.
+
+    - Derives embedding_dim from the active SentenceTransformer
+    - Creates Manifold, Pointer, Director
+    - Creates CWDRAABridge with pointer for goal updates
+    """
+    global _raa_context
+    if _raa_context is not None:
+        return _raa_context
+
+    workspace = get_workspace()
+
+    # Infer embedding dimension from SentenceTransformer
+    try:
+        embedding_dim = workspace.embedding_model.get_sentence_embedding_dimension()  # type: ignore[attr-defined]
+    except Exception:
+        # Fallback: infer from a sample vector
+        sample = workspace._embed_text("dimension probe")
+        embedding_dim = len(sample)
+
+    # Ensure a concrete int
+    if embedding_dim is None:
+        sample2 = workspace._embed_text("dimension probe 2")
+        embedding_dim = len(sample2)
+    embedding_dim = int(embedding_dim)
+
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    # Initialize RAA components
+    hopfield_cfg = HopfieldConfig(
+        embedding_dim=embedding_dim,
+        beta=10.0,
+        adaptive_beta=True,
+        beta_min=5.0,
+        beta_max=50.0,
+        device=device,
+    )
+    manifold = Manifold(hopfield_cfg)
+
+    pointer_cfg = PointerConfig(
+        embedding_dim=embedding_dim,
+        controller_type="gru",
+        device=device,
+    )
+    pointer = GoalController(pointer_cfg)
+
+    director_cfg = DirectorConfig(
+        search_k=5,
+        entropy_threshold_percentile=0.75,
+        use_energy_aware_search=True,
+        device=device,
+    )
+    director = Director(manifold, director_cfg)
+
+    # Bridge config
+    bridge_cfg = BridgeConfig(
+        embedding_dim=embedding_dim,
+        entropy_threshold=2.0,
+        enable_monitoring=True,
+        search_on_confusion=True,
+        log_integration_events=True,
+        device=device,
+    )
+
+    bridge = CWDRAABridge(
+        cwd_server=workspace,
+        raa_director=director,
+        manifold=manifold,
+        config=bridge_cfg,
+        pointer=pointer,
+    )
+
+    _raa_context = {
+        "embedding_dim": embedding_dim,
+        "device": device,
+        "manifold": manifold,
+        "pointer": pointer,
+        "director": director,
+        "bridge": bridge,
+    }
+    logger.info(
+        f"RAA context initialized (dim={embedding_dim}, device={device}) with Bridge monitoring"
+    )
+    return _raa_context
 
 
 @server.list_tools()
@@ -1293,16 +1418,16 @@ async def list_tools() -> list[Tool]:
                 "properties": {
                     "problem": {
                         "type": "string",
-                        "description": "The complex problem to decompose"
+                        "description": "The complex problem to decompose",
                     },
                     "max_depth": {
                         "type": "integer",
                         "description": "Maximum decomposition depth",
-                        "default": 3
-                    }
+                        "default": 3,
+                    },
                 },
-                "required": ["problem"]
-            }
+                "required": ["problem"],
+            },
         ),
         Tool(
             name="hypothesize",
@@ -1310,21 +1435,15 @@ async def list_tools() -> list[Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "node_a_id": {
-                        "type": "string",
-                        "description": "First thought-node ID"
-                    },
-                    "node_b_id": {
-                        "type": "string",
-                        "description": "Second thought-node ID"
-                    },
+                    "node_a_id": {"type": "string", "description": "First thought-node ID"},
+                    "node_b_id": {"type": "string", "description": "Second thought-node ID"},
                     "context": {
                         "type": "string",
-                        "description": "Optional context to guide hypothesis generation"
-                    }
+                        "description": "Optional context to guide hypothesis generation",
+                    },
                 },
-                "required": ["node_a_id", "node_b_id"]
-            }
+                "required": ["node_a_id", "node_b_id"],
+            },
         ),
         Tool(
             name="synthesize",
@@ -1335,15 +1454,12 @@ async def list_tools() -> list[Tool]:
                     "node_ids": {
                         "type": "array",
                         "items": {"type": "string"},
-                        "description": "List of thought-node IDs to synthesize (minimum 2)"
+                        "description": "List of thought-node IDs to synthesize (minimum 2)",
                     },
-                    "goal": {
-                        "type": "string",
-                        "description": "Optional goal to guide synthesis"
-                    }
+                    "goal": {"type": "string", "description": "Optional goal to guide synthesis"},
                 },
-                "required": ["node_ids"]
-            }
+                "required": ["node_ids"],
+            },
         ),
         Tool(
             name="constrain",
@@ -1351,18 +1467,15 @@ async def list_tools() -> list[Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "node_id": {
-                        "type": "string",
-                        "description": "Thought-node ID to constrain"
-                    },
+                    "node_id": {"type": "string", "description": "Thought-node ID to constrain"},
                     "rules": {
                         "type": "array",
                         "items": {"type": "string"},
-                        "description": "List of constraint rules in natural language"
-                    }
+                        "description": "List of constraint rules in natural language",
+                    },
                 },
-                "required": ["node_id", "rules"]
-            }
+                "required": ["node_id", "rules"],
+            },
         ),
         Tool(
             name="set_goal",
@@ -1372,16 +1485,16 @@ async def list_tools() -> list[Tool]:
                 "properties": {
                     "goal_description": {
                         "type": "string",
-                        "description": "Natural language description of the goal"
+                        "description": "Natural language description of the goal",
                     },
                     "utility_weight": {
                         "type": "number",
                         "description": "Weight for this goal (0.0-1.0)",
-                        "default": 1.0
-                    }
+                        "default": 1.0,
+                    },
                 },
-                "required": ["goal_description"]
-            }
+                "required": ["goal_description"],
+            },
         ),
         Tool(
             name="compress_to_tool",
@@ -1392,19 +1505,16 @@ async def list_tools() -> list[Tool]:
                     "node_ids": {
                         "type": "array",
                         "items": {"type": "string"},
-                        "description": "Thought-nodes representing the solved problem"
+                        "description": "Thought-nodes representing the solved problem",
                     },
-                    "tool_name": {
-                        "type": "string",
-                        "description": "Name for this tool"
-                    },
+                    "tool_name": {"type": "string", "description": "Name for this tool"},
                     "description": {
                         "type": "string",
-                        "description": "Optional description of what this tool does"
-                    }
+                        "description": "Optional description of what this tool does",
+                    },
                 },
-                "required": ["node_ids", "tool_name"]
-            }
+                "required": ["node_ids", "tool_name"],
+            },
         ),
         Tool(
             name="explore_for_utility",
@@ -1414,25 +1524,21 @@ async def list_tools() -> list[Tool]:
                 "properties": {
                     "focus_area": {
                         "type": "string",
-                        "description": "Optional semantic focus for exploration"
+                        "description": "Optional semantic focus for exploration",
                     },
                     "max_candidates": {
                         "type": "integer",
                         "description": "Maximum nodes to return",
-                        "default": 10
-                    }
+                        "default": 10,
+                    },
                 },
-                "required": []
-            }
+                "required": [],
+            },
         ),
         Tool(
             name="get_active_goals",
             description="Get all currently active goals with their weights and metadata.",
-            inputSchema={
-                "type": "object",
-                "properties": {},
-                "required": []
-            }
+            inputSchema={"type": "object", "properties": {}, "required": []},
         ),
     ]
 
@@ -1441,72 +1547,77 @@ async def list_tools() -> list[Tool]:
 async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextContent]:
     """Handle tool calls"""
     workspace = get_workspace()
+    raa = get_raa_context()
+    bridge: CWDRAABridge = raa["bridge"]
 
     try:
         if name == "deconstruct":
             result = workspace.deconstruct(
-                problem=arguments["problem"],
-                max_depth=arguments.get("max_depth", 3)
+                problem=arguments["problem"], max_depth=arguments.get("max_depth", 3)
             )
         elif name == "hypothesize":
-            result = workspace.hypothesize(
-                node_a_id=arguments["node_a_id"],
-                node_b_id=arguments["node_b_id"],
-                context=arguments.get("context")
+            # Route through RAA bridge for entropy monitoring + search
+            result = bridge.execute_monitored_operation(
+                operation="hypothesize",
+                params={
+                    "node_a_id": arguments["node_a_id"],
+                    "node_b_id": arguments["node_b_id"],
+                    "context": arguments.get("context"),
+                },
             )
         elif name == "synthesize":
-            result = workspace.synthesize(
-                node_ids=arguments["node_ids"],
-                goal=arguments.get("goal")
+            result = bridge.execute_monitored_operation(
+                operation="synthesize",
+                params={
+                    "node_ids": arguments["node_ids"],
+                    "goal": arguments.get("goal"),
+                },
             )
         elif name == "constrain":
-            result = workspace.constrain(
-                node_id=arguments["node_id"],
-                rules=arguments["rules"]
+            result = bridge.execute_monitored_operation(
+                operation="constrain",
+                params={
+                    "node_id": arguments["node_id"],
+                    "rules": arguments["rules"],
+                },
             )
         elif name == "set_goal":
             goal_id = workspace.set_goal(
                 goal_description=arguments["goal_description"],
-                utility_weight=arguments.get("utility_weight", 1.0)
+                utility_weight=arguments.get("utility_weight", 1.0),
             )
             result = {
                 "goal_id": goal_id,
                 "description": arguments["goal_description"],
                 "weight": arguments.get("utility_weight", 1.0),
-                "message": "Goal activated for utility-guided exploration"
+                "message": "Goal activated for utility-guided exploration",
             }
         elif name == "compress_to_tool":
             result = workspace.compress_to_tool(
                 node_ids=arguments["node_ids"],
                 tool_name=arguments["tool_name"],
-                description=arguments.get("description")
+                description=arguments.get("description"),
             )
         elif name == "explore_for_utility":
             result = workspace.explore_for_utility(
                 focus_area=arguments.get("focus_area"),
-                max_candidates=arguments.get("max_candidates", 10)
+                max_candidates=arguments.get("max_candidates", 10),
             )
         elif name == "get_active_goals":
             active_goals = workspace.get_active_goals()
             result = {
                 "goals": active_goals,
                 "count": len(active_goals),
-                "message": f"Currently tracking {len(active_goals)} active goal(s)"
+                "message": f"Currently tracking {len(active_goals)} active goal(s)",
             }
         else:
             return [TextContent(type="text", text=f"Unknown tool: {name}")]
 
-        return [TextContent(
-            type="text",
-            text=json.dumps(result, indent=2)
-        )]
+        return [TextContent(type="text", text=json.dumps(result, indent=2))]
 
     except Exception as e:
         logger.error(f"Error in {name}: {e}", exc_info=True)
-        return [TextContent(
-            type="text",
-            text=f"Error: {str(e)}"
-        )]
+        return [TextContent(type="text", text=f"Error: {str(e)}")]
 
 
 async def main():
@@ -1514,13 +1625,21 @@ async def main():
     from mcp.server.stdio import stdio_server
 
     async with stdio_server() as (read_stream, write_stream):
-        await server.run(
-            read_stream,
-            write_stream,
-            server.create_initialization_options()
-        )
+        await server.run(read_stream, write_stream, server.create_initialization_options())
 
 
 if __name__ == "__main__":
     import asyncio
+
     asyncio.run(main())
+
+
+def cli() -> None:
+    """Console entrypoint for running the MCP server.
+
+    This wraps the async main() in asyncio.run so it can be bound to a
+    setuptools/pyproject script entry.
+    """
+    import asyncio as _asyncio
+
+    _asyncio.run(main())

@@ -16,6 +16,12 @@ dependencies = [
     "numpy>=1.24.0",
     "matplotlib>=3.7.0",
     "tqdm>=4.66.0",
+    "mcp>=1.21.2",
+    "chromadb>=0.5.0",
+    "neo4j>=5.18.0",
+    "sentence-transformers>=2.7.0",
+    "pydantic-settings>=2.6.0",
+    "ollama>=0.3.0",
 ]
 
 [project.optional-dependencies]
@@ -33,6 +39,9 @@ notebooks = [
     "jupyter>=1.0.0",
     "ipykernel>=6.25.0",
 ]
+
+[project.scripts]
+raa-cwd-server = "src.server:cli"
 
 [build-system]
 requires = ["hatchling"]

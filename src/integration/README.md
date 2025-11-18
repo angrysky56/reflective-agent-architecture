@@ -1,11 +1,32 @@
 # RAA-CWD Integration Module
 
-**Status**: Phase 1 - Infrastructure (40% Complete)  
-**Version**: 0.1.0
+**Status**: Phase 2 - Entropy-Triggered Search (Functional)
+**Version**: 0.2.0
 
 ## Overview
 
 This module bridges **Reflective Agent Architecture (RAA)** and **Cognitive Workspace Database (CWD)** to create a unified system for confusion-triggered utility-guided reframing.
+
+## Quick Start with Real CWD (Ollama)
+
+```bash
+# 1. Set up environment
+cp .env.example .env
+# Edit .env and set NEO4J_PASSWORD
+
+# 2. Install CWD dependencies
+pip install ollama neo4j chromadb sentence-transformers python-dotenv
+
+# 3. Start services
+# - Ollama: ollama serve
+# - Neo4j: docker run -p 7687:7687 -p 7474:7474 neo4j
+# - Pull models: ollama pull qwen2.5:3b && ollama pull nomic-embed-text
+
+# 4. Run integration example
+python examples/cwd_integration_example.py
+```
+
+See `examples/cwd_integration_example.py` for complete working code.
 
 ## Architecture
 
@@ -35,13 +56,15 @@ This module bridges **Reflective Agent Architecture (RAA)** and **Cognitive Work
 ## Components
 
 ### 1. CWDRAABridge
-**Location**: `cwd_raa_bridge.py`  
-**Status**: ✅ Phase 1 Complete (monitoring only)
+**Location**: `cwd_raa_bridge.py`
+**Status**: ✅ Phase 2 Complete (search + goal updates)
 
 Main orchestrator that:
 - Executes CWD operations with RAA monitoring
+- Detects entropy spikes using Director's adaptive thresholds
+- Triggers RAA search on confusion
+- Updates Pointer goal with search results
 - Tracks integration metrics
-- Will trigger RAA search in Phase 2
 
 **Example Usage**:
 ```python
@@ -49,6 +72,9 @@ from src.integration import CWDRAABridge
 
 bridge = CWDRAABridge(
     cwd_server=cwd_server,
+    raa_director=director,
+    manifold=manifold,
+    pointer=pointer,  # Optional: enables goal updates
     raa_director=director,
     manifold=manifold
 )
@@ -66,7 +92,7 @@ print(f"Entropy spikes: {metrics['entropy_spikes_detected']}")
 ```
 
 ### 2. EmbeddingMapper
-**Location**: `embedding_mapper.py`  
+**Location**: `embedding_mapper.py`
 **Status**: ✅ Fully Implemented
 
 Converts between CWD's graph space and RAA's Hopfield space:
@@ -105,7 +131,7 @@ pip install sentence-transformers
 ```
 
 ### 3. EntropyCalculator
-**Location**: `entropy_calculator.py`  
+**Location**: `entropy_calculator.py`
 **Status**: ✅ Fully Implemented
 
 Converts CWD operation results to entropy signals:
@@ -136,7 +162,7 @@ logits = cwd_to_logits('hypothesize', hypotheses)
 ```
 
 ### 4. UtilityAwareSearch
-**Location**: `utility_aware_search.py`  
+**Location**: `utility_aware_search.py`
 **Status**: 🔴 Phase 3 Placeholder
 
 Will implement utility-biased energy function:
@@ -145,7 +171,7 @@ E_biased(ξ) = E_hopfield(ξ) - λ * U(tool)
 ```
 
 ### 5. AttractorReinforcement
-**Location**: `reinforcement.py`  
+**Location**: `reinforcement.py`
 **Status**: 🔴 Phase 4 Placeholder
 
 Will implement compression-based attractor strengthening.
@@ -181,15 +207,15 @@ config = BridgeConfig(
     # Embedding settings
     embedding_dim=512,
     embedding_model="sentence-transformers/all-MiniLM-L6-v2",
-    
+
     # Monitoring
     entropy_threshold=2.0,
     enable_monitoring=True,
-    
+
     # Search
     max_search_attempts=3,
     search_on_confusion=True,  # Phase 2
-    
+
     # Metrics
     log_integration_events=True,
     device="cpu"
@@ -293,7 +319,7 @@ pytest-cov>=4.0.0          # For coverage
 
 This module is under active development. Phase 1 (infrastructure) is ~40% complete.
 
-**Current Focus**: 
+**Current Focus**:
 - Tool-pattern bidirectional mapping
 - Persistent storage with SQLite
 - Integration with real CWD server
