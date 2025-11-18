@@ -33,14 +33,24 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class BridgeConfig:
-    """Configuration for CWD-RAA bridge."""
+    """Configuration for CWD-RAA bridge.
+    
+    Entropy Threshold Guide:
+    - Shannon entropy for binary distributions: 0.0-1.0 bits
+    - 0.0 bits = perfect certainty [1.0, 0.0]
+    - 1.0 bits = maximum confusion [0.5, 0.5]
+    - Recommended thresholds:
+      * 0.5 bits: Moderate confusion (70/30 split)
+      * 0.7 bits: High confusion (60/40 split)
+      * 0.9 bits: Very high confusion (near 50/50)
+    """
 
     # Embedding settings
     embedding_dim: int = 512
     embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
 
-    # Entropy monitoring
-    entropy_threshold: float = 2.0  # Will be adaptive
+    # Entropy monitoring (FIXED: 0.6 bits is appropriate for binary distributions)
+    entropy_threshold: float = 0.6  # Detects moderate-to-high confusion
     enable_monitoring: bool = True
 
     # Search triggering

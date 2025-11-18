@@ -1374,10 +1374,10 @@ def get_raa_context() -> dict[str, Any]:
     )
     director = Director(manifold, director_cfg)
 
-    # Bridge config
+    # Bridge config (FIXED: Binary distributions produce 0.0-1.0 bits entropy)
     bridge_cfg = BridgeConfig(
         embedding_dim=embedding_dim,
-        entropy_threshold=2.0,
+        entropy_threshold=0.6,  # Detects moderate-to-high confusion
         enable_monitoring=True,
         search_on_confusion=True,
         log_integration_events=True,

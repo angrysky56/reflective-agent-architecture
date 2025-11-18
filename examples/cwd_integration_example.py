@@ -139,7 +139,7 @@ def main():
     print("\n5. Initializing CWD-RAA Bridge...")
     bridge_config = BridgeConfig(
         embedding_dim=embedding_dim,
-        entropy_threshold=2.0,
+        entropy_threshold=0.6,  # FIXED: Binary distributions produce 0.0-1.0 bits
         enable_monitoring=True,
         search_on_confusion=True,  # Enable Phase 2 search
         log_integration_events=True,
