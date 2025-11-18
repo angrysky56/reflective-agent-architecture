@@ -37,6 +37,7 @@ class EmbeddingMapper:
         embedding_dim: int = 512,
         model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
         device: str = "cpu",
+        preloaded_model: Any | None = None,
     ):
         """
         Initialize embedding mapper.
@@ -50,10 +51,13 @@ class EmbeddingMapper:
         self.model_name = model_name
         self.device = device
 
-        # Initialize embedding model (lazy loading)
-        self._embedding_model = None
+        # Initialize embedding model (lazy loading unless provided)
+        self._embedding_model = preloaded_model
 
-        logger.info(f"EmbeddingMapper initialized with dim={embedding_dim}, " f"model={model_name}")
+        if preloaded_model is not None:
+            logger.info(f"EmbeddingMapper using preloaded model (dim={embedding_dim})")
+        else:
+            logger.info(f"EmbeddingMapper initialized with dim={embedding_dim}, model={model_name}")
 
     @property
     def embedding_model(self):
@@ -71,6 +75,12 @@ class EmbeddingMapper:
                     "Install with: pip install sentence-transformers"
                 )
                 raise
+        else:
+            # Ensure device placement is correct
+            try:
+                self._embedding_model.to(self.device)  # type: ignore[attr-defined]
+            except Exception:
+                pass
         return self._embedding_model
 
     def cwd_node_to_vector(

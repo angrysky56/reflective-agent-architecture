@@ -97,11 +97,30 @@ class CWDRAABridge:
         self.pointer = pointer
         self._get_current_goal_fn = get_current_goal
 
-        # Initialize components
+        # Initialize components: reuse CWD server's embedding model if available
+        preloaded_model = None
+        inferred_dim = self.config.embedding_dim
+        try:
+            if hasattr(self.cwd_server, "embedding_model"):
+                preloaded_model = getattr(self.cwd_server, "embedding_model")
+                # Try to derive dimension from model or workspace probe
+                if hasattr(preloaded_model, "get_sentence_embedding_dimension"):
+                    inferred_dim = int(preloaded_model.get_sentence_embedding_dimension())
+                elif hasattr(self.cwd_server, "_embed_text"):
+                    sample = self.cwd_server._embed_text("bridge dim probe")
+                    inferred_dim = int(len(sample))
+        except Exception:
+            # Fallback to provided config
+            pass
+
+        # Update config embedding_dim if inferred from server
+        self.config.embedding_dim = inferred_dim
+
         self.embedding_mapper = EmbeddingMapper(
-            embedding_dim=self.config.embedding_dim,
+            embedding_dim=inferred_dim,
             model_name=self.config.embedding_model,
             device=self.config.device,
+            preloaded_model=preloaded_model,
         )
 
         self.entropy_calculator = EntropyCalculator()
