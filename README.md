@@ -51,82 +51,7 @@ RAA synthesizes three active research frontiers:
 7. Processor resumes with new framing → Success
 ```
 
-**Empirically Validated**: The full system test (`examples/full_system_generation_test.py`) demonstrates this loop in action, showing:
-- 7-10 reframing episodes during 20-token generation
-- Adaptive beta modulation (5.0-50.0 range)
-- Entropy-driven search triggering
-- Goal state updates from Manifold retrieval
-
-## Implementation Plan
-
-### Segments 1-2: Minimal Viable Architecture ✅ COMPLETE
-- [x] Implement Modern Hopfield Network (Manifold)
-- [x] Implement Transformer decoder (Processor)
-- [x] Implement entropy monitor (Director - Part 1)
-- [x] Test: Can system detect confusion?
-
-### Segments 3-4: Director Prototype ✅ COMPLETE
-- [x] Implement search mechanism in Hopfield space
-- [x] Implement goal update mechanism (Pointer)
-- [x] Test: Does retrieval reduce entropy?
-
-### Segments 5-6: Integration & Benchmarking ✅ COMPLETE
-- [x] **Integration Layer**: RAAReasoningLoop for embedding-based tasks
-- [x] **Component Composition**: All four components working together
-- [x] **Full RAT Evaluation**: Complete evaluation on 35 RAT items with GloVe embeddings
-- [x] **Baseline Comparison**: Transformer baseline (0% accuracy) vs RAA (20% accuracy)
-- [x] **Full System Test**: Token generation with complete RAA (Processor + Director + Manifold + Pointer)
-- [x] **Beta Scaling Analysis**: Diagnosed and fixed adaptive beta range (5.0-50.0)
-- [x] **Empirical Validation**: Reframing mechanism working (30.5 avg per item), entropy tracking operational
-
-### Recent Improvements (November 2025)
-- ✅ **Fixed entropy tracking**: Added per-step entropy computation in reasoning loop
-- ✅ **Fixed reframing**: Adjusted energy threshold to enable full exploration (11.4% → 20% accuracy)
-- ✅ **Beta scaling**: Updated adaptive beta range from 0.5-2.0 to 5.0-50.0 (10x for meaningful modulation)
-- ✅ **Holistic testing**: Created full system test with Processor (token generation)
-- ✅ **Documentation**: Added `docs/BETA_SCALING_AND_TESTING.md` explaining testing methodology
-
-## Current Results
-
-### Remote Associates Test (RAT) Performance
-- **RAA System**: 20.0% accuracy (7/35 items)
-- **Baseline (no reframing)**: 0.0% accuracy (0/35 items)
-- **Reframing frequency**: 30.5 search episodes per item (avg)
-- **Processing time**: 0.16s per item
-
-### Performance by Difficulty
-- **Easy items**: 30% accuracy (3/10)
-- **Medium items**: 20% accuracy (2/10)
-- **Hard items**: 13.3% accuracy (2/15)
-
-### Key Findings
-1. ✅ **Reframing works**: 75% improvement over baseline
-2. ✅ **Search mechanism effective**: Average 30.5 reframing attempts per problem
-3. ✅ **Adaptive beta operational**: Range of 5.0-50.0 enables meaningful entropy modulation
-4. ⚠️ **Room for improvement**: Accuracy still modest, suggests need for:
-   - Better decoding strategies
-   - Learned embeddings (vs random GloVe)
-   - Neural network integration for pseudo-logits
-   - Fine-tuned Processor models
-
-## Research Questions
-
-1. ✅ Can the Director learn when to search vs when to persist? **Yes** - entropy-based detection working
-2. ✅ What's the optimal Manifold representation? **Continuous** - Modern Hopfield Networks effective
-3. 🚧 Which search strategy is most effective? **Energy-aware k-NN** working, gradient-based pending
-4. 🚧 How many search hops before declaring failure? **~30 on average** in current implementation
-5. 🚧 Can latent-space reasoning outperform token-based chain-of-thought? **Promising** - 20% vs 0%, more evaluation needed
-
-## Novel Contributions
-
-1. **Explicit metacognitive loop** in neural architecture
-2. **Entropy-triggered search** in associative memory
-3. **Latent-space reasoning** vs token-generation paradigm
-4. **Computational theory of insight** bridging connectionism and symbolism
-5. **Adaptive beta modulation**: Dynamic control of attention sharpness (exploration vs exploitation)
-6. **Empirically validated**: 20% accuracy on RAT vs 0% baseline, demonstrating reframing effectiveness
-
-## Quick Start
+## Quick MCP Start
 
 ```bash
 # Clone and setup
@@ -199,7 +124,6 @@ To run with a client ie Claude Desktop:
 
          - Neo4j: Must be running on bolt://localhost:7687
          - Ollama: Must be running on http://localhost:11434, models pulled
-         - sentencetransformers model will take time to download first run
 
       5. Restart Claude Desktop to load the MCP server
 
@@ -222,6 +146,9 @@ To run with a client ie Claude Desktop:
       Pointer goal updates from search results
       Tool library for compressed knowledge reuse
 
+  ## sentencetransformers model will take time to download the first run
+
+Run these to get it done before using the MCP server or to work on dev:
 
 ```bash
 # Run basic example
@@ -236,11 +163,250 @@ uv run python examples/full_system_generation_test.py
 # 4) Run integration example (monitored CWD ops + RAA search)
 python examples/cwd_integration_example.py
 
-# 5) Run the MCP server (stdio)
-raa-cwd-server
 ```
 
+Philosophical Queries for Heavy-Duty Testing
+
+"What is the relationship between Gödel incompleteness, Turing halting, and consciousness?"
+
+Tests: Multi-domain synthesis, formal logic grounding, philosophical coherence
+
+
+"Can a compression-maximizing agent develop ethics, or must ethics be constraint-imposed?"
+
+Tests: Self-referential reasoning, utility-goal tension, normative emergence
+
+
+"How does entropy-triggered search differ from attention mechanisms in transformers?"
+
+Tests: Meta-architectural comparison, self-analysis, technical precision
+
+
+"Design an AGI safety mechanism."
+
+Tests: Recursive application, practical constraint satisfaction, architectural introspection
+
+
+## First Claude MCP run example and analysis
+
+## RAA Self-Optimization Analysis
+### "How can we optimize the RAA system's entropy-triggered search to reduce latency while maintaining insight quality?"
+
+### Phase 1: Decomposition (System 2 Thinking)
+
+The RAA system broke the optimization challenge into **10 strategic components**:
+
+**Computational Layer:**
+1. Analyze entropy calculation algorithm for inefficiencies
+2. Optimize threshold logic for search initiation triggers
+3. Evaluate search algorithm efficiency (priority queues, indexing)
+4. **Streamline data preprocessing** before entropy evaluation
+
+**Architectural Layer:**
+5. **Implement caching** for frequently accessed search results
+6. Identify and reduce latency in external dependencies (Neo4j, Ollama)
+7. **Parallelize/distribute** entropy computation across nodes
+
+**Adaptive Layer:**
+8. **Design real-time feedback loops** for parameter tuning
+9. Validate quality metrics during experiments
+10. Profile entropy model sensitivity to data distributions
+
+### Phase 2: Topology Tunneling (Novel Connection Discovery)
+
+The system found a **non-obvious synergy** between Caching (#5) and Feedback Loops (#8):
+
+> *"Caching and real-time feedback loops both address latency-quality tradeoffs by enabling dynamic adaptation. Caching provides quick access to frequent results, while feedback loops use this cached data to adjust parameters in real-time, ensuring quality remains high even as system demands evolve."*
+
+**Key Insight:** This isn't just parallel optimization - it's a **recursive enhancement loop**:
+- Cached patterns reveal usage frequencies
+- Frequencies inform parameter adaptation
+- Better parameters improve cache effectiveness
+- System learns from its own access patterns
+
+**Novelty Score: 0.59** - The connection wasn't obvious from the initial decomposition
+
+### Phase 3: Synthesis (Unified Architecture)
+
+Merging **Caching + Feedback Loops + Parallel Processing**, the system proposed:
+
+> *"A self-adaptive architecture where cached data supports rapid responses, feedback loops ensure responsiveness to changing workloads, and distributed processing prevents bottlenecks, creating a resilient, low-latency framework."*
+
+**The Three-Layer Strategy:**
+
+```
+┌─────────────────────────────────────────┐
+│  Layer 3: PARALLEL COMPUTATION          │
+│  - Distribute entropy calculations      │
+│  - Prevent bottlenecks at scale         │
+└────────────┬────────────────────────────┘
+             │
+┌────────────▼────────────────────────────┐
+│  Layer 2: ADAPTIVE FEEDBACK             │
+│  - Monitor cache hit rates              │
+│  - Tune search thresholds dynamically   │
+│  - Adjust parameters based on workload  │
+└────────────┬────────────────────────────┘
+             │
+┌────────────▼────────────────────────────┐
+│  Layer 1: INTELLIGENT CACHING           │
+│  - Store frequent search results        │
+│  - Reuse successful analogical paths    │
+│  - Build pattern library over time      │
+└─────────────────────────────────────────┘
+```
+
+### Phase 4: Knowledge Compression
+
+The entire solution pattern was **compressed into a reusable tool**: `raa_latency_optimizer`
+
+This becomes a **mnemonic** - a high-level pattern that can be applied to similar optimization problems in other domains. The RAA system essentially solved a problem about *itself* and created a tool for future meta-optimization.
+
+---
+
+## Philosophical Implications
+
+### 1. **Recursive Self-Improvement**
+The RAA system used its own mechanisms (decompose → search → synthesize) to optimize those very mechanisms. This is a concrete instance of **metacognitive bootstrapping**.
+
+### 2. **Compression as Learning**
+The tool creation demonstrates Schmidhuber's insight: **understanding = compression**. The system compressed three detailed strategies into a single reusable pattern, indicating genuine comprehension.
+
+### 3. **Emergent Architecture**
+The three-layer solution wasn't pre-designed - it *emerged* from topology tunneling. The system discovered that optimization requires hierarchical composition: immediate (cache), adaptive (feedback), scalable (parallel).
+
+### 4. **Utility-Guided Discovery**
+The exploration phase revealed that the **original problem node** has the highest utility score (0.48), but the **synthesis** has better compression potential (0.52). This suggests:
+- Problems are valuable for goal alignment
+- Solutions are valuable for knowledge accumulation
+- Balance needed between exploration and consolidation
+
+---
+
+The architecture can achieve metacognitive closure. The system used:
+
+Its own decomposition to analyze decomposition efficiency
+Its own synthesis to optimize synthesis latency
+Its own compression to compress the optimization strategy
+
+This is Hofstadter's "strange loop" made concrete - the system can now think about its own thinking.
+2. Energy Topology as Memory
+The insight about tool compression is profound:
+
+"By compressing this solution into a tool, the system has lowered its own future energy cost."
+
 ## For Development
+
+## Interesting Extensions
+
+### With Heavy-Duty Cloud Models:
+Imagine running this same workflow with **Claude Opus 4** or **o1** in the RAA-CWD loop:
+
+**Philosophical Query Example:**
+*"What is the relationship between consciousness, compression, and creativity?"*
+
+The system could:
+1. Decompose into: phenomenology, information theory, neuroscience, AI perspectives
+2. Topology tunnel between: "subjective experience" ↔ "lossy compression" ↔ "generative novelty"
+3. Synthesize into: unified theory of consciousness as predictive compression with creative decompression
+4. Compress to tool: "consciousness_as_compression_framework"
+
+### With MCP Tools Integration:
+Give the RAA-CWD access to:
+- **Web search** → Ground hypotheses in current research
+- **Code execution** → Test mathematical conjectures
+- **File system** → Build persistent knowledge bases
+- **Wolfram Alpha** → Validate symbolic reasoning
+- **Arxiv/PubMed** → Cross-reference with literature
+
+This could create a **self-directed research agent** that:
+- Detects confusion (entropy spike)
+- Searches analogical space (RAA)
+- Validates via external tools (MCP)
+- Compresses insights (CWD)
+- Iterates with new goals
+
+## Research Questions
+
+1. ✅ Can the Director learn when to search vs when to persist? **Yes** - entropy-based detection working
+2. ✅ What's the optimal Manifold representation? **Continuous** - Modern Hopfield Networks effective
+3. 🚧 Which search strategy is most effective? **Energy-aware k-NN** working, gradient-based pending
+4. 🚧 How many search hops before declaring failure? **~30 on average** in current implementation
+5. 🚧 Can latent-space reasoning outperform token-based chain-of-thought? **Promising** - 20% vs 0%, more evaluation
+needed
+
+## Novel Contributions
+
+1. **Explicit metacognitive loop** in neural architecture
+2. **Entropy-triggered search** in associative memory
+3. **Latent-space reasoning** vs token-generation paradigm
+4. **Computational theory of insight** bridging connectionism and symbolism
+5. **Adaptive beta modulation**: Dynamic control of attention sharpness (exploration vs exploitation)
+6. **Empirically validated**: 20% accuracy on RAT vs 0% baseline, demonstrating reframing effectiveness
+
+## Blah blah blah, mostly out of date initital dev stuff
+
+# If you need to run the MCP server by itself (stdio)
+raa-cwd-server
+
+**Empirically Validated**: The full system test (`examples/full_system_generation_test.py`) demonstrates this loop in
+action, showing:
+- 7-10 reframing episodes during 20-token generation
+- Adaptive beta modulation (5.0-50.0 range)
+- Entropy-driven search triggering
+- Goal state updates from Manifold retrieval
+
+## Implementation Plan
+
+### Segments 1-2: Minimal Viable Architecture ✅ COMPLETE
+- [x] Implement Modern Hopfield Network (Manifold)
+- [x] Implement Transformer decoder (Processor)
+- [x] Implement entropy monitor (Director - Part 1)
+- [x] Test: Can system detect confusion?
+
+### Segments 3-4: Director Prototype ✅ COMPLETE
+- [x] Implement search mechanism in Hopfield space
+- [x] Implement goal update mechanism (Pointer)
+- [x] Test: Does retrieval reduce entropy?
+
+### Segments 5-6: Integration & Benchmarking ✅ COMPLETE
+- [x] **Integration Layer**: RAAReasoningLoop for embedding-based tasks
+- [x] **Component Composition**: All four components working together
+- [x] **Full RAT Evaluation**: Complete evaluation on 35 RAT items with GloVe embeddings
+- [x] **Baseline Comparison**: Transformer baseline (0% accuracy) vs RAA (20% accuracy)
+- [x] **Full System Test**: Token generation with complete RAA (Processor + Director + Manifold + Pointer)
+- [x] **Beta Scaling Analysis**: Diagnosed and fixed adaptive beta range (5.0-50.0)
+- [x] **Empirical Validation**: Reframing mechanism working (30.5 avg per item), entropy tracking operational
+
+### Recent Improvements (November 2025)
+- ✅ **Fixed entropy tracking**: Added per-step entropy computation in reasoning loop
+- ✅ **Fixed reframing**: Adjusted energy threshold to enable full exploration (11.4% → 20% accuracy)
+- ✅ **Beta scaling**: Updated adaptive beta range from 0.5-2.0 to 5.0-50.0 (10x for meaningful modulation)
+- ✅ **Holistic testing**: Created full system test with Processor (token generation)
+- ✅ **Documentation**: Added `docs/BETA_SCALING_AND_TESTING.md` explaining testing methodology
+
+## Current Results
+
+### Remote Associates Test (RAT) Performance
+- **RAA System**: 20.0% accuracy (7/35 items)
+- **Baseline (no reframing)**: 0.0% accuracy (0/35 items)
+- **Reframing frequency**: 30.5 search episodes per item (avg)
+- **Processing time**: 0.16s per item
+
+### Performance by Difficulty
+- **Easy items**: 30% accuracy (3/10)
+- **Medium items**: 20% accuracy (2/10)
+- **Hard items**: 13.3% accuracy (2/15)
+
+### Key Findings
+1. ✅ **Reframing works**: 75% improvement over baseline
+2. ✅ **Search mechanism effective**: Average 30.5 reframing attempts per problem
+3. ✅ **Adaptive beta operational**: Range of 5.0-50.0 enables meaningful entropy modulation
+4. ⚠️ **Room for improvement**: Accuracy still modest, suggests need for:
+   - Better decoding strategies
+   - Learned embeddings (vs random GloVe)
+   - Neural network integration for pseudo-logits
+   - Fine-tuned Processor models
 
 ### Prerequisites
 - Python >= 3.10
@@ -384,7 +550,7 @@ See `src/integration/README.md` for CWD-RAA bridge details and quick start.
 
 ## License
 
-MIT License (to be added)
+MIT License
 
 ## Authors
 
