@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-        "reflective-agent-architecture": {
+    "reflective-agent-architecture": {
       "command": "uv",
       "args": [
         "--directory",

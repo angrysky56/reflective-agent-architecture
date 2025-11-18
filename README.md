@@ -134,14 +134,6 @@ git clone https://github.com/angrysky56/reflective-agent-architecture.git
 cd reflective-agent-architecture
 uv sync
 
-# Run basic example
-uv run python examples/basic_usage.py
-
-# Run RAT evaluation (requires GloVe embeddings in data/embeddings/)
-uv run python experiments/insight_tasks/run_rat_evaluation.py
-
-# Run full system test
-uv run python examples/full_system_generation_test.py
 ```
 
 ### CWD Integration (Ollama) Quick Start
@@ -151,18 +143,19 @@ uv run python examples/full_system_generation_test.py
 cp .env.example .env
 # Edit .env and set NEO4J_PASSWORD, prefered models
 
-# 2) Install server extras (CWD + Ollama)
+# 2) Install server extras (CWD + Ollama) uv sync should work
 uv sync --extra server
 
 # 3) Start services and pull models
 ollama serve
 ollama pull qwen3:latest # or any prefered model
 
-# Start your Neo4j Desktop DB or Docker container
+# Start your Neo4j Desktop DB or neo4j Docker container
 # (Docker example)
 docker run -p 7687:7687 -p 7474:7474 -e NEO4J_AUTH=neo4j:<your_password> neo4j
 
 ```
+To run with a client ie Claude Desktop:
 
 ```json
 {
@@ -180,42 +173,54 @@ docker run -p 7687:7687 -p 7474:7474 -e NEO4J_AUTH=neo4j:<your_password> neo4j
   }
   ```
 
-  "_instructions": {
-    "installation": "Run 'uv sync' in project directory to install dependencies",
-    "configuration": [
-      "1. Copy this config to Claude Desktop configuration:",
-      "   - Linux/Mac: ~/.config/Claude/claude_desktop_config.json",
-      "   - Windows: %APPDATA%\\Claude\\claude_desktop_config.json",
-      "2. Update the path to match your installation directory",
-      "3. Ensure .env file exists in project root with required settings:",
-      "   NEO4J_PASSWORD=your_password",
-      "   NEO4J_URI=bolt://localhost:7687 (optional, defaults to this)",
-      "   NEO4J_USER=neo4j (optional, defaults to this)",
-      "4. Start required services:",
-      "   - Neo4j: Must be running on bolt://localhost:7687",
-      "   - Ollama: Must be running on http://localhost:11434",
-      "5. Restart Claude Desktop to load the MCP server"
-    ],
-    "tools_available": [
-      "deconstruct: Break problems into component thought-nodes",
-      "hypothesize: Find novel connections via topology tunneling",
-      "synthesize: Merge thoughts into unified insights",
-      "constrain: Validate thoughts against rules",
-      "set_goal: Set goals for utility-guided exploration",
-      "compress_to_tool: Convert solved problems into reusable patterns",
-      "explore_for_utility: Find high-value exploration targets",
-      "get_active_goals: List all active goals"
-    ],
-    "features": [
-      "Gen 3 Utility-Guided Architecture with compression progress tracking",
-      "RAA-CWD integration with entropy-triggered search",
-      "Automatic Director monitoring of System 2 reasoning",
-      "Pointer goal updates from search results",
-      "Tool library for compressed knowledge reuse"
-    ]
-  }
-}
-```
+  instructions:
+    installation: Run 'uv sync' in project directory to install dependencies
+    configuration:
+      1. Copy this config to Claude Desktop configuration:
+         - Linux/Mac: ~/.config/Claude/claude_desktop_config.json
+         - Windows: %APPDATA%\\Claude\\claude_desktop_config.json
+
+      2. Update the path to match your installation directory
+
+      3. Ensure .env file exists in project root with required settings:
+         NEO4J_PASSWORD=your_password,
+         NEO4J_URI=bolt://localhost:7687 (optional, defaults to this)
+         NEO4J_USER=neo4j (optional, defaults to this)
+
+      4. Start required services:",
+         - Neo4j: Must be running on bolt://localhost:7687
+         - Ollama: Must be running on http://localhost:11434, models pulled
+         - sentencetransformers model will take time to download first run
+
+      5. Restart Claude Desktop to load the MCP server
+
+    tools_available:
+      deconstruct: Break problems into component thought-nodes
+      hypothesize: Find novel connections via topology tunneling
+      synthesize: Merge thoughts into unified insights
+      constrain: Validate thoughts against rules
+      set_goal: Set goals for utility-guided exploration
+      compress_to_tool: Convert solved problems into reusable patterns
+      explore_for_utility: Find high-value exploration targets
+      get_active_goals: List all active goals
+
+    features:
+      Gen 3 Utility-Guided Architecture with compression progress tracking
+      RAA-CWD integration with entropy-triggered search
+      Automatic Director monitoring of System 2 reasoning
+      Pointer goal updates from search results
+      Tool library for compressed knowledge reuse
+
+
+```bash
+# Run basic example
+uv run python examples/basic_usage.py
+
+# Run RAT evaluation (requires GloVe embeddings in data/embeddings/)
+uv run python experiments/insight_tasks/run_rat_evaluation.py
+
+# Run full system test
+uv run python examples/full_system_generation_test.py
 
 # 4) Run integration example (monitored CWD ops + RAA search)
 python examples/cwd_integration_example.py
@@ -224,7 +229,7 @@ python examples/cwd_integration_example.py
 raa-cwd-server
 ```
 
-## Installation
+## For Development
 
 ### Prerequisites
 - Python >= 3.10
