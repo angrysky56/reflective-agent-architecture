@@ -54,7 +54,6 @@ Thumbs.db
 
 # Ignore secrets
 *.env
-.env.*
 
 # Ignore pip
 pip-log.txt

@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class BridgeConfig:
     """Configuration for CWD-RAA bridge.
-    
+
     Entropy Threshold Guide:
     - Shannon entropy for binary distributions: 0.0-1.0 bits
     - 0.0 bits = perfect certainty [1.0, 0.0]
