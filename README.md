@@ -173,21 +173,30 @@ To run with a client ie Claude Desktop:
   }
   ```
 
-  instructions:
-    installation: Run 'uv sync' in project directory to install dependencies
+  ## MCP instructions:
+
+    installation:
+
+     Run 'uv sync' in project directory to install dependencies
+
     configuration:
+
       1. Copy this config to Claude Desktop configuration:
+
          - Linux/Mac: ~/.config/Claude/claude_desktop_config.json
+
          - Windows: %APPDATA%\\Claude\\claude_desktop_config.json
 
       2. Update the path to match your installation directory
 
       3. Ensure .env file exists in project root with required settings:
+
          NEO4J_PASSWORD=your_password,
          NEO4J_URI=bolt://localhost:7687 (optional, defaults to this)
          NEO4J_USER=neo4j (optional, defaults to this)
 
-      4. Start required services:",
+      4. Start required services:
+
          - Neo4j: Must be running on bolt://localhost:7687
          - Ollama: Must be running on http://localhost:11434, models pulled
          - sentencetransformers model will take time to download first run
@@ -195,6 +204,7 @@ To run with a client ie Claude Desktop:
       5. Restart Claude Desktop to load the MCP server
 
     tools_available:
+
       deconstruct: Break problems into component thought-nodes
       hypothesize: Find novel connections via topology tunneling
       synthesize: Merge thoughts into unified insights
@@ -205,6 +215,7 @@ To run with a client ie Claude Desktop:
       get_active_goals: List all active goals
 
     features:
+
       Gen 3 Utility-Guided Architecture with compression progress tracking
       RAA-CWD integration with entropy-triggered search
       Automatic Director monitoring of System 2 reasoning
