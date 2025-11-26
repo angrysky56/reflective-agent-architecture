@@ -500,8 +500,8 @@ class SheafAnalyzer:
 
                 if monodromy.topology == CognitiveTopology.TENSION:
                     messages.append(
-                        f"WARNING: Feedback loop has TENSION topology. "
-                        f"Learning may stall due to internal contradictions."
+                        "WARNING: Feedback loop has TENSION topology. "
+                        "Learning may stall due to internal contradictions."
                     )
 
         # Determine recommendations

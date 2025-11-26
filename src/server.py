@@ -49,7 +49,8 @@ from sentence_transformers import SentenceTransformer
 from src.director import Director, DirectorConfig
 from src.integration.cwd_raa_bridge import BridgeConfig, CWDRAABridge
 from src.manifold import HopfieldConfig, Manifold
-from src.pointer import GoalController, PointerConfig
+from src.pointer.goal_controller import GoalController, PointerConfig
+from src.processor import Processor, ProcessorConfig
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -674,11 +675,18 @@ CRITICAL: Output your final answer directly. You may think internally, but end w
                 options={"num_predict": max_tokens, "temperature": 0.7},
             )
             content = response["message"]["content"].strip()
+            logger.info(f"Raw LLM output: {content[:500]}...")  # Log first 500 chars for debug
 
             # Strip reasoning artifacts that models add
-            # Remove <think>...</think> blocks
-            content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL | re.IGNORECASE)
-            content = re.sub(r"<think>.*", "", content, flags=re.IGNORECASE)
+            # Remove <think>...</think> blocks, but be careful not to delete everything
+            if "<think>" in content:
+                # Try to extract content after </think>
+                parts = re.split(r"</think>", content, flags=re.IGNORECASE)
+                if len(parts) > 1 and parts[-1].strip():
+                    content = parts[-1].strip()
+                else:
+                    # If everything is inside <think> or no closing tag, just strip the tags
+                    content = re.sub(r"</?think>", "", content, flags=re.IGNORECASE)
 
             # Remove common reasoning prefixes (case-insensitive, at start of content)
             reasoning_patterns = [
@@ -687,7 +695,11 @@ CRITICAL: Output your final answer directly. You may think internally, but end w
             ]
 
             for pattern in reasoning_patterns:
-                content = re.sub(pattern, "", content, flags=re.IGNORECASE)
+                # Only replace if it leaves something behind
+                if re.match(pattern, content, flags=re.IGNORECASE):
+                    new_content = re.sub(pattern, "", content, count=1, flags=re.IGNORECASE).strip()
+                    if new_content:
+                        content = new_content
 
             # Extract actual content after reasoning markers
             # Look for patterns like "...reasoning... [OUTPUT] actual content" or similar
@@ -1455,6 +1467,17 @@ def get_raa_context() -> dict[str, Any]:
     )
     director = Director(manifold, director_cfg)
 
+    # Initialize Processor for Cognitive Proprioception (Shadow Monitoring)
+    processor_cfg = ProcessorConfig(
+        vocab_size=50257,
+        embedding_dim=embedding_dim,
+        num_layers=4,  # Lightweight shadow processor
+        num_heads=4,
+        device=device
+    )
+    # Pass director to processor so it can report attention weights
+    processor = Processor(processor_cfg, director=director)
+
     # Bridge config (FIXED: Binary distributions produce 0.0-1.0 bits entropy)
     bridge_cfg = BridgeConfig(
         embedding_dim=embedding_dim,
@@ -1471,6 +1494,7 @@ def get_raa_context() -> dict[str, Any]:
         manifold=manifold,
         config=bridge_cfg,
         pointer=pointer,
+        processor=processor,
     )
 
     _raa_context = {
@@ -1479,6 +1503,7 @@ def get_raa_context() -> dict[str, Any]:
         "manifold": manifold,
         "pointer": pointer,
         "director": director,
+        "processor": processor,
         "bridge": bridge,
     }
     logger.info(
@@ -1643,8 +1668,13 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
 
     try:
         if name == "deconstruct":
-            result = workspace.deconstruct(
-                problem=arguments["problem"], max_depth=arguments.get("max_depth", 3)
+            # Route through RAA bridge for entropy monitoring + search
+            result = bridge.execute_monitored_operation(
+                operation="deconstruct",
+                params={
+                    "problem": arguments["problem"],
+                    "max_depth": arguments.get("max_depth", 3),
+                },
             )
         elif name == "hypothesize":
             # Route through RAA bridge for entropy monitoring + search

@@ -79,6 +79,7 @@ class CWDRAABridge:
         manifold,  # RAA Manifold (Hopfield network)
         config: Optional[BridgeConfig] = None,
         pointer: Optional[Any] = None,  # Optional GoalController (Pointer)
+        processor: Optional[Any] = None,  # Optional Processor for shadow monitoring
         get_current_goal: Optional[Callable[[], torch.Tensor]] = None,  # Optional goal provider
     ):
         """
@@ -95,6 +96,7 @@ class CWDRAABridge:
         self.manifold = manifold
         self.config = config or BridgeConfig()
         self.pointer = pointer
+        self.processor = processor
         self._get_current_goal_fn = get_current_goal
 
         # Initialize components: reuse CWD server's embedding model if available
@@ -237,7 +239,37 @@ class CWDRAABridge:
         if self.config.log_integration_events:
             self._log_event(operation, result, entropy)
 
+        # Phase 1.5: Shadow Monitoring (Cognitive Proprioception)
+        # Run a pass through the Processor to generate attention patterns for the Director
+        if self.processor is not None:
+            self._run_shadow_monitoring(operation)
+
         return result
+
+    def _run_shadow_monitoring(self, operation: str) -> None:
+        """
+        Run a shadow pass through the Processor to populate cognitive state.
+
+        This simulates the 'thought process' of the operation using the local
+        Transformer, allowing the Director to monitor attention topology.
+        """
+        try:
+            # Get current goal to bias the thought
+            goal = self._get_current_goal()
+
+            # Create a dummy input sequence representing the operation
+            # In a real system, this would be the actual tokens being processed
+            # Here we just use random tokens to stimulate the network
+            # Shape: (1, 16) - short sequence
+            dummy_input = torch.randint(0, 100, (1, 16), device=self.config.device)
+
+            # Run forward pass
+            # The Processor is wired to call director.monitor_thought_process() internally
+            with torch.no_grad():
+                self.processor(dummy_input, goal_state=goal)
+
+        except Exception as e:
+            logger.warning(f"Shadow monitoring failed: {e}")
 
     def sync_tools_to_manifold(self) -> int:
         """
@@ -287,10 +319,15 @@ class CWDRAABridge:
                 "synthesis": "Mock synthesis",
                 "quality": {"coverage": 0.9, "coherence": 0.7, "fidelity": 0.8},
             }
-        elif operation == "constrain":
             return {
                 "valid": True,
                 "satisfaction_score": 0.9,
+            }
+        elif operation == "deconstruct":
+            return {
+                "root_id": "mock_root",
+                "component_ids": ["mock_1", "mock_2"],
+                "message": "Mock decomposition",
             }
         else:
             return {}
