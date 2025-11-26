@@ -18,6 +18,7 @@ import torch
 
 from .entropy_monitor import EntropyMonitor
 from .search_mvp import SearchResult, energy_aware_knn_search, knn_search
+from .sheaf_diagnostics import SheafAnalyzer, SheafConfig, SheafDiagnostics
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +44,11 @@ class DirectorConfig:
 
     # Logging
     log_search_episodes: bool = True
+    log_search_episodes: bool = True
     device: str = "cpu"
+
+    # Sheaf Diagnostics
+    sheaf_config: Optional[SheafConfig] = None
 
 
 class DirectorMVP:
@@ -72,6 +77,10 @@ class DirectorMVP:
             history_size=self.config.entropy_history_size,
             default_threshold=self.config.default_entropy_threshold,
         )
+
+        # Sheaf Analyzer
+        sheaf_config = self.config.sheaf_config or SheafConfig(device=self.config.device)
+        self.sheaf_analyzer = SheafAnalyzer(sheaf_config)
 
         # Search episode logging
         self.search_episodes = []
@@ -238,6 +247,25 @@ class DirectorMVP:
 
         return new_goal
 
+    def diagnose(
+        self,
+        weights: list[torch.Tensor],
+        target_error: Optional[torch.Tensor] = None,
+        feedback_weights: Optional[list[torch.Tensor]] = None,
+    ) -> SheafDiagnostics:
+        """
+        Perform sheaf-theoretic diagnosis of the network.
+
+        Args:
+            weights: Network weights
+            target_error: Optional target error
+            feedback_weights: Optional feedback weights
+
+        Returns:
+            SheafDiagnostics result
+        """
+        return self.sheaf_analyzer.full_diagnosis(weights, target_error, feedback_weights)
+
     def _log_search_episode(
         self,
         current_state: torch.Tensor,
@@ -276,6 +304,10 @@ class DirectorMVP:
                 "metric": self.config.search_metric,
                 "threshold_percentile": self.config.entropy_threshold_percentile,
             },
+            "sheaf_diagnostics": {
+                "h1_threshold": self.sheaf_analyzer.config.h1_escalation_threshold,
+                "overlap_threshold": self.sheaf_analyzer.config.overlap_warning_threshold,
+            }
         }
 
     def reset(self) -> None:

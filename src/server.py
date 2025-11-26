@@ -1621,6 +1621,11 @@ async def list_tools() -> list[Tool]:
             description="Get all currently active goals with their weights and metadata.",
             inputSchema={"type": "object", "properties": {}, "required": []},
         ),
+        Tool(
+            name="diagnose_pointer",
+            description="Perform sheaf-theoretic diagnosis of the GoalController (Pointer). Checks for topological obstructions (H^1 > 0) or tension loops that might be causing the agent to get stuck.",
+            inputSchema={"type": "object", "properties": {}, "required": []},
+        ),
     ]
 
 
@@ -1690,6 +1695,40 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
                 "goals": active_goals,
                 "count": len(active_goals),
                 "message": f"Currently tracking {len(active_goals)} active goal(s)",
+            }
+        elif name == "diagnose_pointer":
+            # Extract weights from Pointer and run diagnosis
+            pointer = raa["pointer"]
+            director = raa["director"]
+
+            if not hasattr(pointer, "rnn"):
+                return [TextContent(type="text", text="Error: Pointer does not have an RNN to diagnose")]
+
+            # Extract weights based on RNN type
+            weights = []
+            if isinstance(pointer.rnn, torch.nn.GRU):
+                # GRU weights: (W_ir|W_iz|W_in), (W_hr|W_hz|W_hn)
+                # We treat the hidden-to-hidden matrix as the primary transition operator
+                # pointer.rnn.weight_hh_l0 is shape (3*hidden_dim, hidden_dim)
+                # We can split it or just analyze the whole block
+                weights.append(pointer.rnn.weight_hh_l0.detach())
+                # Also include input-to-hidden
+                weights.append(pointer.rnn.weight_ih_l0.detach())
+            elif isinstance(pointer.rnn, torch.nn.LSTM):
+                # LSTM weights
+                weights.append(pointer.rnn.weight_hh_l0.detach())
+                weights.append(pointer.rnn.weight_ih_l0.detach())
+
+            # Run diagnosis
+            diagnosis = director.diagnose(weights)
+
+            # Format result
+            result = {
+                "h1_dimension": diagnosis.cohomology.h1_dimension,
+                "can_resolve": diagnosis.cohomology.can_fully_resolve,
+                "overlap": diagnosis.harmonic_diffusive_overlap,
+                "escalation_recommended": diagnosis.escalation_recommended,
+                "messages": diagnosis.diagnostic_messages
             }
         else:
             return [TextContent(type="text", text=f"Unknown tool: {name}")]
