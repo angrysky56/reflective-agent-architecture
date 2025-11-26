@@ -85,10 +85,11 @@ class DirectorMVP:
         sheaf_config = self.config.sheaf_config or SheafConfig(device=self.config.device)
         self.sheaf_analyzer = SheafAnalyzer(sheaf_config)
 
-        # Matrix Monitor
+        # 3. Matrix Monitor (Cognitive Proprioception)
         self.matrix_monitor = MatrixMonitor(
             config=self.config.matrix_monitor_config or MatrixMonitorConfig(device=self.config.device)
         )
+        self.matrix_monitor.seed_defaults()
         self.latest_cognitive_state: tuple[str, float] = ("Unknown", 0.0)
 
         # Search episode logging
@@ -282,6 +283,7 @@ class DirectorMVP:
         """
         state = self.matrix_monitor.check_state(attention_weights)
         self.latest_cognitive_state = state
+        logger.debug(f"Director monitored thought process. State: {state}")
         return state
 
     def _log_search_episode(

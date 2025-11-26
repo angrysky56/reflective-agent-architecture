@@ -266,10 +266,12 @@ class CWDRAABridge:
             # Run forward pass
             # The Processor is wired to call director.monitor_thought_process() internally
             with torch.no_grad():
+                logger.debug("Running shadow monitoring pass...")
                 self.processor(dummy_input, goal_state=goal)
+                logger.debug("Shadow monitoring pass completed.")
 
         except Exception as e:
-            logger.warning(f"Shadow monitoring failed: {e}")
+            logger.error(f"Shadow monitoring failed: {e}", exc_info=True)
 
     def sync_tools_to_manifold(self) -> int:
         """

@@ -112,6 +112,39 @@ class MatrixMonitor(nn.Module):
 
             logger.info(f"Registered new self-state: '{label}' (Index {new_index})")
 
+    def seed_defaults(self) -> None:
+        """
+        Seed the monitor with archetypal cognitive states.
+        """
+        logger.info("Seeding default cognitive states...")
+
+        heads = self.config.num_heads
+
+        # 1. Focused: Sharp diagonal attention (local processing)
+        # Shape: (Batch=1, Heads=heads, Seq=16, Seq=16)
+        focused = torch.eye(16, device=self.device).unsqueeze(0).unsqueeze(0).repeat(1, heads, 1, 1)
+        # Add some noise
+        focused = focused + 0.1 * torch.rand_like(focused)
+        focused = focused / focused.sum(dim=-1, keepdim=True)
+        self.register_state(focused, "Focused")
+
+        # 2. Looping: Strong off-diagonal attention (attending to immediate past repeatedly)
+        looping = torch.zeros((1, heads, 16, 16), device=self.device)
+        for i in range(16):
+            # Attend to i-1, i-2 (looping back)
+            if i > 0: looping[0, :, i, i-1] = 1.0
+            if i > 1: looping[0, :, i, i-2] = 0.5
+        looping = looping + 0.1 * torch.rand_like(looping)
+        looping = looping / (looping.sum(dim=-1, keepdim=True) + 1e-6)
+        self.register_state(looping, "Looping")
+
+        # 3. Broad: Uniform attention (scanning/diffuse)
+        broad = torch.ones((1, heads, 16, 16), device=self.device)
+        broad = broad / broad.sum(dim=-1, keepdim=True)
+        self.register_state(broad, "Broad")
+
+        logger.info("Seeding complete.")
+
     def check_state(self, attention_weights: torch.Tensor) -> Tuple[str, float]:
         """
         Diagnose current cognitive state.
