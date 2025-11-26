@@ -102,10 +102,12 @@ class GoalBiasedAttention(nn.Module):
 
         # Softmax to get attention weights
         attention_weights = f.softmax(scores, dim=-1)
-        attention_weights = self.dropout(attention_weights)
+
+        # Apply dropout to weights used for context, but return clean weights for monitoring
+        attention_weights_dropped = self.dropout(attention_weights)
 
         # Apply attention to values
-        context = torch.matmul(attention_weights, other=v)  # (batch, num_heads, seq_len, head_dim)
+        context = torch.matmul(attention_weights_dropped, other=v)  # (batch, num_heads, seq_len, head_dim)
 
         # Reshape back
         context = context.transpose(1, 2).contiguous()

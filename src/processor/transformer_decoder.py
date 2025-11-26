@@ -2,14 +2,17 @@
 Transformer Decoder Implementation
 
 Standard transformer decoder with goal-biasing capability.
+Refactored to expose attention weights for cognitive monitoring.
 """
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any, Optional
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as f
+
+from .goal_biased_attention import GoalBiasedAttention
 
 
 @dataclass
@@ -26,6 +29,71 @@ class ProcessorConfig:
     device: str = "cpu"
 
 
+class CustomDecoderLayer(nn.Module):
+    """
+    Custom Transformer Decoder Layer that exposes attention weights.
+    Uses GoalBiasedAttention for self-attention.
+    """
+
+    def __init__(self, config: ProcessorConfig):
+        super().__init__()
+        self.embedding_dim = config.embedding_dim
+
+        # Self-Attention with Goal Biasing
+        self.self_attn = GoalBiasedAttention(
+            embedding_dim=config.embedding_dim,
+            num_heads=config.num_heads,
+            dropout=config.dropout
+        )
+
+        # Feed-forward network
+        self.linear1 = nn.Linear(config.embedding_dim, config.feedforward_dim)
+        self.dropout = nn.Dropout(config.dropout)
+        self.linear2 = nn.Linear(config.feedforward_dim, config.embedding_dim)
+
+        # Normalization and Dropout
+        self.norm1 = nn.LayerNorm(config.embedding_dim)
+        self.norm2 = nn.LayerNorm(config.embedding_dim)
+        self.dropout1 = nn.Dropout(config.dropout)
+        self.dropout2 = nn.Dropout(config.dropout)
+
+    def forward(
+        self,
+        tgt: torch.Tensor,
+        goal_state: Optional[torch.Tensor] = None,
+        tgt_mask: Optional[torch.Tensor] = None,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """
+        Forward pass.
+
+        Returns:
+            output: Layer output (batch, seq_len, embedding_dim)
+            attn_weights: Self-attention weights (batch, num_heads, seq_len, seq_len)
+        """
+        # 1. Self-Attention
+        # tgt is (batch, seq_len, embedding_dim)
+        tgt2, attn_weights = self.self_attn(
+            query=tgt,
+            key=tgt,
+            value=tgt,
+            goal_state=goal_state,
+            attn_mask=tgt_mask
+        )
+
+        # Residual connection + Norm
+        tgt = tgt + self.dropout1(tgt2)
+        tgt = self.norm1(tgt)
+
+        # 2. Feed-Forward
+        tgt2 = self.linear2(self.dropout(f.relu(self.linear1(tgt))))
+
+        # Residual connection + Norm
+        tgt = tgt + self.dropout2(tgt2)
+        tgt = self.norm2(tgt)
+
+        return tgt, attn_weights
+
+
 class TransformerDecoder(nn.Module):
     """
     Transformer decoder for sequence generation.
@@ -34,13 +102,15 @@ class TransformerDecoder(nn.Module):
     - Standard causal self-attention
     - Goal-biasing via additive bias to attention
     - Outputs both tokens and entropy for metacognitive monitoring
+    - Exposes attention weights to Director for topological analysis
     """
 
-    def __init__(self, config: ProcessorConfig):
+    def __init__(self, config: ProcessorConfig, director: Optional[Any] = None):
         super().__init__()
         self.config = config
         self.embedding_dim = config.embedding_dim
         self.device = config.device
+        self.director = director
 
         # Token embedding
         self.token_embedding = nn.Embedding(config.vocab_size, config.embedding_dim)
@@ -48,24 +118,13 @@ class TransformerDecoder(nn.Module):
         # Positional embedding
         self.position_embedding = nn.Embedding(config.max_seq_length, config.embedding_dim)
 
-        # Transformer layers
-        decoder_layer = nn.TransformerDecoderLayer(
-            d_model=config.embedding_dim,
-            nhead=config.num_heads,
-            dim_feedforward=config.feedforward_dim,
-            dropout=config.dropout,
-            batch_first=True,
-        )
-        self.transformer = nn.TransformerDecoder(
-            decoder_layer,
-            num_layers=config.num_layers,
-        )
+        # Custom Transformer Layers
+        self.layers = nn.ModuleList([
+            CustomDecoderLayer(config) for _ in range(config.num_layers)
+        ])
 
         # Output projection to vocabulary
         self.output_projection = nn.Linear(config.embedding_dim, config.vocab_size)
-
-        # Goal biasing mechanism
-        self.goal_projection = nn.Linear(config.embedding_dim, config.embedding_dim)
 
         self.dropout = nn.Dropout(config.dropout)
 
@@ -76,6 +135,10 @@ class TransformerDecoder(nn.Module):
         Returns:
             Mask of shape (seq_length, seq_length) with True for masked positions
         """
+        # In PyTorch attention, mask usually expects float('-inf') for masked positions
+        # or boolean True for positions to IGNORE.
+        # GoalBiasedAttention expects True for masked positions (positions to ignore).
+        # Causal mask: We want to ignore upper triangle.
         mask = torch.triu(torch.ones(seq_length, seq_length), diagonal=1).bool()
         return mask.to(self.device)
 
@@ -104,35 +167,6 @@ class TransformerDecoder(nn.Module):
 
         return embeddings
 
-    def apply_goal_bias(
-        self,
-        embeddings: torch.Tensor,
-        goal_state: Optional[torch.Tensor] = None
-    ) -> torch.Tensor:
-        """
-        Apply goal biasing to embeddings.
-
-        Args:
-            embeddings: Token embeddings (batch, seq_length, embedding_dim)
-            goal_state: Goal vector from Pointer (embedding_dim,) or (batch, embedding_dim)
-
-        Returns:
-            Biased embeddings
-        """
-        if goal_state is None:
-            return embeddings
-
-        # Project goal to same space
-        if goal_state.dim() == 1:
-            goal_state = goal_state.unsqueeze(0)  # (1, embedding_dim)
-
-        goal_bias = self.goal_projection(goal_state)  # (batch, embedding_dim)
-
-        # Add goal bias to all positions (broadcast)
-        biased_embeddings = embeddings + goal_bias.unsqueeze(1)
-
-        return biased_embeddings
-
     def forward(
         self,
         input_ids: torch.Tensor,
@@ -154,21 +188,27 @@ class TransformerDecoder(nn.Module):
         # Embed tokens with positions
         embeddings = self.embed_tokens(input_ids)
 
-        # Apply goal biasing
-        embeddings = self.apply_goal_bias(embeddings, goal_state)
-
         # Create causal mask
         seq_length = input_ids.shape[1]
         causal_mask = self._create_causal_mask(seq_length)
 
-        # Transformer forward pass
-        # Note: for decoder-only, we use tgt=memory=embeddings
-        hidden_states = self.transformer(
-            tgt=embeddings,
-            memory=embeddings,
-            tgt_mask=causal_mask,
-            memory_mask=causal_mask,
-        )
+        # Pass through layers
+        hidden_states = embeddings
+        last_attention_weights = None
+
+        for layer in self.layers:
+            hidden_states, attn_weights = layer(
+                tgt=hidden_states,
+                goal_state=goal_state,
+                tgt_mask=causal_mask
+            )
+            last_attention_weights = attn_weights
+
+        # Monitor Thought Process (if Director is attached)
+        if self.director is not None and last_attention_weights is not None:
+            # We use the attention weights from the last layer
+            # Shape: (batch, num_heads, seq_len, seq_len)
+            self.director.monitor_thought_process(last_attention_weights.detach())
 
         # Project to vocabulary
         logits = self.output_projection(hidden_states)

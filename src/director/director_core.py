@@ -17,6 +17,7 @@ from typing import Any, Dict, Optional
 import torch
 
 from .entropy_monitor import EntropyMonitor
+from .matrix_monitor import MatrixMonitor, MatrixMonitorConfig
 from .search_mvp import SearchResult, energy_aware_knn_search, knn_search
 from .sheaf_diagnostics import SheafAnalyzer, SheafConfig, SheafDiagnostics
 
@@ -44,11 +45,13 @@ class DirectorConfig:
 
     # Logging
     log_search_episodes: bool = True
-    log_search_episodes: bool = True
     device: str = "cpu"
 
     # Sheaf Diagnostics
     sheaf_config: Optional[SheafConfig] = None
+
+    # Matrix Monitor
+    matrix_monitor_config: Optional[MatrixMonitorConfig] = None
 
 
 class DirectorMVP:
@@ -81,6 +84,12 @@ class DirectorMVP:
         # Sheaf Analyzer
         sheaf_config = self.config.sheaf_config or SheafConfig(device=self.config.device)
         self.sheaf_analyzer = SheafAnalyzer(sheaf_config)
+
+        # Matrix Monitor
+        self.matrix_monitor = MatrixMonitor(
+            config=self.config.matrix_monitor_config or MatrixMonitorConfig(device=self.config.device)
+        )
+        self.latest_cognitive_state: tuple[str, float] = ("Unknown", 0.0)
 
         # Search episode logging
         self.search_episodes = []
@@ -265,6 +274,15 @@ class DirectorMVP:
             SheafDiagnostics result
         """
         return self.sheaf_analyzer.full_diagnosis(weights, target_error, feedback_weights)
+
+    def monitor_thought_process(self, attention_weights: torch.Tensor) -> tuple[str, float]:
+        """
+        Monitor the 'topology' of thought by analyzing attention matrices.
+        Returns the cognitive state label and its energy (stability).
+        """
+        state = self.matrix_monitor.check_state(attention_weights)
+        self.latest_cognitive_state = state
+        return state
 
     def _log_search_episode(
         self,

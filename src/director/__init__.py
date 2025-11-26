@@ -50,6 +50,9 @@ __all__ = [
     "CognitiveTopology",
     "AttentionSheafAnalyzer",
     "create_supervision_target",
+    # Matrix Monitor
+    "MatrixMonitor",
+    "MatrixMonitorConfig",
 ]
 
 

@@ -97,3 +97,25 @@ async def test_diagnose_pointer_no_rnn(mock_raa_context):
         result = await call_tool("diagnose_pointer", {})
 
         assert "Error" in result[0].text
+
+@pytest.mark.asyncio
+async def test_check_cognitive_state_tool(mock_raa_context):
+    """Test check_cognitive_state tool execution."""
+
+    # Mock Director state
+    mock_raa_context["director"].latest_cognitive_state = ("Looping", -10.0)
+
+    with patch("src.server.get_raa_context", return_value=mock_raa_context):
+        # Call the tool
+        result = await call_tool("check_cognitive_state", {})
+
+        # Verify result format
+        assert len(result) == 1
+        import json
+        data = json.loads(result[0].text)
+
+        # Check fields
+        assert data["state"] == "Looping"
+        assert data["energy"] == -10.0
+        assert "warnings" in data
+        assert any("Looping" in w for w in data["warnings"])

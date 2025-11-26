@@ -1626,6 +1626,11 @@ async def list_tools() -> list[Tool]:
             description="Perform sheaf-theoretic diagnosis of the GoalController (Pointer). Checks for topological obstructions (H^1 > 0) or tension loops that might be causing the agent to get stuck.",
             inputSchema={"type": "object", "properties": {}, "required": []},
         ),
+        Tool(
+            name="check_cognitive_state",
+            description="Get the agent's latest cognitive state (Proprioception). Returns the current 'shape' of thought (e.g., 'Focused', 'Looping') and its stability.",
+            inputSchema={"type": "object", "properties": {}, "required": []},
+        ),
     ]
 
 
@@ -1729,6 +1734,24 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
                 "overlap": diagnosis.harmonic_diffusive_overlap,
                 "escalation_recommended": diagnosis.escalation_recommended,
                 "messages": diagnosis.diagnostic_messages
+            }
+        elif name == "check_cognitive_state":
+            # Retrieve latest cognitive state from Director
+            director = raa["director"]
+            state, energy = director.latest_cognitive_state
+
+            # Generate warnings for negative states
+            warnings = []
+            if state in ["Looping", "Confused", "Scattered"]:
+                warnings.append(f"WARNING: Agent is in a '{state}' state.")
+            if energy > -5.0 and state != "Unknown":
+                 warnings.append("Note: State is unstable (high energy).")
+
+            result = {
+                "state": state,
+                "energy": energy,
+                "warnings": warnings,
+                "message": f"Agent is currently '{state}' (Energy: {energy:.2f})"
             }
         else:
             return [TextContent(type="text", text=f"Unknown tool: {name}")]

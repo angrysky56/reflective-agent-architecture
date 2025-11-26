@@ -33,7 +33,6 @@ from enum import Enum
 from typing import Any
 
 import torch
-import torch.nn.functional as f
 
 logger = logging.getLogger(__name__)
 
@@ -296,7 +295,9 @@ class SheafAnalyzer:
         else:
             # Manual computation via SVD
             U, S, Vh = torch.linalg.svd(D, full_matrices=False)
-            S_inv = torch.where(S > self.config.svd_tolerance, 1.0 / S, torch.zeros_like(S))
+            # Avoid division by zero
+            S_safe = torch.where(S > self.config.svd_tolerance, S, torch.ones_like(S))
+            S_inv = torch.where(S > self.config.svd_tolerance, 1.0 / S_safe, torch.zeros_like(S))
             D_pinv = Vh.T @ torch.diag(S_inv) @ U.T
 
         # Harmonic projector: H = I - D @ D^†
