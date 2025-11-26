@@ -60,6 +60,7 @@ def test_shadow_monitoring():
     """Test that CWDRAABridge runs shadow monitoring."""
     mock_server = MagicMock()
     mock_director = MagicMock()
+    mock_director.latest_cognitive_state = ("Unknown", 0.0)
     mock_manifold = MagicMock()
     mock_processor = MagicMock()
 
@@ -96,6 +97,7 @@ def test_deconstruct_monitoring():
 
     mock_server = MagicMock()
     mock_director = MagicMock()
+    mock_director.latest_cognitive_state = ("Unknown", 0.0)
     mock_manifold = MagicMock()
     mock_processor = MagicMock()
 

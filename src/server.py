@@ -31,7 +31,7 @@ import re
 import time
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict
 
 import chromadb
 import numpy as np
@@ -465,16 +465,15 @@ class CognitiveWorkspace:
                 "success_rate": 1.0,
                 "source_nodes": node_ids,
             }
+        logger.info(f"Tool created: {tool_name} ({tool_id})")
 
-            logger.info(f"Tool created: {tool_name} ({tool_id})")
-
-            return {
-                "tool_id": tool_id,
-                "name": tool_name,
-                "pattern": tool_pattern,
-                "source_count": len(node_ids),
-                "message": f"Tool '{tool_name}' created and added to library",
-            }
+        return {
+            "tool_id": tool_id,
+            "name": tool_name,
+            "pattern": tool_pattern,
+            "source_count": len(node_ids),
+            "message": f"Tool '{tool_name}' created and added to library",
+        }
 
     def _generate_tool_pattern(self, contents: list[str], tool_name: str) -> str:
         """
@@ -854,10 +853,55 @@ CRITICAL: Output your final answer directly. You may think internally, but end w
 
             return {
                 "root_id": root_id,
-                "component_ids": component_ids,
-                "tree": tree,
-                "message": f"Decomposed into {len(component_ids)} components",
             }
+
+    def get_node_context(self, node_id: str, depth: int = 1) -> Dict[str, Any]:
+        """
+        Get the local context (neighbors) of a node.
+        """
+        try:
+            with self.neo4j_driver.session() as session: # Changed self.driver to self.neo4j_driver
+                # Get node and immediate neighbors
+                query = """
+                MATCH (n {id: $node_id})-[r]-(m)
+                RETURN n, r, m
+                LIMIT 50
+                """
+                result = session.run(query, node_id=node_id)
+
+                neighbors = []
+                node_data = {}
+
+                for record in result:
+                    if not node_data:
+                        node_data = dict(record["n"])
+
+                    neighbor = dict(record["m"])
+                    rel = record["r"]
+                    neighbors.append({
+                        "id": neighbor.get("id"),
+                        "content": neighbor.get("content"),
+                        "relationship": rel.type,
+                        "direction": "outgoing" if rel.start_node.id == record["n"].id else "incoming"
+                    })
+
+                if not node_data:
+                    # Try fetching just the node if no neighbors
+                    result = session.run("MATCH (n {id: $node_id}) RETURN n", node_id=node_id)
+                    record = result.single()
+                    if record:
+                        node_data = dict(record["n"])
+                    else:
+                        return {"error": f"Node {node_id} not found"}
+
+                return {
+                    "node": node_data,
+                    "neighbors": neighbors,
+                    "neighbor_count": len(neighbors)
+                }
+        except Exception as e:
+            logger.error(f"Failed to get node context: {e}")
+            return {"error": str(e)}
 
     def _simple_decompose(self, text: str) -> list[str]:
         """
@@ -1656,6 +1700,52 @@ async def list_tools() -> list[Tool]:
             description="Get the agent's latest cognitive state (Proprioception). Returns the current 'shape' of thought (e.g., 'Focused', 'Looping') and its stability.",
             inputSchema={"type": "object", "properties": {}, "required": []},
         ),
+        Tool(
+            name="recall_work",
+            description="Search the agent's past work history to recall previous operations, results, and cognitive states.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Text to search for in parameters or results"},
+                    "operation_type": {"type": "string", "description": "Filter by operation type (e.g., 'hypothesize')"},
+                    "limit": {"type": "integer", "description": "Max number of results (default 10)"}
+                },
+                "required": []
+            },
+        ),
+        Tool(
+            name="inspect_knowledge_graph",
+            description="Explore the knowledge graph around a specific node to understand context.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "node_id": {"type": "string", "description": "ID of the node to inspect"},
+                    "depth": {"type": "integer", "description": "Traversal depth (default 1)", "default": 1}
+                },
+                "required": ["node_id"]
+            },
+        ),
+        Tool(
+            name="teach_cognitive_state",
+            description="Teach the agent that its *current* thought pattern corresponds to a specific state label (Reinforcement Learning).",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "label": {"type": "string", "description": "Name of the state (e.g., 'Creative', 'Stuck')"}
+                },
+                "required": ["label"]
+            },
+        ),
+        Tool(
+            name="get_known_archetypes",
+            description="List all cognitive states the agent currently recognizes.",
+            inputSchema={"type": "object", "properties": {}, "required": []},
+        ),
+        Tool(
+            name="visualize_thought",
+            description="Get an ASCII visualization of the last thought's topology.",
+            inputSchema={"type": "object", "properties": {}, "required": []},
+        ),
     ]
 
 
@@ -1719,6 +1809,29 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
                 tool_name=arguments["tool_name"],
                 description=arguments.get("description"),
             )
+        elif name == "recall_work":
+            results = bridge.history.search_history(
+                query=arguments.get("query"),
+                operation_type=arguments.get("operation_type"),
+                limit=arguments.get("limit", 10)
+            )
+            return [TextContent(type="text", text=json.dumps(results, indent=2, default=str))]
+        elif name == "inspect_knowledge_graph":
+            result = workspace.get_node_context(
+                node_id=arguments["node_id"],
+                depth=arguments.get("depth", 1)
+            )
+            return [TextContent(type="text", text=json.dumps(result, indent=2, default=str))]
+        elif name == "teach_cognitive_state":
+            success = bridge.raa_director.teach_state(arguments["label"])
+            msg = f"Learned state '{arguments['label']}'" if success else "Failed: No recent thought to learn from."
+            return [TextContent(type="text", text=msg)]
+        elif name == "get_known_archetypes":
+            states = bridge.raa_director.get_known_states()
+            return [TextContent(type="text", text=json.dumps(states, indent=2))]
+        elif name == "visualize_thought":
+            vis = bridge.raa_director.visualize_last_thought()
+            return [TextContent(type="text", text=vis)]
         elif name == "explore_for_utility":
             result = workspace.explore_for_utility(
                 focus_area=arguments.get("focus_area"),

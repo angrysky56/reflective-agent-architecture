@@ -90,7 +90,10 @@ class DirectorMVP:
             config=self.config.matrix_monitor_config or MatrixMonitorConfig(device=self.config.device)
         )
         self.matrix_monitor.seed_defaults()
+        # Cognitive State
         self.latest_cognitive_state: tuple[str, float] = ("Unknown", 0.0)
+        self.latest_diagnostics: dict[str, Any] = {}
+        self.latest_attention_weights: Optional[torch.Tensor] = None
 
         # Search episode logging
         self.search_episodes = []
@@ -281,10 +284,36 @@ class DirectorMVP:
         Monitor the 'topology' of thought by analyzing attention matrices.
         Returns the cognitive state label and its energy (stability).
         """
-        state = self.matrix_monitor.check_state(attention_weights)
-        self.latest_cognitive_state = state
+        # Store raw weights for potential feedback/teaching
+        self.latest_attention_weights = attention_weights
+
+        state, energy, diagnostics = self.matrix_monitor.check_state(attention_weights)
+        self.latest_cognitive_state = (state, energy)
+        self.latest_diagnostics = diagnostics
         logger.debug(f"Director monitored thought process. State: {state}")
-        return state
+        return state, energy
+
+    def teach_state(self, label: str) -> bool:
+        """
+        Teach the Director that the *last* monitored thought corresponds to 'label'.
+        """
+        if self.latest_attention_weights is None:
+            logger.warning("Cannot teach state: No recent thought process recorded.")
+            return False
+
+        self.matrix_monitor.register_state(self.latest_attention_weights, label)
+        logger.info(f"Director learned new state: {label}")
+        return True
+
+    def get_known_states(self) -> Dict[int, str]:
+        """List all known cognitive states."""
+        return self.matrix_monitor.state_labels.copy()
+
+    def visualize_last_thought(self) -> str:
+        """Get ASCII visualization of the last thought."""
+        if self.latest_attention_weights is None:
+            return "No recent thought to visualize."
+        return self.matrix_monitor.visualize_topology(self.latest_attention_weights)
 
     def _log_search_episode(
         self,

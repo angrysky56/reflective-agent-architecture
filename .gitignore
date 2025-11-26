@@ -86,3 +86,9 @@ data/embeddings/*.txt
 data/embeddings/*.bin
 data/embeddings/*.vec
 data/embeddings/*.zip
+
+# Databases
+*.db
+chroma_db/
+raa_history.db
+test_*.db

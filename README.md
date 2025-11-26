@@ -136,7 +136,9 @@ To run with a client ie Claude Desktop:
          - Neo4j: Must be running on bolt://localhost:7687
          - Ollama: Must be running on http://localhost:11434, models pulled
 
-      5. Restart Claude Desktop to load the MCP server
+       5. Restart Claude Desktop to load the MCP server
+
+       Note: The system will automatically create and initialize the SQLite database (`raa_history.db`) in the running directory upon first use. No manual setup required for history persistence.
 
     tools_available:
 
@@ -148,6 +150,18 @@ To run with a client ie Claude Desktop:
       compress_to_tool: Convert solved problems into reusable patterns
       explore_for_utility: Find high-value exploration targets
       get_active_goals: List all active goals
+
+      # New Capabilities (v0.2)
+      recall_work: Search past history and cognitive states
+      inspect_knowledge_graph: Manually explore graph context
+      teach_cognitive_state: Reinforcement learning for cognitive states
+      visualize_thought: Introspective ASCII visualization
+      get_known_archetypes: List known cognitive states
+
+    protocol:
+
+      See `docs/raa_agent.md` for the full "System Prompt" / User Guide for AI agents.
+      Key concept: The agent should "Deconstruct -> Hypothesize -> Synthesize" while monitoring its own "Cognitive State".
 
     features:
 

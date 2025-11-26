@@ -13,7 +13,7 @@ Mechanism:
 
 import logging
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
@@ -145,29 +145,33 @@ class MatrixMonitor(nn.Module):
 
         logger.info("Seeding complete.")
 
-    def check_state(self, attention_weights: torch.Tensor) -> Tuple[str, float]:
+    def check_state(self, attention_weights: torch.Tensor) -> Tuple[str, float, Dict[str, Any]]:
         """
         Diagnose current cognitive state.
 
         Returns:
             label: Name of the closest known state (e.g. "Looping")
             energy: Stability of this state (Lower = more confident match)
+            diagnostics: Detailed metrics (attention stats, similarities)
         """
         with torch.no_grad():
             # 1. Get current "shape" of thought
             query_state = self.process_attention(attention_weights)
 
             # 2. Query the Self-Manifold
-            # We use the raw energy function to find the basin we are in
-            # But we also need to know WHICH pattern is closest
-
             patterns = self.self_manifold.get_patterns()
             if patterns.shape[0] == 0:
-                return "Unknown (Empty Memory)", 0.0
+                return "Unknown (Empty Memory)", 0.0, {}
 
             # Compute similarity to all known states
             # (Batch, Num_Patterns)
             similarities = torch.matmul(query_state, patterns.T)
+
+            # DEBUG: Log statistics to diagnose matching issues
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug(f"Attention Stats: Mean={attention_weights.mean():.4f}, Std={attention_weights.std():.4f}")
+                logger.debug(f"Query Norm: {torch.norm(query_state):.4f}")
+                logger.debug(f"Similarities: {similarities.tolist()}")
 
             # Find closest match
             best_score, best_idx = torch.max(similarities, dim=-1)
@@ -179,7 +183,16 @@ class MatrixMonitor(nn.Module):
             # Retrieve label
             label = self.state_labels.get(best_idx, "Unknown")
 
-            return label, energy
+            # Compile diagnostics
+            diagnostics = {
+                "attention_mean": float(attention_weights.mean()),
+                "attention_std": float(attention_weights.std()),
+                "query_norm": float(torch.norm(query_state)),
+                "similarities": similarities.tolist(),
+                "best_match_score": float(best_score)
+            }
+
+            return label, energy, diagnostics
 
     def visualize_topology(self, attention_weights: torch.Tensor) -> str:
         """

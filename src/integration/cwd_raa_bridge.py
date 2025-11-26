@@ -25,6 +25,8 @@ from typing import Any, Callable, Optional
 
 import torch
 
+from src.persistence.work_history import WorkHistory
+
 from .embedding_mapper import EmbeddingMapper
 from .entropy_calculator import EntropyCalculator, cwd_to_logits
 
@@ -140,6 +142,9 @@ class CWDRAABridge:
             "integration_events": [],
         }
 
+        # Persistence
+        self.history = WorkHistory()
+
         logger.info("CWDRAABridge initialized successfully")
 
     def _get_current_goal(self) -> Optional[torch.Tensor]:
@@ -243,6 +248,19 @@ class CWDRAABridge:
         # Run a pass through the Processor to generate attention patterns for the Director
         if self.processor is not None:
             self._run_shadow_monitoring(operation)
+
+        # Log to persistent history
+        cognitive_state, energy = self.raa_director.latest_cognitive_state
+        diagnostics = getattr(self.raa_director, "latest_diagnostics", {})
+
+        self.history.log_operation(
+            operation=operation,
+            params=params,
+            result=result,
+            cognitive_state=cognitive_state,
+            energy=energy,
+            diagnostics=diagnostics
+        )
 
         return result
 
