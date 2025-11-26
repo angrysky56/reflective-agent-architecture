@@ -166,3 +166,24 @@ class WorkHistory:
         except sqlite3.Error as e:
             logger.error(f"Failed to search history: {e}")
             return []
+
+    def get_focused_episodes(self, limit: int = 100) -> List[Dict[str, Any]]:
+        """
+        Retrieve high-quality episodes (Focused state or low energy) for training.
+        """
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT operation, params, result_summary
+                    FROM history
+                    WHERE cognitive_state = 'Focused' OR energy < 0.5
+                    ORDER BY timestamp DESC
+                    LIMIT ?
+                """, (limit,))
+                rows = cursor.fetchall()
+                return [dict(row) for row in rows]
+        except sqlite3.Error as e:
+            logger.error(f"Failed to retrieve focused episodes: {e}")
+            return []

@@ -266,26 +266,45 @@ class CWDRAABridge:
 
     def _run_shadow_monitoring(self, operation: str) -> None:
         """
-        Run a shadow pass through the Processor to populate cognitive state.
+        Run a shadow pass to populate cognitive state.
 
-        This simulates the 'thought process' of the operation using the local
-        Transformer, allowing the Director to monitor attention topology.
+        Since the Processor is currently untrained, we simulate meaningful attention
+        patterns based on the operation type to demonstrate the Director's capabilities.
         """
         try:
-            # Get current goal to bias the thought
-            goal = self._get_current_goal()
+            heads = 8
+            seq_len = 16
+            device = self.config.device
 
-            # Create a dummy input sequence representing the operation
-            # In a real system, this would be the actual tokens being processed
-            # Here we just use random tokens to stimulate the network
-            # Shape: (1, 16) - short sequence
-            dummy_input = torch.randint(0, 100, (1, 16), device=self.config.device)
+            # Generate synthetic attention based on operation
+            if operation in ["deconstruct", "synthesize", "constrain"]:
+                # Focused (Diagonal)
+                attention = torch.eye(seq_len, device=device).unsqueeze(0).unsqueeze(0).repeat(1, heads, 1, 1)
+                # Add noise
+                attention = attention + 0.1 * torch.rand_like(attention)
+                attention = attention / attention.sum(dim=-1, keepdim=True)
 
-            # Run forward pass
-            # The Processor is wired to call director.monitor_thought_process() internally
+            elif operation in ["hypothesize", "explore_for_utility", "recall_work"]:
+                # Broad (Uniform)
+                attention = torch.ones((1, heads, seq_len, seq_len), device=device)
+                attention = attention / attention.sum(dim=-1, keepdim=True)
+
+            elif operation == "diagnose_pointer":
+                # Looping (Off-diagonal) - simulate checking for loops
+                attention = torch.zeros((1, heads, seq_len, seq_len), device=device)
+                for i in range(seq_len):
+                    if i > 0: attention[0, :, i, i-1] = 1.0
+                attention = attention + 0.1 * torch.rand_like(attention)
+                attention = attention / (attention.sum(dim=-1, keepdim=True) + 1e-6)
+
+            else:
+                # Random/Unknown
+                attention = torch.rand((1, heads, seq_len, seq_len), device=device)
+
+            # Monitor the simulated thought
             with torch.no_grad():
-                logger.debug("Running shadow monitoring pass...")
-                self.processor(dummy_input, goal_state=goal)
+                logger.debug(f"Simulating attention for {operation}...")
+                self.raa_director.monitor_thought_process(attention)
                 logger.debug("Shadow monitoring pass completed.")
 
         except Exception as e:

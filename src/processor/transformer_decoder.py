@@ -229,42 +229,63 @@ class TransformerDecoder(nn.Module):
         temperature: float = 1.0,
     ) -> tuple[torch.Tensor, torch.Tensor, float]:
         """
-        Generate next token (used for autoregressive generation).
-
-        Args:
-            input_ids: Input sequence (batch, seq_length)
-            goal_state: Optional goal vector
-            temperature: Sampling temperature
+        Generate the next token.
 
         Returns:
-            next_token: Sampled next token ID (batch,)
-            logits: Output logits for last position (batch, vocab_size)
-            entropy: Entropy of output distribution (scalar)
+            next_token_id: (batch, 1)
+            logits: (batch, vocab_size)
+            entropy: scalar entropy of distribution
         """
-        # forward pass
-        logits, entropies = self.forward(
-            input_ids,
-            goal_state=goal_state,
-            return_entropy=True
+        logits, entropy_seq = self.forward(input_ids, goal_state=goal_state, return_entropy=True)
+
+        # Get last token logits
+        next_token_logits = logits[:, -1, :] / temperature
+
+        # Sample
+        probs = f.softmax(next_token_logits, dim=-1)
+        next_token_id = torch.multinomial(probs, num_samples=1)
+
+        # Get entropy of last step
+        entropy = entropy_seq[:, -1].item() if entropy_seq is not None else 0.0
+
+        return next_token_id, next_token_logits, entropy
+
+    def train_step(
+        self,
+        input_ids: torch.Tensor,
+        labels: torch.Tensor,
+        optimizer: torch.optim.Optimizer,
+        goal_state: Optional[torch.Tensor] = None
+    ) -> float:
+        """
+        Perform a single training step (Supervised Fine-Tuning).
+
+        Args:
+            input_ids: Input tokens (batch, seq_len)
+            labels: Target tokens (batch, seq_len) - usually shifted input_ids
+            optimizer: PyTorch optimizer
+            goal_state: Optional goal vector to condition on
+
+        Returns:
+            loss: Scalar loss value
+        """
+        self.train()
+        optimizer.zero_grad()
+
+        logits, _ = self.forward(input_ids, goal_state=goal_state)
+
+        # Flatten for CrossEntropyLoss
+        # logits: (batch, seq_len, vocab_size) -> (batch*seq_len, vocab_size)
+        # labels: (batch, seq_len) -> (batch*seq_len)
+        loss = f.cross_entropy(
+            logits.view(-1, self.config.vocab_size),
+            labels.view(-1)
         )
 
-        # Get logits for last position
-        next_token_logits = logits[:, -1, :] / temperature  # (batch, vocab_size)
+        loss.backward()
+        optimizer.step()
 
-        # Sample next token
-        probs = f.softmax(next_token_logits, dim=-1)
-        next_token = torch.multinomial(probs, num_samples=1).squeeze(-1)  # (batch,)
-
-        # Entropy of last position
-        if entropies is not None:
-            entropy = entropies[:, -1].mean().item()
-        else:
-            # Fallback: compute entropy from the last-position logits directly
-            probs_last = f.softmax(next_token_logits, dim=-1)
-            log_probs_last = f.log_softmax(next_token_logits, dim=-1)
-            entropy = -(probs_last * log_probs_last).sum(dim=-1).mean().item()
-
-        return next_token, next_token_logits, entropy
+        return loss.item()
 
     def __repr__(self) -> str:
         return (

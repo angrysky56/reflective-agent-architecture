@@ -48,6 +48,7 @@ from sentence_transformers import SentenceTransformer
 # RAA imports
 from src.director import Director, DirectorConfig
 from src.integration.cwd_raa_bridge import BridgeConfig, CWDRAABridge
+from src.integration.sleep_cycle import SleepCycle
 from src.manifold import HopfieldConfig, Manifold
 from src.pointer.goal_controller import GoalController, PointerConfig
 from src.processor import Processor, ProcessorConfig
@@ -853,6 +854,7 @@ CRITICAL: Output your final answer directly. You may think internally, but end w
 
             return {
                 "root_id": root_id,
+                "tree": tree,
             }
 
     def get_node_context(self, node_id: str, depth: int = 1) -> Dict[str, Any]:
@@ -1556,29 +1558,27 @@ def get_raa_context() -> dict[str, Any]:
     return _raa_context
 
 
-@server.list_tools()
-async def list_tools() -> list[Tool]:
-    """List available cognitive workspace tools"""
-    return [
-        Tool(
-            name="deconstruct",
-            description="Break a complex problem into component thought-nodes with hierarchical relationships. Creates a reasoning tree similar to Meta's COCONUT but materialized as a queryable graph.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "problem": {
-                        "type": "string",
-                        "description": "The complex problem to decompose",
-                    },
-                    "max_depth": {
-                        "type": "integer",
-                        "description": "Maximum decomposition depth",
-                        "default": 3,
-                    },
+
+RAA_TOOLS = [
+    Tool(
+        name="deconstruct",
+        description="Break a complex problem into component thought-nodes with hierarchical relationships. Creates a reasoning tree similar to Meta's COCONUT but materialized as a queryable graph.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "problem": {
+                    "type": "string",
+                    "description": "The complex problem to decompose",
                 },
-                "required": ["problem"],
+                "max_depth": {
+                    "type": "integer",
+                    "description": "Maximum decomposition depth",
+                    "default": 3,
+                },
             },
-        ),
+            "required": ["problem"],
+        },
+    ),
         Tool(
             name="hypothesize",
             description="Find novel connections between two concepts using topology tunneling - combines graph paths, vector similarity, and analogical pattern matching to discover 'Aha!' moments between distant concepts.",
@@ -1746,7 +1746,24 @@ async def list_tools() -> list[Tool]:
             description="Get an ASCII visualization of the last thought's topology.",
             inputSchema={"type": "object", "properties": {}, "required": []},
         ),
+        Tool(
+            name="take_nap",
+            description="Trigger a quick Sleep Cycle (Offline Learning) to consolidate recent memories and potentially crystallize new tools.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "epochs": {"type": "integer", "description": "Number of training epochs (default 1)", "default": 1}
+                },
+                "required": []
+            },
+        ),
     ]
+
+
+@server.list_tools()
+async def list_tools() -> list[Tool]:
+    """List available cognitive workspace tools"""
+    return RAA_TOOLS
 
 
 @server.call_tool()
@@ -1832,6 +1849,11 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
         elif name == "visualize_thought":
             vis = bridge.raa_director.visualize_last_thought()
             return [TextContent(type="text", text=vis)]
+        elif name == "take_nap":
+            # Initialize Sleep Cycle with current workspace
+            sleep_cycle = SleepCycle(workspace=workspace)
+            results = sleep_cycle.dream(epochs=arguments.get("epochs", 1))
+            return [TextContent(type="text", text=json.dumps(results, indent=2))]
         elif name == "explore_for_utility":
             result = workspace.explore_for_utility(
                 focus_area=arguments.get("focus_area"),
