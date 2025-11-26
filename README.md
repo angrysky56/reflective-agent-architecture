@@ -13,6 +13,7 @@ RAA synthesizes three active research frontiers:
 1. **Modern Hopfield Networks**: Exponential-capacity associative memory with connections to transformer attention (2024 Nobel Prize in Physics)
 2. **Entropy-Based Metacognition**: Detection of model uncertainty through predictive entropy monitoring
 3. **Uncertainty-Aware Processing**: Dynamic attention mechanisms that adapt to varying levels of uncertainty
+4. **Sheaf Cohomology for Predictive Coding**: Topological analysis of network learning dynamics via cellular sheaf theory (Seely, 2025)
 
 ## Core Components
 
@@ -38,6 +39,16 @@ RAA synthesizes three active research frontiers:
 - **Function**: Detects "clashes" (high-entropy states) and triggers search
 - **Search Engine**: Structured exploration of Manifold to find alternative framings
 - **Key Innovation**: Entropy-triggered associative search for goal reframing
+
+### 5. Sheaf Diagnostics (Topological Analysis) - NEW
+- **Implementation**: Cellular sheaf cohomology analysis of network structure
+- **Function**: Detects *topological obstructions* to learning that entropy alone cannot see
+- **Key Concepts**:
+  - **H¹ Cohomology**: Measures irreducible error patterns that inference cannot eliminate
+  - **Hodge Decomposition**: Separates eliminable vs harmonic (irreducible) errors
+  - **Monodromy Analysis**: Detects resonance (Φ≈I) vs tension (Φ≈-I) in feedback loops
+- **Integration**: Provides principled escalation criteria for System 3 (heavy compute)
+- **Source**: Based on ["Sheaf Cohomology of Linear Predictive Coding Networks" (Seely, 2025)](https://arxiv.org/abs/2511.11092)
 
 ## The "Aha!" Loop
 
@@ -343,6 +354,7 @@ needed
 4. **Computational theory of insight** bridging connectionism and symbolism
 5. **Adaptive beta modulation**: Dynamic control of attention sharpness (exploration vs exploitation)
 6. **Empirically validated**: 20% accuracy on RAT vs 0% baseline, demonstrating reframing effectiveness
+7. **Sheaf-theoretic diagnostics**: Topological analysis of stuck states via cellular sheaf cohomology, enabling principled escalation decisions based on H¹ obstructions and monodromy analysis
 
 ## Blah blah blah, mostly out of date initital dev stuff
 
