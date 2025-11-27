@@ -1835,6 +1835,20 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
                     "goal": arguments.get("goal"),
                 },
             )
+            # Self-Correction/Critique (Via Negativa)
+            if isinstance(result, dict) and "synthesis" in result:
+                synthesis_text = result["synthesis"]
+                critique_prompt = (
+                    f"Critique the following synthesis for coherence and completeness based on the goal '{arguments.get('goal', 'None')}'. "
+                    f"Synthesis: {synthesis_text}\n"
+                    "Provide a brief 1-sentence assessment."
+                )
+                critique = workspace._llm_generate(
+                    system_prompt="You are a critical reviewer of AI-generated syntheses.",
+                    user_prompt=critique_prompt
+                )
+                result["critique"] = critique
+
         elif name == "constrain":
             result = bridge.execute_monitored_operation(
                 operation="constrain",
@@ -1915,19 +1929,22 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
             weights = []
             if isinstance(pointer.rnn, torch.nn.GRU):
                 # GRU weights: (W_ir|W_iz|W_in), (W_hr|W_hz|W_hn)
-                # We treat the hidden-to-hidden matrix as the primary transition operator
-                # pointer.rnn.weight_hh_l0 is shape (3*hidden_dim, hidden_dim)
-                # We can split it or just analyze the whole block
-                weights.append(pointer.rnn.weight_hh_l0.detach())
-                # Also include input-to-hidden
-                weights.append(pointer.rnn.weight_ih_l0.detach())
-            elif isinstance(pointer.rnn, torch.nn.LSTM):
-                # LSTM weights
-                weights.append(pointer.rnn.weight_hh_l0.detach())
-                weights.append(pointer.rnn.weight_ih_l0.detach())
+                if hasattr(pointer, "rnn"):
+                    # Use Identity Extension to create a free vertex (Hidden State)
+                    # Model: h_{t-1} --(hh)--> h_internal --(I)--> h_t
+                    # This allows Sheaf Analysis to see "diffusion" (inference) in the internal state
+                    hh = pointer.rnn.weight_hh_l0.detach()
+                    weights.append(hh)
+                weights.append(torch.eye(hh.shape[0], device=hh.device))
 
-            # Run diagnosis
-            diagnosis = director.diagnose(weights)
+            # Run diagnosis with synthetic target
+            # Target must match total edge dim
+            total_edge_dim = sum(w.shape[0] for w in weights)
+
+            # Use random target to probe topology
+            target_error = torch.randn(total_edge_dim, device=weights[0].device)
+
+            diagnosis = director.diagnose(weights, target_error=target_error)
 
             # Format result
             result = {
@@ -1958,12 +1975,29 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
             elif energy > -0.5:
                 advice = "Energy is high. Try to 'synthesize' recent thoughts to find a more stable basin."
 
+            # Meta-Commentary (Self-Awareness)
+            # Retrieve recent history for context
+            recent_history = bridge.history.get_recent_history(limit=5)
+            history_summary = "\n".join([f"- {h['operation']}: {h['result_summary']}" for h in recent_history])
+
+            meta_prompt = (
+                f"You are a reflective agent. Based on your recent history:\n{history_summary}\n"
+                f"And your current state: {state} (Energy: {energy:.2f})\n"
+                "Provide a brief, first-person meta-commentary on your current thought process. "
+                "Are you stuck? Are you making progress? What should you do next?"
+            )
+            meta_commentary = workspace._llm_generate(
+                system_prompt="You are a reflective AI agent analyzing your own cognitive state.",
+                user_prompt=meta_prompt
+            )
+
             result = {
                 "state": state,
                 "energy": energy,
                 "stability": "Stable" if energy < -0.8 else "Unstable",
                 "warnings": warnings,
                 "advice": advice,
+                "meta_commentary": meta_commentary,
                 "message": f"Agent is currently '{state}' (Energy: {energy:.2f})"
             }
         else:
