@@ -50,6 +50,13 @@ RAA synthesizes three active research frontiers:
 - **Integration**: Provides principled escalation criteria for System 3 (heavy compute)
 - **Source**: Based on ["Sheaf Cohomology of Linear Predictive Coding Networks" (Seely, 2025)](https://arxiv.org/abs/2511.11092)
 
+### 6. System 3 (Antifragile Agent Factory) - DESIGNED
+- **Concept**: A "Topological Immune System" that spawns specialized agents as antibodies against structural obstructions
+- **Function**: Translates mathematical diagnostics into agent archetypes:
+  - **Tension Loops** $\rightarrow$ Spawn **Debater Agents** (Behavioral Plasticity)
+  - **H1 Holes** $\rightarrow$ Spawn **Explorer Agents** (Architectural Plasticity)
+- **Lifecycle**: Asynchronous, ephemeral, and self-dissolving (retires when obstruction clears)
+
 ## The "Aha!" Loop
 
 ```
@@ -156,7 +163,9 @@ To run with a client ie Claude Desktop:
       inspect_knowledge_graph: Manually explore graph context
       teach_cognitive_state: Reinforcement learning for cognitive states
       visualize_thought: Introspective ASCII visualization
+      visualize_thought: Introspective ASCII visualization
       get_known_archetypes: List known cognitive states
+      diagnose_antifragility: Analyze architecture for antifragile adaptation opportunities
 
     protocol:
 
@@ -410,6 +419,8 @@ action, showing:
 - ✅ **Beta scaling**: Updated adaptive beta range from 0.5-2.0 to 5.0-50.0 (10x for meaningful modulation)
 - ✅ **Holistic testing**: Created full system test with Processor (token generation)
 - ✅ **Documentation**: Added `docs/BETA_SCALING_AND_TESTING.md` explaining testing methodology
+- ✅ **Stateless Clarity**: Refactored server for explicit state management and improved testability
+- ✅ **Self-Correction**: Added LLM-based critique to synthesis and meta-commentary to cognitive state checks
 
 ## Current Results
 

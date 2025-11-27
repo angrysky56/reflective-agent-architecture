@@ -2000,6 +2000,56 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
                 "meta_commentary": meta_commentary,
                 "message": f"Agent is currently '{state}' (Energy: {energy:.2f})"
             }
+
+        elif name == "diagnose_antifragility":
+            # 1. Get base diagnostics
+            # Extract weights for diagnosis
+            weights = []
+            if hasattr(pointer, "rnn"):
+                hh = pointer.rnn.weight_hh_l0.detach()
+                weights.append(hh)
+                weights.append(torch.eye(hh.shape[0], device=hh.device))
+
+            total_edge_dim = sum(w.shape[0] for w in weights)
+            target_error = torch.randn(total_edge_dim, device=weights[0].device)
+
+            diagnosis = director.diagnose(weights, target_error=target_error)
+
+            # 2. Interpret as Antifragility Signals
+            signals = []
+            adaptation_plan = []
+
+            # Signal 1: H1 Cohomology (Irreducible Errors)
+            h1_dim = diagnosis.cohomology.h1_dimension
+            if h1_dim > 0:
+                signals.append(f"Detected {h1_dim} topological obstructions (H^1 > 0).")
+                adaptation_plan.append("GROWTH OPPORTUNITY: The current architecture cannot resolve these error patterns. Recommendation: Expand the Manifold capacity or add a new abstraction layer.")
+            else:
+                signals.append("No topological obstructions detected (H^1 = 0). System is robust but potentially rigid.")
+
+            # Signal 2: Harmonic-Diffusive Overlap (Learning Capacity)
+            overlap = diagnosis.harmonic_diffusive_overlap
+            if overlap < 0.1:
+                signals.append(f"Low learning overlap ({overlap:.3f}). System is 'learning starved'.")
+                adaptation_plan.append("STRESSOR: Information is not diffusing to update gradients. Recommendation: Increase 'temperature' (beta) to encourage exploration.")
+            else:
+                signals.append(f"Healthy learning overlap ({overlap:.3f}). System is plastic and adaptive.")
+
+            # Signal 3: Monodromy (Feedback Loops)
+            if diagnosis.monodromy:
+                if diagnosis.monodromy.topology.value == "tension":
+                    signals.append("Tension loop detected (conflicting feedback).")
+                    adaptation_plan.append("VOLATILITY: Internal contradiction. Recommendation: Use 'deconstruct' to break the loop into compatible sub-components.")
+                elif diagnosis.monodromy.topology.value == "resonance":
+                    signals.append("Resonance loop detected (reinforcing feedback).")
+                    adaptation_plan.append("STABILITY: Self-reinforcing belief. Recommendation: Verify against external data to prevent hallucination.")
+
+            result = {
+                "antifragility_score": overlap * (1.0 if h1_dim == 0 else 0.5),
+                "signals": signals,
+                "adaptation_plan": adaptation_plan,
+                "message": "Antifragility diagnosis complete."
+            }
         else:
             return [TextContent(type="text", text=f"Unknown tool: {name}")]
 

@@ -293,7 +293,8 @@ class CWDRAABridge:
                 # Looping (Off-diagonal) - simulate checking for loops
                 attention = torch.zeros((1, heads, seq_len, seq_len), device=device)
                 for i in range(seq_len):
-                    if i > 0: attention[0, :, i, i-1] = 1.0
+                    if i > 0:
+                        attention[0, :, i, i-1] = 1.0
                 attention = attention + 0.1 * torch.rand_like(attention)
                 attention = attention / (attention.sum(dim=-1, keepdim=True) + 1e-6)
 
