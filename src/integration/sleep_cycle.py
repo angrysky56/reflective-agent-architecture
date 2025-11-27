@@ -135,14 +135,48 @@ class SleepCycle:
 
         logger.info("Crystallizing patterns (Tool Genesis)...")
 
-        # Heuristic: Find nodes with high degree in Neo4j (simulated)
-        # In production: query Neo4j for dense subgraphs
+        # Heuristic: Find synthesis nodes that haven't been compressed yet
+        # This represents "consolidating insights"
+        try:
+            with self.workspace.neo4j_driver.session() as session:
+                # Find a synthesis node not connected to a Tool
+                result = session.run(
+                    """
+                    MATCH (n:ThoughtNode {cognitive_type: 'synthesis'})
+                    OPTIONAL MATCH (t:Tool)-[:COMPRESSED_FROM]->(n)
+                    WITH n, t
+                    WHERE t IS NULL AND n.id <> 'thought_1763023485617159'
+                    RETURN n.id as id, n.content as content
+                    LIMIT 1
+                    """
+                ).single()
 
-        # For prototype, we'll try to create a tool from a specific "dream" pattern
-        # if we find enough related nodes.
+                if result:
+                    node_id = result["id"]
+                    content = result["content"]
 
-        # This is a placeholder for the complex graph clustering logic
-        return {"new_tools_created": 0, "message": "No dense clusters found (Prototype stub)"}
+                    # Generate a tool name (simple heuristic for now)
+                    tool_name = f"tool_{node_id[:8]}"
+
+                    # Compress it
+                    logger.info(f"Crystallizing node {node_id} into {tool_name}")
+                    tool_result = self.workspace.compress_to_tool(
+                        node_ids=[node_id],
+                        tool_name=tool_name,
+                        description=f"Crystallized from synthesis: {content[:50]}..."
+                    )
+
+                    return {
+                        "new_tools_created": 1,
+                        "tool_id": tool_result.get("tool_id"),
+                        "message": f"Crystallized tool {tool_name}"
+                    }
+                else:
+                     return {"new_tools_created": 0, "message": "No new patterns to crystallize"}
+
+        except Exception as e:
+            logger.error(f"Crystallization failed: {e}")
+            return {"error": str(e)}
 
 if __name__ == "__main__":
     # Quick test

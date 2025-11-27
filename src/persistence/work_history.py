@@ -1,6 +1,7 @@
 import json
 import logging
 import sqlite3
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
@@ -12,7 +13,13 @@ class WorkHistory:
     """
 
     def __init__(self, db_path: str = "raa_history.db"):
-        self.db_path = db_path
+        # Resolve to absolute path in src/ directory
+        # This file is in src/persistence/, so .parent.parent is src/
+        if db_path == "raa_history.db":
+            self.db_path = str(Path(__file__).parent.parent / "raa_history.db")
+        else:
+            self.db_path = db_path
+
         self._init_db()
 
     def _init_db(self):

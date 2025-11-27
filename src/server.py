@@ -702,10 +702,9 @@ CRITICAL: Output your final answer directly. You may think internally, but end w
                         content = new_content
 
             # Extract actual content after reasoning markers
-            # Look for patterns like "...reasoning... [OUTPUT] actual content" or similar
+            # Look for explicit markers like "OUTPUT:"
             output_markers = [
                 r"(?:OUTPUT|ANSWER|RESULT|FINAL):\s*(.+)",  # Explicit markers
-                r"\n\n(.+?)$",  # Last paragraph after double newline
             ]
 
             for marker_pattern in output_markers:
@@ -1852,7 +1851,7 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
         elif name == "take_nap":
             # Initialize Sleep Cycle with current workspace
             sleep_cycle = SleepCycle(workspace=workspace)
-            results = sleep_cycle.dream(epochs=arguments.get("epochs", 1))
+            results = sleep_cycle.dream(epochs=arguments.get("epochs", 5))
             return [TextContent(type="text", text=json.dumps(results, indent=2))]
         elif name == "explore_for_utility":
             result = workspace.explore_for_utility(
@@ -1909,7 +1908,7 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
             warnings = []
             if state in ["Looping", "Confused", "Scattered"]:
                 warnings.append(f"WARNING: Agent is in a '{state}' state.")
-            if energy > -5.0 and state != "Unknown":
+            if energy > -0.8 and state != "Unknown":
                  warnings.append("Note: State is unstable (high energy).")
 
             result = {
