@@ -1443,119 +1443,148 @@ CRITICAL: Output your final answer directly. You may think internally, but end w
 # MCP Tool Handlers
 # ============================================================================
 
-_workspace: CognitiveWorkspace | None = None
-_raa_context: dict[str, Any] | None = None
+# ============================================================================
+# MCP Tool Handlers & Server Context
+# ============================================================================
 
-
-def get_workspace() -> CognitiveWorkspace:
-    """Get or create workspace instance"""
-    global _workspace
-    if _workspace is None:
-        # Config automatically loads from .env file or environment variables
-        config = CWDConfig()  # type: ignore[call-arg]
-        _workspace = CognitiveWorkspace(config)
-    return _workspace
-
-
-def get_raa_context() -> dict[str, Any]:
-    """Initialize and cache RAA components + Bridge using server embedding dim.
-
-    - Derives embedding_dim from the active SentenceTransformer
-    - Creates Manifold, Pointer, Director
-    - Creates CWDRAABridge with pointer for goal updates
+class RAAServerContext:
     """
-    global _raa_context
-    if _raa_context is not None:
-        return _raa_context
+    Manages the lifecycle and state of the RAA Server.
+    Encapsulates CognitiveWorkspace and RAA components to avoid global state.
+    """
+    def __init__(self):
+        self.workspace: CognitiveWorkspace | None = None
+        self.raa_context: dict[str, Any] | None = None
+        self.is_initialized = False
 
-    workspace = get_workspace()
+    def initialize(self):
+        """Initialize all components"""
+        if self.is_initialized:
+            return
 
-    # Infer embedding dimension from SentenceTransformer
-    try:
-        embedding_dim = workspace.embedding_model.get_sentence_embedding_dimension()  # type: ignore[attr-defined]
-    except Exception:
-        # Fallback: infer from a sample vector
-        sample = workspace._embed_text("dimension probe")
-        embedding_dim = len(sample)
+        logger.info("Initializing RAA Server Context...")
 
-    # Ensure a concrete int
-    if embedding_dim is None:
-        sample2 = workspace._embed_text("dimension probe 2")
-        embedding_dim = len(sample2)
-    embedding_dim = int(embedding_dim)
+        # 1. Initialize Workspace (System 2 CWD)
+        config = CWDConfig()
+        self.workspace = CognitiveWorkspace(config)
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+        # 2. Initialize RAA Components (System 1 + Bridge)
+        self._initialize_raa_components()
 
-    # Initialize RAA components
-    hopfield_cfg = HopfieldConfig(
-        embedding_dim=embedding_dim,
-        beta=10.0,
-        adaptive_beta=True,
-        beta_min=5.0,
-        beta_max=50.0,
-        device=device,
-    )
-    manifold = Manifold(hopfield_cfg)
+        self.is_initialized = True
+        logger.info("RAA Server Context initialized successfully")
 
-    pointer_cfg = PointerConfig(
-        embedding_dim=embedding_dim,
-        controller_type="gru",
-        device=device,
-    )
-    pointer = GoalController(pointer_cfg)
+    def _initialize_raa_components(self):
+        """Initialize RAA specific components"""
+        if not self.workspace:
+            raise RuntimeError("Workspace must be initialized before RAA components")
 
-    director_cfg = DirectorConfig(
-        search_k=5,
-        entropy_threshold_percentile=0.75,
-        use_energy_aware_search=True,
-        device=device,
-    )
-    director = Director(manifold, director_cfg)
+        # Infer embedding dimension
+        try:
+            embedding_dim = self.workspace.embedding_model.get_sentence_embedding_dimension()
+        except Exception:
+            sample = self.workspace._embed_text("dimension probe")
+            embedding_dim = len(sample)
 
-    # Initialize Processor for Cognitive Proprioception (Shadow Monitoring)
-    processor_cfg = ProcessorConfig(
-        vocab_size=50257,
-        embedding_dim=embedding_dim,
-        num_layers=4,  # Lightweight shadow processor
-        num_heads=4,
-        device=device
-    )
-    # Pass director to processor so it can report attention weights
-    processor = Processor(processor_cfg, director=director)
+        # Ensure concrete int
+        if embedding_dim is None:
+             sample2 = self.workspace._embed_text("dimension probe 2")
+             embedding_dim = len(sample2)
+        embedding_dim = int(embedding_dim)
 
-    # Bridge config (FIXED: Binary distributions produce 0.0-1.0 bits entropy)
-    bridge_cfg = BridgeConfig(
-        embedding_dim=embedding_dim,
-        entropy_threshold=0.6,  # Detects moderate-to-high confusion
-        enable_monitoring=True,
-        search_on_confusion=True,
-        log_integration_events=True,
-        device=device,
-    )
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        logger.info(f"Initializing RAA components on {device} (dim={embedding_dim})")
 
-    bridge = CWDRAABridge(
-        cwd_server=workspace,
-        raa_director=director,
-        manifold=manifold,
-        config=bridge_cfg,
-        pointer=pointer,
-        processor=processor,
-    )
+        # Initialize RAA components
+        hopfield_cfg = HopfieldConfig(
+            embedding_dim=embedding_dim,
+            beta=10.0,
+            adaptive_beta=True,
+            beta_min=5.0,
+            beta_max=50.0,
+            device=device,
+        )
+        manifold = Manifold(hopfield_cfg)
 
-    _raa_context = {
-        "embedding_dim": embedding_dim,
-        "device": device,
-        "manifold": manifold,
-        "pointer": pointer,
-        "director": director,
-        "processor": processor,
-        "bridge": bridge,
-    }
-    logger.info(
-        f"RAA context initialized (dim={embedding_dim}, device={device}) with Bridge monitoring"
-    )
-    return _raa_context
+        pointer_cfg = PointerConfig(
+            embedding_dim=embedding_dim,
+            controller_type="gru",
+            device=device,
+        )
+        pointer = GoalController(pointer_cfg)
 
+        director_cfg = DirectorConfig(
+            search_k=5,
+            entropy_threshold_percentile=0.75,
+            use_energy_aware_search=True,
+            device=device,
+        )
+        director = Director(manifold, director_cfg)
+
+        # Initialize Processor for Cognitive Proprioception
+        processor_cfg = ProcessorConfig(
+            vocab_size=50257,
+            embedding_dim=embedding_dim,
+            num_layers=4,
+            num_heads=4,
+            device=device
+        )
+        processor = Processor(processor_cfg, director=director)
+
+        # Bridge config
+        bridge_cfg = BridgeConfig(
+            embedding_dim=embedding_dim,
+            entropy_threshold=0.6,
+            enable_monitoring=True,
+            search_on_confusion=True,
+            log_integration_events=True,
+            device=device,
+        )
+
+        bridge = CWDRAABridge(
+            cwd_server=self.workspace,
+            raa_director=director,
+            manifold=manifold,
+            config=bridge_cfg,
+            pointer=pointer,
+            processor=processor,
+        )
+
+        self.raa_context = {
+            "embedding_dim": embedding_dim,
+            "device": device,
+            "manifold": manifold,
+            "pointer": pointer,
+            "director": director,
+            "processor": processor,
+            "bridge": bridge,
+        }
+
+    def cleanup(self):
+        """Cleanup resources"""
+        if self.workspace:
+            self.workspace.close()
+        self.is_initialized = False
+        logger.info("RAA Server Context cleaned up")
+
+    def get_bridge(self) -> CWDRAABridge:
+        if not self.raa_context:
+            raise RuntimeError("RAA context not initialized")
+        return self.raa_context["bridge"]
+
+    def get_director(self) -> Director:
+        if not self.raa_context:
+            raise RuntimeError("RAA context not initialized")
+        return self.raa_context["director"]
+
+    def get_pointer(self) -> GoalController:
+        if not self.raa_context:
+            raise RuntimeError("RAA context not initialized")
+        return self.raa_context["pointer"]
+
+
+# Global context instance (managed by main lifecycle, not implicitly lazy-loaded)
+server_context = RAAServerContext()
 
 
 RAA_TOOLS = [
@@ -1578,185 +1607,185 @@ RAA_TOOLS = [
             "required": ["problem"],
         },
     ),
-        Tool(
-            name="hypothesize",
-            description="Find novel connections between two concepts using topology tunneling - combines graph paths, vector similarity, and analogical pattern matching to discover 'Aha!' moments between distant concepts.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "node_a_id": {"type": "string", "description": "First thought-node ID"},
-                    "node_b_id": {"type": "string", "description": "Second thought-node ID"},
-                    "context": {
-                        "type": "string",
-                        "description": "Optional context to guide hypothesis generation",
-                    },
+    Tool(
+        name="hypothesize",
+        description="Find novel connections between two concepts using topology tunneling - combines graph paths, vector similarity, and analogical pattern matching to discover 'Aha!' moments between distant concepts.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "node_a_id": {"type": "string", "description": "First thought-node ID"},
+                "node_b_id": {"type": "string", "description": "Second thought-node ID"},
+                "context": {
+                    "type": "string",
+                    "description": "Optional context to guide hypothesis generation",
                 },
-                "required": ["node_a_id", "node_b_id"],
             },
-        ),
-        Tool(
-            name="synthesize",
-            description="Merge multiple thought-nodes into a unified insight by operating in latent space. Computes centroids and finds common patterns.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "node_ids": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "description": "List of thought-node IDs to synthesize (minimum 2)",
-                    },
-                    "goal": {"type": "string", "description": "Optional goal to guide synthesis"},
+            "required": ["node_a_id", "node_b_id"],
+        },
+    ),
+    Tool(
+        name="synthesize",
+        description="Merge multiple thought-nodes into a unified insight by operating in latent space. Computes centroids and finds common patterns.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "node_ids": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "List of thought-node IDs to synthesize (minimum 2)",
                 },
-                "required": ["node_ids"],
+                "goal": {"type": "string", "description": "Optional goal to guide synthesis"},
             },
-        ),
-        Tool(
-            name="constrain",
-            description="Apply constraints/rules to validate a thought-node by projecting against rule vectors. Enables 'checking work' through logical validation (Perceived Utility filter).",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "node_id": {"type": "string", "description": "Thought-node ID to constrain"},
-                    "rules": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "description": "List of constraint rules in natural language",
-                    },
+            "required": ["node_ids"],
+        },
+    ),
+    Tool(
+        name="constrain",
+        description="Apply constraints/rules to validate a thought-node by projecting against rule vectors. Enables 'checking work' through logical validation (Perceived Utility filter).",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "node_id": {"type": "string", "description": "Thought-node ID to constrain"},
+                "rules": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "List of constraint rules in natural language",
                 },
-                "required": ["node_id", "rules"],
             },
-        ),
-        Tool(
-            name="set_goal",
-            description="Set an active goal for utility-guided exploration. Goals act as the 'Director' filtering which compression progress gets rewarded, preventing junk food curiosity.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "goal_description": {
-                        "type": "string",
-                        "description": "Natural language description of the goal",
-                    },
-                    "utility_weight": {
-                        "type": "number",
-                        "description": "Weight for this goal (0.0-1.0)",
-                        "default": 1.0,
-                    },
+            "required": ["node_id", "rules"],
+        },
+    ),
+    Tool(
+        name="set_goal",
+        description="Set an active goal for utility-guided exploration. Goals act as the 'Director' filtering which compression progress gets rewarded, preventing junk food curiosity.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "goal_description": {
+                    "type": "string",
+                    "description": "Natural language description of the goal",
                 },
-                "required": ["goal_description"],
-            },
-        ),
-        Tool(
-            name="compress_to_tool",
-            description="Convert solved problem(s) into a reusable compressed tool (mnemonics as tools). Creates high-level patterns that can be reused for similar problems.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "node_ids": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "description": "Thought-nodes representing the solved problem",
-                    },
-                    "tool_name": {"type": "string", "description": "Name for this tool"},
-                    "description": {
-                        "type": "string",
-                        "description": "Optional description of what this tool does",
-                    },
+                "utility_weight": {
+                    "type": "number",
+                    "description": "Weight for this goal (0.0-1.0)",
+                    "default": 1.0,
                 },
-                "required": ["node_ids", "tool_name"],
             },
-        ),
-        Tool(
-            name="explore_for_utility",
-            description="Find thought-nodes with high utility × compression potential. Implements active exploration strategy focused on goal-aligned learnable patterns (avoiding junk food curiosity).",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "focus_area": {
-                        "type": "string",
-                        "description": "Optional semantic focus for exploration",
-                    },
-                    "max_candidates": {
-                        "type": "integer",
-                        "description": "Maximum nodes to return",
-                        "default": 10,
-                    },
+            "required": ["goal_description"],
+        },
+    ),
+    Tool(
+        name="compress_to_tool",
+        description="Convert solved problem(s) into a reusable compressed tool (mnemonics as tools). Creates high-level patterns that can be reused for similar problems.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "node_ids": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Thought-nodes representing the solved problem",
                 },
-                "required": [],
-            },
-        ),
-        Tool(
-            name="get_active_goals",
-            description="Get all currently active goals with their weights and metadata.",
-            inputSchema={"type": "object", "properties": {}, "required": []},
-        ),
-        Tool(
-            name="diagnose_pointer",
-            description="Perform sheaf-theoretic diagnosis of the GoalController (Pointer). Checks for topological obstructions (H^1 > 0) or tension loops that might be causing the agent to get stuck.",
-            inputSchema={"type": "object", "properties": {}, "required": []},
-        ),
-        Tool(
-            name="check_cognitive_state",
-            description="Get the agent's latest cognitive state (Proprioception). Returns the current 'shape' of thought (e.g., 'Focused', 'Looping') and its stability.",
-            inputSchema={"type": "object", "properties": {}, "required": []},
-        ),
-        Tool(
-            name="recall_work",
-            description="Search the agent's past work history to recall previous operations, results, and cognitive states.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "query": {"type": "string", "description": "Text to search for in parameters or results"},
-                    "operation_type": {"type": "string", "description": "Filter by operation type (e.g., 'hypothesize')"},
-                    "limit": {"type": "integer", "description": "Max number of results (default 10)"}
+                "tool_name": {"type": "string", "description": "Name for this tool"},
+                "description": {
+                    "type": "string",
+                    "description": "Optional description of what this tool does",
                 },
-                "required": []
             },
-        ),
-        Tool(
-            name="inspect_knowledge_graph",
-            description="Explore the knowledge graph around a specific node to understand context.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "node_id": {"type": "string", "description": "ID of the node to inspect"},
-                    "depth": {"type": "integer", "description": "Traversal depth (default 1)", "default": 1}
+            "required": ["node_ids", "tool_name"],
+        },
+    ),
+    Tool(
+        name="explore_for_utility",
+        description="Find thought-nodes with high utility × compression potential. Implements active exploration strategy focused on goal-aligned learnable patterns (avoiding junk food curiosity).",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "focus_area": {
+                    "type": "string",
+                    "description": "Optional semantic focus for exploration",
                 },
-                "required": ["node_id"]
-            },
-        ),
-        Tool(
-            name="teach_cognitive_state",
-            description="Teach the agent that its *current* thought pattern corresponds to a specific state label (Reinforcement Learning).",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "label": {"type": "string", "description": "Name of the state (e.g., 'Creative', 'Stuck')"}
+                "max_candidates": {
+                    "type": "integer",
+                    "description": "Maximum nodes to return",
+                    "default": 10,
                 },
-                "required": ["label"]
             },
-        ),
-        Tool(
-            name="get_known_archetypes",
-            description="List all cognitive states the agent currently recognizes.",
-            inputSchema={"type": "object", "properties": {}, "required": []},
-        ),
-        Tool(
-            name="visualize_thought",
-            description="Get an ASCII visualization of the last thought's topology.",
-            inputSchema={"type": "object", "properties": {}, "required": []},
-        ),
-        Tool(
-            name="take_nap",
-            description="Trigger a quick Sleep Cycle (Offline Learning) to consolidate recent memories and potentially crystallize new tools.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "epochs": {"type": "integer", "description": "Number of training epochs (default 1)", "default": 1}
-                },
-                "required": []
+            "required": [],
+        },
+    ),
+    Tool(
+        name="get_active_goals",
+        description="Get all currently active goals with their weights and metadata.",
+        inputSchema={"type": "object", "properties": {}, "required": []},
+    ),
+    Tool(
+        name="diagnose_pointer",
+        description="Perform sheaf-theoretic diagnosis of the GoalController (Pointer). Checks for topological obstructions (H^1 > 0) or tension loops that might be causing the agent to get stuck.",
+        inputSchema={"type": "object", "properties": {}, "required": []},
+    ),
+    Tool(
+        name="check_cognitive_state",
+        description="Get the agent's latest cognitive state (Proprioception). Returns the current 'shape' of thought (e.g., 'Focused', 'Looping') and its stability.",
+        inputSchema={"type": "object", "properties": {}, "required": []},
+    ),
+    Tool(
+        name="recall_work",
+        description="Search the agent's past work history to recall previous operations, results, and cognitive states.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Text to search for in parameters or results"},
+                "operation_type": {"type": "string", "description": "Filter by operation type (e.g., 'hypothesize')"},
+                "limit": {"type": "integer", "description": "Max number of results (default 10)"}
             },
-        ),
-    ]
+            "required": []
+        },
+    ),
+    Tool(
+        name="inspect_knowledge_graph",
+        description="Explore the knowledge graph around a specific node to understand context.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "node_id": {"type": "string", "description": "ID of the node to inspect"},
+                "depth": {"type": "integer", "description": "Traversal depth (default 1)", "default": 1}
+            },
+            "required": ["node_id"]
+        },
+    ),
+    Tool(
+        name="teach_cognitive_state",
+        description="Teach the agent that its *current* thought pattern corresponds to a specific state label (Reinforcement Learning).",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "label": {"type": "string", "description": "Name of the state (e.g., 'Creative', 'Stuck')"}
+            },
+            "required": ["label"]
+        },
+    ),
+    Tool(
+        name="get_known_archetypes",
+        description="List all cognitive states the agent currently recognizes.",
+        inputSchema={"type": "object", "properties": {}, "required": []},
+    ),
+    Tool(
+        name="visualize_thought",
+        description="Get an ASCII visualization of the last thought's topology.",
+        inputSchema={"type": "object", "properties": {}, "required": []},
+    ),
+    Tool(
+        name="take_nap",
+        description="Trigger a quick Sleep Cycle (Offline Learning) to consolidate recent memories and potentially crystallize new tools.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "epochs": {"type": "integer", "description": "Number of training epochs (default 1)", "default": 1}
+            },
+            "required": []
+        },
+    ),
+]
 
 
 @server.list_tools()
@@ -1768,9 +1797,15 @@ async def list_tools() -> list[Tool]:
 @server.call_tool()
 async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextContent]:
     """Handle tool calls"""
-    workspace = get_workspace()
-    raa = get_raa_context()
-    bridge: CWDRAABridge = raa["bridge"]
+    # Ensure context is initialized
+    if not server_context.is_initialized:
+        server_context.initialize()
+
+    workspace = server_context.workspace
+    bridge = server_context.get_bridge()
+
+    if not workspace:
+        raise RuntimeError("Workspace not initialized")
 
     try:
         if name == "deconstruct":
@@ -1839,14 +1874,17 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
             )
             return [TextContent(type="text", text=json.dumps(result, indent=2, default=str))]
         elif name == "teach_cognitive_state":
-            success = bridge.raa_director.teach_state(arguments["label"])
+            director = server_context.get_director()
+            success = director.teach_state(arguments["label"])
             msg = f"Learned state '{arguments['label']}'" if success else "Failed: No recent thought to learn from."
             return [TextContent(type="text", text=msg)]
         elif name == "get_known_archetypes":
-            states = bridge.raa_director.get_known_states()
+            director = server_context.get_director()
+            states = director.get_known_states()
             return [TextContent(type="text", text=json.dumps(states, indent=2))]
         elif name == "visualize_thought":
-            vis = bridge.raa_director.visualize_last_thought()
+            director = server_context.get_director()
+            vis = director.visualize_last_thought()
             return [TextContent(type="text", text=vis)]
         elif name == "take_nap":
             # Initialize Sleep Cycle with current workspace
@@ -1867,8 +1905,8 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
             }
         elif name == "diagnose_pointer":
             # Extract weights from Pointer and run diagnosis
-            pointer = raa["pointer"]
-            director = raa["director"]
+            pointer = server_context.get_pointer()
+            director = server_context.get_director()
 
             if not hasattr(pointer, "rnn"):
                 return [TextContent(type="text", text="Error: Pointer does not have an RNN to diagnose")]
@@ -1901,20 +1939,31 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
             }
         elif name == "check_cognitive_state":
             # Retrieve latest cognitive state from Director
-            director = raa["director"]
+            director = server_context.get_director()
             state, energy = director.latest_cognitive_state
 
             # Generate warnings for negative states
             warnings = []
             if state in ["Looping", "Confused", "Scattered"]:
-                warnings.append(f"WARNING: Agent is in a '{state}' state.")
+                warnings.append(f"WARNING: Agent is in a '{state}' state. Consider using 'deconstruct' to break down the problem or 'take_nap' to reset.")
             if energy > -0.8 and state != "Unknown":
-                 warnings.append("Note: State is unstable (high energy).")
+                 warnings.append("Note: State is unstable (high energy). This suggests the current thought pattern is not well-grounded in the manifold.")
+
+            # Provide actionable advice
+            advice = "Continue current line of reasoning."
+            if state == "Looping":
+                advice = "Stop. Use 'diagnose_pointer' to check for obstructions, or 'hypothesize' to jump to a new track."
+            elif state == "Confused":
+                advice = "High entropy detected. Use 'deconstruct' to simplify the problem."
+            elif energy > -0.5:
+                advice = "Energy is high. Try to 'synthesize' recent thoughts to find a more stable basin."
 
             result = {
                 "state": state,
                 "energy": energy,
+                "stability": "Stable" if energy < -0.8 else "Unstable",
                 "warnings": warnings,
+                "advice": advice,
                 "message": f"Agent is currently '{state}' (Energy: {energy:.2f})"
             }
         else:
@@ -1931,8 +1980,15 @@ async def main():
     """Run the MCP server"""
     from mcp.server.stdio import stdio_server
 
-    async with stdio_server() as (read_stream, write_stream):
-        await server.run(read_stream, write_stream, server.create_initialization_options())
+    # Initialize context on startup
+    server_context.initialize()
+
+    try:
+        async with stdio_server() as (read_stream, write_stream):
+            await server.run(read_stream, write_stream, server.create_initialization_options())
+    finally:
+        # Cleanup on exit
+        server_context.cleanup()
 
 
 if __name__ == "__main__":
