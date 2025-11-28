@@ -1160,7 +1160,7 @@ CRITICAL: Output your final answer directly. You may think internally, but end w
             "You discover non-obvious connections between concepts through analogical reasoning. "
             "When provided with similar solved patterns, use them as inspiration for novel connections. "
             "Focus on structural similarities, not surface features. "
-            "Output 2-3 sentences explaining the connection."
+            "Explain the connection clearly, highlighting the structural isomorphism."
         )
 
         # Build context from analogical tools
@@ -1372,7 +1372,8 @@ CRITICAL: Output your final answer directly. You may think internally, but end w
             "You are a synthesis engine that unifies multiple related concepts into a "
             "coherent insight. Identify the common themes, complementary aspects, and "
             "emergent patterns across all concepts. Focus on integration and synergy, "
-            "not just summary. Output 2-4 sentences that capture the unified understanding."
+            "not just summary. Provide a comprehensive synthesis that captures the unified understanding "
+            "with sufficient depth and operational detail."
         )
 
         # Prepare full concepts with context
@@ -2138,7 +2139,7 @@ Output JSON:
                 critique_prompt = (
                     f"Critique the following synthesis for coherence and completeness based on the goal '{arguments.get('goal', 'None')}'. "
                     f"Synthesis: {synthesis_text}\n"
-                    "Provide a brief 1-sentence assessment."
+                    "Provide a comprehensive assessment identifying strengths and weaknesses."
                 )
                 critique = workspace._llm_generate(
                     system_prompt="You are a critical reviewer of AI-generated syntheses.",
