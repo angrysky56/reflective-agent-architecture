@@ -856,6 +856,7 @@ CRITICAL: Output your final answer directly. You may think internally, but end w
             return {
                 "root_id": root_id,
                 "tree": tree,
+                "components": [{"id": cid, "content": c} for cid, c in zip(component_ids, components)]
             }
 
     def get_node_context(self, node_id: str, depth: int = 1) -> Dict[str, Any]:
@@ -1459,6 +1460,63 @@ CRITICAL: Output your final answer directly. You may think internally, but end w
                 "message": "Constraints applied",
             }
 
+    # ========================================================================
+    # Cognitive Primitive 5: Resolve Meta-Paradox
+    # Resolves internal system conflicts by treating them as cognitive objects
+    # ========================================================================
+
+    def resolve_meta_paradox(self, conflict: str) -> dict[str, Any]:
+        """
+        Resolve an internal system conflict (Meta-Paradox).
+
+        Treats the conflict itself as a problem to be solved using the cognitive loop:
+        1. Deconstruct the conflict (Thesis vs Antithesis)
+        2. Hypothesize a connection (Synthesis/Root Cause)
+        3. Synthesize a resolution plan
+        """
+        logger.info(f"Resolving Meta-Paradox: {conflict}")
+
+        # 1. Deconstruct the conflict
+        # We frame it as a "problem" to get the components
+        decon_result = self.deconstruct(conflict)
+        root_id = decon_result["root_id"]
+        components = decon_result["components"]
+        component_ids = [c["id"] for c in components]
+
+        if len(component_ids) < 2:
+            return {
+                "error": "Conflict too simple to deconstruct. Need at least 2 components.",
+                "deconstruction": decon_result
+            }
+
+        # 2. Hypothesize connection between the first two components (Thesis/Antithesis)
+        # This forces the system to find the "wormhole" between the conflicting views
+        hypo_result = self.hypothesize(component_ids[0], component_ids[1])
+        hypo_id = hypo_result.get("hypothesis_id")
+
+        # 3. Synthesize a resolution
+        # We combine the original components plus the new hypothesis
+        nodes_to_synthesize = component_ids
+        if hypo_id:
+            nodes_to_synthesize.append(hypo_id)
+
+        synthesis_result = self.synthesize(
+            nodes_to_synthesize,
+            goal=f"Resolve the conflict: '{conflict}'. Propose a structural fix or policy change."
+        )
+
+        return {
+            "conflict": conflict,
+            "analysis": {
+                "root_id": root_id,
+                "components": [c["content"] for c in components]
+            },
+            "hypothesis": hypo_result.get("hypothesis", "No hypothesis generated"),
+            "resolution": synthesis_result["synthesis"],
+            "critique": synthesis_result.get("critique", "No critique"),
+            "message": "Meta-Paradox resolved."
+        }
+
 
 # ============================================================================
 # MCP Tool Handlers
@@ -1713,6 +1771,20 @@ RAA_TOOLS = [
                 },
             },
             "required": ["node_id", "rules"],
+        },
+    ),
+    Tool(
+        name="resolve_meta_paradox",
+        description="Resolve an internal system conflict (Meta-Paradox) by treating it as a cognitive object. Deconstructs the conflict, hypothesizes a synthesis, and generates a resolution plan.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "conflict": {
+                    "type": "string",
+                    "description": "Description of the internal conflict (e.g., 'Validator says Yes but Critique says No')",
+                },
+            },
+            "required": ["conflict"],
         },
     ),
     Tool(
@@ -2068,6 +2140,10 @@ Output JSON:
                 node_ids=arguments["node_ids"],
                 tool_name=arguments["tool_name"],
                 description=arguments.get("description"),
+            )
+        elif name == "resolve_meta_paradox":
+            result = workspace.resolve_meta_paradox(
+                conflict=arguments["conflict"]
             )
         elif name == "recall_work":
             results = bridge.history.search_history(

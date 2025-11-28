@@ -42,6 +42,12 @@ RAA synthesizes three active research frontiers:
 - **Function**: Detects "clashes" (high-entropy states) and triggers search
 - **Search Engine**: Structured exploration of Manifold to find alternative framings
 - **Key Innovation**: Entropy-triggered associative search for goal reframing
+- **Tripartite Manifold**: A 3-layer cognitive space (State, Agent, Action) inspired by the Prefrontal Cortex.
+- **Precuneus Integrator**: Fuses multimodal streams into a unified "conscious" context.
+- **Meta-Paradox Resolver**: A self-correcting mechanism that resolves internal system conflicts (e.g., Validator vs Critique).
+- **Energy-Aware Architecture**: Monitors cognitive energy and triggers "Auto-Nap" sleep cycles to prevent exhaustion.
+- **Topology Tunneling**: Finds "wormholes" between distant concepts using algebraic topology.
+- **Cognitive Proprioception**: The agent "feels" its own thinking process (Focused, Looping, Creative).
 
 ### 5. The Precuneus (Integrator) - NEW
 - **Implementation**: Energy-gated fusion layer
