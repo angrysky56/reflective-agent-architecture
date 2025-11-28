@@ -97,6 +97,22 @@ uv sync
 
 ```
 
+### Recommended Embedding Models
+RAA relies on high-quality semantic embeddings for its Tripartite Manifold. We recommend the following models:
+
+| Model | Dimensions | Size | Use Case |
+|-------|------------|------|----------|
+| **BAAI/bge-large-en-v1.5** | 1024 | ~1.34GB | **Best Quality (Recommended)**. Top-tier performance on MTEB. |
+| **BAAI/bge-small-en-v1.5** | 384 | ~133MB | **High Speed**. Excellent balance of speed and quality. |
+| **sentence-transformers/all-MiniLM-L6-v2** | 384 | ~90MB | **Legacy/Fastest**. Good baseline, but less semantic nuance. |
+| **Qwen/Qwen2.5-Math-7B** | N/A | Large | **Not Recommended for RAA**. While powerful LLMs, for pure embedding tasks, BGE is currently superior for semantic retrieval. |
+
+Configure your choice in `.env`:
+```bash
+EMBEDDING_MODEL=BAAI/bge-large-en-v1.5
+```
+The model set in the env will auto download, when it is done you can use the MCP server.
+
 ### CWD Integration (Ollama) Quick Start
 
 ```bash
@@ -164,7 +180,32 @@ To run with a client ie Claude Desktop:
        5. Restart Claude Desktop to load the MCP server
 
        Note: The system will automatically create and initialize the SQLite database (`raa_history.db`) in the running directory upon first use. No manual setup required for history persistence.
+## Usage
 
+### 1. Start the Server
+```bash
+uv run src/server.py
+```
+
+### 2. Connect with an MCP Client
+Use Claude Desktop or any MCP-compatible client to connect to the server.
+
+### 3. Agent Protocol
+For a detailed guide on how to operate the Reflective Agent (including the new Tripartite Architecture and Synthesis tools), see the **[RAA Agent Protocol](RAA_AGENT.md)**.
+
+### 4. Example Workflow
+1.  **Deconstruct**: Break down a complex problem.
+    ```
+    deconstruct(problem="The relationship between Quantum Mechanics and Consciousness")
+    ```
+2.  **Hypothesize**: Find connections between fragments.
+    ```
+    hypothesize(node_a_id="...", node_b_id="...")
+    ```
+3.  **Synthesize**: Merge insights into a final answer.
+    ```
+    synthesize(goal="Explain the Quantum Mind hypothesis")
+    ```
     tools_available:
 
       deconstruct: Break problems into component thought-nodes

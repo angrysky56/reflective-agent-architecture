@@ -31,7 +31,7 @@ async def test_deconstruct():
     # Initialize context components
     server_context.workspace = MockWorkspace()
     server_context.bridge = MockBridge()
-    server_context.device = "cpu"
+    # server_context.device = "cpu" # Removed: device is a property, set via raa_context below
 
     # Initialize Manifold & Precuneus (Real ones)
     from src.integration.precuneus import PrecuneusIntegrator

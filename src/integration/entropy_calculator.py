@@ -17,7 +17,7 @@ import logging
 from typing import Any
 
 import torch
-import torch.nn.functional as F
+import torch.nn.functional as f
 
 logger = logging.getLogger(__name__)
 
@@ -164,6 +164,32 @@ class EntropyCalculator:
 
         return logits
 
+    def deconstruct_to_logits(
+        self,
+        deconstruct_result: dict[str, Any],
+    ) -> torch.Tensor:
+        """
+        Convert deconstruct() result to logits.
+
+        Deconstruction splits a problem. We assume high confidence if successful.
+        Future: Measure ambiguity of the split.
+
+        Args:
+            deconstruct_result: Deconstruction output
+
+        Returns:
+            Logits representing deconstruction confidence
+        """
+        # Default to high confidence (low entropy) for now
+        # Distribution: [confident, uncertain]
+        confidence = 0.9
+        uncertainty = 0.1
+
+        scores = torch.tensor([confidence, uncertainty], dtype=torch.float32)
+        logits = torch.log(scores + 1e-8) / self.temperature
+
+        return logits
+
     def compute_entropy(self, logits: torch.Tensor) -> float:
         """
         Compute Shannon entropy from logits.
@@ -177,10 +203,10 @@ class EntropyCalculator:
             Entropy value in bits
         """
         # Convert to probabilities
-        probs = F.softmax(logits, dim=-1)
+        probs = f.softmax(logits, dim=-1)
 
         # Compute Shannon entropy
-        log_probs = F.log_softmax(logits, dim=-1)
+        log_probs = f.log_softmax(logits, dim=-1)
         entropy = -(probs * log_probs).sum()
 
         # Convert to bits (instead of nats)
@@ -222,6 +248,10 @@ def cwd_to_logits(
     elif operation == "constrain":
         constraint_dict = result[0] if isinstance(result, list) else result
         return calculator.constrain_to_logits(constraint_dict)
+    elif operation == "deconstruct":
+        deconstruct_dict = result[0] if isinstance(result, list) else result
+        return calculator.deconstruct_to_logits(deconstruct_dict)
+
     else:
         logger.error(f"Unknown CWD operation: {operation}")
         # Return neutral distribution

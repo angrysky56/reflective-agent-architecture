@@ -1270,27 +1270,36 @@ CRITICAL: Output your final answer directly. You may think internally, but end w
         logger.info(f"Synthesizing {len(node_ids)} nodes")
 
         with self.neo4j_driver.session() as session:
-            # Get all node contents
+            # Get all node contents AND their context (neighbors)
+            # We limit context to 3 neighbors per node to avoid token explosion
             nodes_result = session.run(
                 """
                 MATCH (n:ThoughtNode)
                 WHERE n.id IN $ids
-                RETURN n.id as id, n.content as content
+                OPTIONAL MATCH (n)-[r]-(neighbor:ThoughtNode)
+                RETURN n.id as id, n.content as content, collect(neighbor.content)[..3] as context
                 """,
                 ids=node_ids,
             )
 
-            nodes = {r["id"]: r["content"] for r in nodes_result}
+            # Store content and context
+            nodes_data = {}
+            for r in nodes_result:
+                nodes_data[r["id"]] = {
+                    "content": r["content"],
+                    "context": r["context"] if r["context"] else []
+                }
 
-            if len(nodes) < 2:
+            if len(nodes_data) < 2:
                 return {"error": "Need at least 2 nodes to synthesize"}
 
             # Compute centroid in latent space (synthesis node lives at geometric center)
-            embeddings = [self._embed_text(content) for content in nodes.values()]
+            # We use the main content for embedding, not the context
+            embeddings = [self._embed_text(data["content"]) for data in nodes_data.values()]
             centroid = np.mean(embeddings, axis=0).tolist()
 
-            # Generate synthesis (LLM merges only the input nodes - no external concepts)
-            synthesis_text = self._generate_synthesis(list(nodes.values()), goal)
+            # Generate synthesis (LLM merges input nodes + context)
+            synthesis_text = self._generate_synthesis(list(nodes_data.values()), goal)
 
             # Create synthesis node with centroid embedding (latent space position)
             synth_id = self._create_thought_node(
@@ -1316,7 +1325,7 @@ CRITICAL: Output your final answer directly. You may think internally, but end w
                 "message": "Synthesis created",
             }
 
-    def _generate_synthesis(self, contents: list[str], goal: str | None) -> str:
+    def _generate_synthesis(self, nodes_data: list[dict[str, Any]], goal: str | None) -> str:
         """
         Generate synthesis merging multiple concepts.
 
@@ -1330,15 +1339,20 @@ CRITICAL: Output your final answer directly. You may think internally, but end w
             "not just summary. Output 2-4 sentences that capture the unified understanding."
         )
 
-        # Prepare full concepts (don't truncate - LLM needs full context)
+        # Prepare full concepts with context
         concept_list = []
-        for i, content in enumerate(contents[:10], 1):  # Cap at 10 for token management
-            concept_list.append(f"{i}. {content}")
+        for i, data in enumerate(nodes_data[:10], 1):  # Cap at 10 for token management
+            text = f"{i}. {data['content']}"
+            if data['context']:
+                # Add context as a sub-bullet or note
+                context_str = "; ".join(data['context'])
+                text += f"\n   [Context: {context_str}]"
+            concept_list.append(text)
 
         goal_text = f"\n\nTarget Goal: {goal}" if goal else ""
 
         user_prompt = (
-            f"Synthesize these {len(contents)} concepts into a unified insight:{goal_text}\n\n"
+            f"Synthesize these {len(nodes_data)} concepts into a unified insight:{goal_text}\n\n"
             "Concepts to integrate:\n" + "\n\n".join(concept_list) + "\n\nProvide a synthesis that:"
             "\n- Identifies the common thread or pattern"
             "\n- Shows how concepts complement or build on each other"
@@ -1906,6 +1920,14 @@ Output JSON:
 }"""
             user_prompt = f"Deconstruct this problem: {problem}"
 
+            # 0. Persist to Graph (Neo4j) via Bridge
+            # This ensures we have Node IDs for synthesis later.
+            bridge = ctx.get_bridge()
+            graph_result = bridge.execute_monitored_operation("deconstruct", {"problem": problem})
+            # Handle potential list return from bridge
+            if isinstance(graph_result, list):
+                graph_result = graph_result[0] if graph_result else {}
+
             try:
                 response = workspace._llm_generate(system_prompt, user_prompt)
                 # Parse JSON (handle potential markdown fences)
@@ -1933,6 +1955,10 @@ Output JSON:
                         vec = torch.nn.functional.normalize(vec, p=2, dim=0)
                         embeddings[domain] = vec
 
+                        # Store in Manifold (Write Memory)
+                        manifold = ctx.get_manifold()
+                        manifold.store_pattern(vec, domain=domain)
+
                 # 3. Tripartite Retrieval
                 # manifold.retrieve returns {domain: (vec, energy)}
                 manifold = ctx.get_manifold()
@@ -1946,14 +1972,32 @@ Output JSON:
                 precuneus = ctx.get_precuneus()
                 unified_context = precuneus(vectors, energies)
 
-                # 5. Return Result
-                # We return the fragments and the fusion status
+                # 5. Gödel Detector (Paradox Check)
+                # If all streams are infinite energy, the system is in a "Thermodynamic Crash"
+                # This indicates a self-referential paradox or total novelty that requires System 3.
+                is_paradox = all(e == float('inf') for e in energies.values())
+
+                fusion_status = "Integrated"
+                advice = None
+                escalation = None
+
+                if is_paradox:
+                    fusion_status = "Gödelian Paradox"
+                    advice = "Query contains self-referential contradiction or total novelty. Consider: (1) Reframe question, (2) Accept undecidability, (3) Escalate to System 3 (Philosopher)."
+                    escalation = "ConsultParadoxResolver"
+
+                # 6. Return Result
                 result = {
                     "fragments": fragments,
                     "energies": {k: float(v) for k, v in energies.items()},
-                    "fusion_status": "Integrated",
-                    "unified_context_norm": float(torch.norm(unified_context))
+                    "fusion_status": fusion_status,
+                    "unified_context_norm": float(torch.norm(unified_context)),
+                    "graph_data": graph_result # Include Graph IDs
                 }
+
+                if is_paradox:
+                    result["advice"] = advice
+                    result["escalation"] = escalation
 
                 return [TextContent(type="text", text=json.dumps(result, indent=2))]
 
@@ -2177,7 +2221,29 @@ Output JSON:
             else:
                 signals.append("No topological obstructions detected (H^1 = 0). System is robust but potentially rigid.")
 
-            # Signal 2: Harmonic-Diffusive Overlap (Learning Capacity)
+            # Signal 2: H0 Cohomology (Graph Fragmentation)
+            # If H^0 > vertex_dim (approx), it means the graph is disconnected.
+            # For a single connected component with identity sheaf, H^0 dim = vertex_dim.
+            # We use a heuristic: if H^0 > 1.5 * vertex_dim (assuming vertex_dim is roughly constant/average)
+            # Actually, we can just check if H^0 is significantly larger than expected.
+            # Let's assume "fragmentation" if H^0 is large.
+            # A better proxy for the "Noble Lie" case is if we have multiple disconnected components.
+            h0_dim = diagnosis.cohomology.h0_dimension
+            # Heuristic: If H0 is very large, it suggests fragmentation.
+            # But we don't know the "expected" H0 without knowing the vertex dim structure.
+            # Let's use a simpler check: If H0 > 0 and H1 == 0, we might be in a fragmented but consistent state.
+
+            # For the "Noble Lie" case, the user wants to detect "disconnected islands".
+            # If we have multiple components, H0 dim scales with K.
+            if h0_dim > 10: # Arbitrary threshold for "fragmented" for now, pending better calibration
+                 signals.append(f"High H^0 dimension ({h0_dim}). Possible graph fragmentation (disconnected islands).")
+                 adaptation_plan.append("FRAGMENTATION: Concepts are isolated. Recommendation: Build bridges between disconnected components.")
+
+                 # Spawn Bridge Builder Agent
+                 tool_name = agent_factory.spawn_agent("Bridge Builder", f"Detected graph fragmentation (H^0={h0_dim}).")
+                 adaptation_plan.append(f"ACTION: Spawned specialized agent '{tool_name}' to connect islands.")
+
+            # Signal 3: Harmonic-Diffusive Overlap (Learning Capacity)
             overlap = diagnosis.harmonic_diffusive_overlap
             if overlap < 0.1:
                 signals.append(f"Low learning overlap ({overlap:.3f}). System is 'learning starved'.")

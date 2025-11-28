@@ -217,15 +217,20 @@ class SheafAnalyzer:
 
         return D, free_indices
 
-    def compute_cohomology(self, D: torch.Tensor) -> CohomologyResult:
+    def compute_cohomology(
+        self,
+        D: torch.Tensor,
+        delta: torch.Tensor | None = None
+    ) -> CohomologyResult:
         """
-        Compute sheaf cohomology groups from relative coboundary.
+        Compute sheaf cohomology groups.
 
-        H^1 = ker(D^T) represents irreducible error patterns that
-        cannot be eliminated by any choice of internal activations.
+        H^0 = ker(δ^0) represents global sections (connected components).
+        H^1 = ker(D^T) represents irreducible error patterns.
 
         Args:
-            D: Relative coboundary matrix
+            D: Relative coboundary matrix (for H^1)
+            delta: Full coboundary matrix (optional, for H^0)
 
         Returns:
             CohomologyResult with dimensions and null space basis
@@ -238,9 +243,19 @@ class SheafAnalyzer:
         null_mask = S < self.config.svd_tolerance
         h1_dim = null_mask.sum().item()
 
-        # For H^0, we'd need to look at ker(δ^0), but for clamped systems
-        # this is typically trivial since clamping fixes some activations
-        h0_dim = 0  # Typically 0 for clamped systems
+        # For H^0, we look at ker(δ^0) if delta is provided
+        h0_dim = 0
+        if delta is not None:
+            # H^0 = ker(δ^0)
+            # dim(H^0) = num_cols - rank(δ^0)
+            # We use SVD to find rank
+            try:
+                _, S_delta, _ = torch.linalg.svd(delta, full_matrices=False)
+                rank_delta = (S_delta > self.config.svd_tolerance).sum().item()
+                h0_dim = delta.shape[1] - rank_delta
+            except Exception as e:
+                logger.warning(f"Failed to compute H^0: {e}")
+                h0_dim = 0
 
         # Extract null space basis if non-trivial
         null_basis = None
@@ -468,10 +483,11 @@ class SheafAnalyzer:
         messages = []
 
         # Build relative coboundary
+        delta = self.build_coboundary_matrix(weights)
         D, free_indices = self.build_relative_coboundary(weights)
 
-        # Compute cohomology
-        cohomology = self.compute_cohomology(D)
+        # Compute cohomology (pass delta for H^0)
+        cohomology = self.compute_cohomology(D, delta=delta)
 
         if cohomology.h1_dimension > 0:
             messages.append(
