@@ -1806,6 +1806,34 @@ RAA_TOOLS = [
         description="Diagnose the system's antifragility by analyzing its topological and learning properties, and suggest adaptation strategies.",
         inputSchema={"type": "object", "properties": {}, "required": []},
     ),
+    Tool(
+        name="orthogonal_dimensions_analyzer",
+        description="Analyze the relationship between two concepts as orthogonal dimensions (Statistical Compression vs Causal Understanding).",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "concept_a": {"type": "string", "description": "First concept (e.g., 'Deep Learning')"},
+                "concept_b": {"type": "string", "description": "Second concept (e.g., 'Symbolic Logic')"},
+                "context": {"type": "string", "description": "Optional context for the analysis"}
+            },
+            "required": ["concept_a", "concept_b"]
+        },
+    ),
+    Tool(
+        name="set_intentionality",
+        description="Set the agent's cognitive intentionality mode (Optimization vs Adaptation). Controls the 'temperature' of the Manifold.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "mode": {
+                    "type": "string",
+                    "enum": ["optimization", "adaptation"],
+                    "description": "Mode to set: 'optimization' (High Beta, Convergent) or 'adaptation' (Low Beta, Divergent)."
+                }
+            },
+            "required": ["mode"]
+        },
+    ),
 ]
 
 
@@ -2097,6 +2125,53 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
                 "adaptation_plan": adaptation_plan,
                 "message": "Antifragility diagnosis complete."
             }
+
+        elif name == "orthogonal_dimensions_analyzer":
+            concept_a = arguments["concept_a"]
+            concept_b = arguments["concept_b"]
+            context = arguments.get("context", "")
+
+            system_prompt = """You are an Orthogonal Dimensions Analyzer.
+Your task is to analyze the relationship between two concepts, NOT as a linear spectrum, but as independent dimensions in a 2D cognitive space.
+
+Dimensions:
+1. Statistical Compression (X-Axis): How well does it capture patterns/regularities? (Low = Noise, High = Efficient Encoding)
+2. Causal Understanding (Y-Axis): How well does it model cause-and-effect mechanisms? (Low = Correlation, High = Explanation)
+
+Intentionality Selector:
+Identify what "Intentionality" (Goal/Purpose) would select for one dimension over the other.
+
+Output Format:
+1. Analysis: Brief analysis of how each concept scores on both dimensions.
+2. Coordinates: Assign (X, Y) scores (0-10) for both concepts.
+3. Quadrant: Place them in the 4 Quadrants (Q1: Noise, Q2: Verbose, Q3: Insight, Q4: Overfitting).
+4. Intentionality: What goal selects for Concept A vs Concept B?
+5. Synthesis: How do they relate orthogonally?
+"""
+            user_prompt = f"Analyze the relationship between '{concept_a}' and '{concept_b}'.\nContext: {context}"
+
+            response = workspace._llm_generate(system_prompt, user_prompt)
+            return [TextContent(type="text", text=response)]
+
+        elif name == "set_intentionality":
+            mode = arguments["mode"].lower()
+            manifold = ctx.get_manifold()
+
+            if mode == "optimization":
+                # High Beta = Sharp attention = Convergent = Optimization
+                new_beta = 50.0
+                manifold.hopfield.set_beta(new_beta)
+                msg = f"Intentionality set to OPTIMIZATION. Manifold beta increased to {new_beta} (Convergent)."
+            elif mode == "adaptation":
+                # Low Beta = Soft attention = Divergent = Adaptation
+                new_beta = 5.0
+                manifold.hopfield.set_beta(new_beta)
+                msg = f"Intentionality set to ADAPTATION. Manifold beta decreased to {new_beta} (Divergent)."
+            else:
+                return [TextContent(type="text", text=f"Unknown mode: {mode}")]
+
+            return [TextContent(type="text", text=msg)]
+
         else:
             return [TextContent(type="text", text=f"Unknown tool: {name}")]
 

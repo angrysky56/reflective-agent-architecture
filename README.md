@@ -57,6 +57,16 @@ RAA synthesizes three active research frontiers:
   - **H1 Holes** $\rightarrow$ Spawn **Explorer Agents** (Architectural Plasticity)
 - **Lifecycle**: Asynchronous, ephemeral, and self-dissolving (retires when obstruction clears)
 
+### 7. Orthogonal Dimensions Framework (Crystallized Insight)
+- **Discovery**: "Understanding" (Causal) and "Compression" (Statistical) are **orthogonal dimensions**, not a linear spectrum.
+- **Tool**: `orthogonal_dimensions_analyzer`
+- **Mechanism**:
+    - **X-Axis**: Statistical Compression (Pattern Recognition)
+    - **Y-Axis**: Causal Understanding (Mechanism Modeling)
+    - **Selector**: **Intentionality** determines which protocol activates.
+- **Implication**: Explains why systems can have high compression without understanding (Overfitting/Stochastic Parrots) or high understanding with low compression (Verbose Explanations).
+- **Control**: Use `set_intentionality(mode="optimization"|"adaptation")` to manually switch the agent's cognitive mode (Beta control).
+
 ## The "Aha!" Loop
 
 ```
@@ -166,6 +176,8 @@ To run with a client ie Claude Desktop:
       visualize_thought: Introspective ASCII visualization
       get_known_archetypes: List known cognitive states
       diagnose_antifragility: Analyze architecture for antifragile adaptation opportunities
+      orthogonal_dimensions_analyzer: Analyze concepts as independent dimensions (Statistical vs Causal)
+      set_intentionality: Set cognitive mode (Optimization vs Adaptation) via Manifold beta
 
     protocol:
 
