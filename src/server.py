@@ -45,6 +45,8 @@ from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sentence_transformers import SentenceTransformer
 
+from src.cognition.meta_validator import MetaValidator
+
 # RAA imports
 from src.director import Director, DirectorConfig
 from src.integration.agent_factory import AgentFactory
@@ -1307,9 +1309,36 @@ CRITICAL: Output your final answer directly. You may think internally, but end w
             # Generate synthesis (LLM merges input nodes + context)
             synthesis_text = self._generate_synthesis(list(nodes_data.values()), goal)
 
-            # Create synthesis node with centroid embedding (latent space position)
+            # Meta-Validator: Compute Metrics
+            # 1. Coverage (C): Similarity between synthesis text and centroid of inputs
+            real_embedding = self._embed_text(synthesis_text)
+            # Cosine similarity
+            dot_product = np.dot(real_embedding, centroid)
+            norm_a = np.linalg.norm(real_embedding)
+            norm_b = np.linalg.norm(centroid)
+            coverage_score = dot_product / (norm_a * norm_b) if norm_a > 0 and norm_b > 0 else 0.0
+
+            # 2. Rigor (R): Epistemic rigor via MetaValidator
+            rigor_score = MetaValidator.compute_epistemic_rigor(
+                synthesis_text,
+                lambda sys, user: self._llm_generate(sys, user, max_tokens=1000)
+            )
+
+            # 3. Unified Score & Quadrant
+            meta_stats = MetaValidator.calculate_unified_score(
+                float(coverage_score),
+                float(rigor_score),
+                context="comprehensive_analysis"
+            )
+
+            # Create synthesis node with REAL embedding (more accurate than centroid)
+            # We use the real embedding so future searches find it where it actually is semantically
             synth_id = self._create_thought_node(
-                session, synthesis_text, "synthesis", confidence=0.7, embedding=centroid
+                session,
+                synthesis_text,
+                "synthesis",
+                confidence=meta_stats["unified_score"],
+                embedding=real_embedding
             )
 
             # Create relationships
@@ -1328,7 +1357,8 @@ CRITICAL: Output your final answer directly. You may think internally, but end w
                 "synthesis_id": synth_id,
                 "synthesis": synthesis_text,
                 "source_count": len(node_ids),
-                "message": "Synthesis created",
+                "meta_validation": meta_stats,
+                "message": f"Synthesis created ({meta_stats['quadrant']})",
             }
 
     def _generate_synthesis(self, nodes_data: list[dict[str, Any]], goal: str | None) -> str:
