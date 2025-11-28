@@ -47,6 +47,7 @@ from sentence_transformers import SentenceTransformer
 
 # RAA imports
 from src.director import Director, DirectorConfig
+from src.integration.agent_factory import AgentFactory
 from src.integration.cwd_raa_bridge import BridgeConfig, CWDRAABridge
 from src.integration.sleep_cycle import SleepCycle
 from src.manifold import HopfieldConfig, Manifold
@@ -1550,6 +1551,9 @@ class RAAServerContext:
             processor=processor,
         )
 
+        # Initialize Agent Factory
+        self.agent_factory = AgentFactory(self.workspace._llm_generate)
+
         self.raa_context = {
             "embedding_dim": embedding_dim,
             "device": device,
@@ -1558,6 +1562,7 @@ class RAAServerContext:
             "director": director,
             "processor": processor,
             "bridge": bridge,
+            "agent_factory": self.agent_factory,
         }
 
     def cleanup(self):
@@ -1582,9 +1587,20 @@ class RAAServerContext:
             raise RuntimeError("RAA context not initialized")
         return self.raa_context["pointer"]
 
+    def get_agent_factory(self) -> AgentFactory:
+        if not self.raa_context:
+            raise RuntimeError("RAA context not initialized")
+        return self.raa_context["agent_factory"]
+
 
 # Global context instance (managed by main lifecycle, not implicitly lazy-loaded)
 server_context = RAAServerContext()
+
+def get_raa_context() -> RAAServerContext:
+    """Helper to get the initialized RAA Server Context."""
+    if not server_context.is_initialized:
+        server_context.initialize()
+    return server_context
 
 
 RAA_TOOLS = [
@@ -1785,27 +1801,40 @@ RAA_TOOLS = [
             "required": []
         },
     ),
+    Tool(
+        name="diagnose_antifragility",
+        description="Diagnose the system's antifragility by analyzing its topological and learning properties, and suggest adaptation strategies.",
+        inputSchema={"type": "object", "properties": {}, "required": []},
+    ),
 ]
 
 
 @server.list_tools()
 async def list_tools() -> list[Tool]:
     """List available cognitive workspace tools"""
-    return RAA_TOOLS
+    ctx = get_raa_context()
+    dynamic_tools = ctx.get_agent_factory().get_dynamic_tools()
+
+    all_tools = RAA_TOOLS + dynamic_tools
+    return all_tools
 
 
 @server.call_tool()
 async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextContent]:
     """Handle tool calls"""
     # Ensure context is initialized
-    if not server_context.is_initialized:
-        server_context.initialize()
-
-    workspace = server_context.workspace
-    bridge = server_context.get_bridge()
+    ctx = get_raa_context()
+    workspace = ctx.workspace
+    bridge = ctx.get_bridge()
+    agent_factory = ctx.get_agent_factory()
 
     if not workspace:
         raise RuntimeError("Workspace not initialized")
+
+    # Check for dynamic agent call first
+    if name in agent_factory.active_agents:
+        response = agent_factory.execute_agent(name, arguments)
+        return [TextContent(type="text", text=response)]
 
     try:
         if name == "deconstruct":
@@ -1888,16 +1917,16 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
             )
             return [TextContent(type="text", text=json.dumps(result, indent=2, default=str))]
         elif name == "teach_cognitive_state":
-            director = server_context.get_director()
+            director = ctx.get_director()
             success = director.teach_state(arguments["label"])
             msg = f"Learned state '{arguments['label']}'" if success else "Failed: No recent thought to learn from."
             return [TextContent(type="text", text=msg)]
         elif name == "get_known_archetypes":
-            director = server_context.get_director()
+            director = ctx.get_director()
             states = director.get_known_states()
             return [TextContent(type="text", text=json.dumps(states, indent=2))]
         elif name == "visualize_thought":
-            director = server_context.get_director()
+            director = ctx.get_director()
             vis = director.visualize_last_thought()
             return [TextContent(type="text", text=vis)]
         elif name == "take_nap":
@@ -1919,8 +1948,8 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
             }
         elif name == "diagnose_pointer":
             # Extract weights from Pointer and run diagnosis
-            pointer = server_context.get_pointer()
-            director = server_context.get_director()
+            pointer = ctx.get_pointer()
+            director = ctx.get_director()
 
             if not hasattr(pointer, "rnn"):
                 return [TextContent(type="text", text="Error: Pointer does not have an RNN to diagnose")]
@@ -1956,7 +1985,7 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
             }
         elif name == "check_cognitive_state":
             # Retrieve latest cognitive state from Director
-            director = server_context.get_director()
+            director = ctx.get_director()
             state, energy = director.latest_cognitive_state
 
             # Generate warnings for negative states
@@ -2003,6 +2032,9 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
 
         elif name == "diagnose_antifragility":
             # 1. Get base diagnostics
+            pointer = ctx.get_pointer()
+            director = ctx.get_director()
+
             # Extract weights for diagnosis
             weights = []
             if hasattr(pointer, "rnn"):
@@ -2024,6 +2056,11 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
             if h1_dim > 0:
                 signals.append(f"Detected {h1_dim} topological obstructions (H^1 > 0).")
                 adaptation_plan.append("GROWTH OPPORTUNITY: The current architecture cannot resolve these error patterns. Recommendation: Expand the Manifold capacity or add a new abstraction layer.")
+
+                # Spawn Explorer Agent
+                tool_name = agent_factory.spawn_agent("H1 Hole", f"Detected {h1_dim} irreducible error cycles.")
+                adaptation_plan.append(f"ACTION: Spawned specialized agent '{tool_name}' to explore missing concepts.")
+
             else:
                 signals.append("No topological obstructions detected (H^1 = 0). System is robust but potentially rigid.")
 
@@ -2032,6 +2069,11 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
             if overlap < 0.1:
                 signals.append(f"Low learning overlap ({overlap:.3f}). System is 'learning starved'.")
                 adaptation_plan.append("STRESSOR: Information is not diffusing to update gradients. Recommendation: Increase 'temperature' (beta) to encourage exploration.")
+
+                # Spawn Creative Agent
+                tool_name = agent_factory.spawn_agent("Low Overlap", f"Learning overlap is {overlap:.3f} (Starved).")
+                adaptation_plan.append(f"ACTION: Spawned specialized agent '{tool_name}' to bridge semantic gaps.")
+
             else:
                 signals.append(f"Healthy learning overlap ({overlap:.3f}). System is plastic and adaptive.")
 
@@ -2040,6 +2082,11 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
                 if diagnosis.monodromy.topology.value == "tension":
                     signals.append("Tension loop detected (conflicting feedback).")
                     adaptation_plan.append("VOLATILITY: Internal contradiction. Recommendation: Use 'deconstruct' to break the loop into compatible sub-components.")
+
+                    # Spawn Debater Agent
+                    tool_name = agent_factory.spawn_agent("Tension Loop", "Conflicting feedback loop detected (Monodromy: Tension).")
+                    adaptation_plan.append(f"ACTION: Spawned specialized agent '{tool_name}' to arbitrate conflict.")
+
                 elif diagnosis.monodromy.topology.value == "resonance":
                     signals.append("Resonance loop detected (reinforcing feedback).")
                     adaptation_plan.append("STABILITY: Self-reinforcing belief. Recommendation: Verify against external data to prevent hallucination.")
