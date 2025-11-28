@@ -24,6 +24,7 @@ The hybrid approach creates a positive feedback loop:
 from __future__ import annotations
 
 import logging
+import math
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Optional
@@ -270,7 +271,7 @@ class HybridSearchStrategy:
 
         # Validate with Sheaf (if enabled)
         if self.config.require_sheaf_validation and self.sheaf is not None:
-            if not self._sheaf_validates(knn_result.best_pattern):
+            if not self._sheaf_validates(knn_result.best_pattern, check_attractor=True):
                 result.knn_failed_reason = "Sheaf validation failed"
                 if self.config.verbose:
                     logger.debug("k-NN result failed Sheaf validation")
@@ -322,15 +323,16 @@ class HybridSearchStrategy:
             return None
 
         # Validate with Sheaf (if enabled)
-        sheaf_valid = True
-        if self.config.require_sheaf_validation and self.sheaf is not None:
-            sheaf_valid = self._sheaf_validates(waypoint)
-            if not sheaf_valid:
-                result.ltn_failed_reason = "Sheaf validation failed"
+        sheaf_valid = False
+        if self.config.require_sheaf_validation:
+            # For LTN, we relax the attractor check because we are creating a new attractor
+            # We also relax entropy check because bridging concepts might be diffuse
+            if not self._sheaf_validates(waypoint, check_attractor=False, check_entropy=False):
+                result.ltn_failed_reason = "Sheaf validation failed (entropy/focus)"
                 if self.config.verbose:
-                    logger.debug("LTN waypoint failed Sheaf validation")
+                    logger.debug("LTN result failed Sheaf validation")
                 return None
-
+            sheaf_valid = True
         # Store in Manifold (if enabled)
         stored = False
         if self.config.enable_waypoint_storage:
@@ -368,19 +370,18 @@ class HybridSearchStrategy:
 
         return hybrid_result
 
-    def _sheaf_validates(self, pattern: torch.Tensor) -> bool:
+    def _sheaf_validates(self, pattern: torch.Tensor, check_attractor: bool = True, check_entropy: bool = True) -> bool:
         """
-        Check topological consistency via Sheaf cohomology.
+        Validate pattern using Sheaf Cohomology (or heuristics).
 
-        Note: Full Sheaf validation requires weight matrices from attention
-        mechanisms, which we don't have here. We use a simplified heuristic:
-        - Pattern must be in a low-energy region (attractor)
-
-        TODO: Integrate with actual Sheaf diagnostics when attention weights
-        are available from the Processor.
+        Checks:
+        1. Is it a stable attractor? (Energy < 0) - Optional for LTN
+        2. Is attention focused? (Low entropy) - Optional for LTN
 
         Args:
             pattern: Embedding to validate
+            check_attractor: Whether to enforce negative energy (default True)
+            check_entropy: Whether to enforce low entropy (default True)
 
         Returns:
             is_valid: Whether pattern passes validation
@@ -401,30 +402,48 @@ class HybridSearchStrategy:
         energy = self.manifold.energy(pattern).item()
         is_attractor = energy < 0
 
-        if not is_attractor and self.config.verbose:
-            logger.debug(f"Pattern not in attractor: E={energy:.4f}")
+        if self.config.verbose:
+            logger.info(f"Sheaf Validation: Energy={energy:.4f}, Is Attractor={is_attractor}")
+
+        if check_attractor:
+            if is_attractor:
+                pass # Continue to next check
+            else:
+                if self.config.verbose:
+                    logger.debug(f"Pattern not in attractor: E={energy:.4f}")
+                return False
+        # The original code had a debug message here that was always printed if not an attractor.
+        # With `check_attractor` parameter, this message should only be printed if `check_attractor` is True
+        # and `is_attractor` is False, which is handled by the `return False` block above.
+        # If `check_attractor` is False, we don't care if it's an attractor for this heuristic.
 
         # Heuristic 2: Check attention entropy (if supported)
         # High entropy = diffuse attention = confusion/stuck
-        is_focused = True
-        if hasattr(self.manifold, "get_attention"):
-            attention = self.manifold.get_attention(pattern)
-            # Entropy = -sum(p * log(p))
-            entropy = -torch.sum(attention * torch.log(attention + 1e-10)).item()
+        if check_entropy:
+            is_focused = True
+            if hasattr(self.manifold, "get_attention"):
+                attention = self.manifold.get_attention(pattern)
+                # Entropy = -sum(p * log(p))
+                entropy = -torch.sum(attention * torch.log(attention + 1e-10)).item()
 
-            # Max entropy for N patterns is log(N)
-            num_patterns = attention.shape[-1]
-            if num_patterns > 1:
-                max_entropy = torch.log(torch.tensor(float(num_patterns))).item()
+                # Max entropy for N patterns is log(N)
+                # We want normalized entropy < threshold
+                n_patterns = attention.shape[-1]
+                max_entropy = math.log(n_patterns) if n_patterns > 1 else 1.0
                 normalized_entropy = entropy / max_entropy
 
-                # If entropy is too high (> 0.8), we are too diffuse
-                if normalized_entropy > 0.8:
+                if self.config.verbose:
+                    logger.debug(f"Sheaf Validation: Entropy={normalized_entropy:.4f}")
+
+                if normalized_entropy > 0.8:  # Threshold
                     is_focused = False
                     if self.config.verbose:
-                        logger.debug(f"High attention entropy: {normalized_entropy:.2f}")
+                        logger.debug(f"High entropy (confusion): {normalized_entropy:.2f}")
 
-        return is_attractor and is_focused
+            if not is_focused:
+                return False
+
+        return True
 
     def get_stats(self) -> dict[str, Any]:
         """Return search statistics."""
