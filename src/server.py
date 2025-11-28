@@ -49,6 +49,7 @@ from sentence_transformers import SentenceTransformer
 from src.director import Director, DirectorConfig
 from src.integration.agent_factory import AgentFactory
 from src.integration.cwd_raa_bridge import BridgeConfig, CWDRAABridge
+from src.integration.precuneus import PrecuneusIntegrator
 from src.integration.sleep_cycle import SleepCycle
 from src.manifold import HopfieldConfig, Manifold
 from src.pointer.goal_controller import GoalController, PointerConfig
@@ -1554,6 +1555,9 @@ class RAAServerContext:
         # Initialize Agent Factory
         self.agent_factory = AgentFactory(self.workspace._llm_generate)
 
+        # Initialize Precuneus Integrator
+        self.precuneus = PrecuneusIntegrator(dim=embedding_dim)
+
         self.raa_context = {
             "embedding_dim": embedding_dim,
             "device": device,
@@ -1563,6 +1567,7 @@ class RAAServerContext:
             "processor": processor,
             "bridge": bridge,
             "agent_factory": self.agent_factory,
+            "precuneus": self.precuneus,
         }
 
     def cleanup(self):
@@ -1587,10 +1592,26 @@ class RAAServerContext:
             raise RuntimeError("RAA context not initialized")
         return self.raa_context["pointer"]
 
+    def get_manifold(self) -> Manifold:
+        if not self.raa_context:
+            raise RuntimeError("RAA context not initialized")
+        return self.raa_context["manifold"]
+
     def get_agent_factory(self) -> AgentFactory:
         if not self.raa_context:
             raise RuntimeError("RAA context not initialized")
         return self.raa_context["agent_factory"]
+
+    def get_precuneus(self) -> PrecuneusIntegrator:
+        if not self.raa_context:
+            raise RuntimeError("RAA context not initialized")
+        return self.raa_context["precuneus"]
+
+    @property
+    def device(self) -> str:
+        if not self.raa_context:
+            raise RuntimeError("RAA context not initialized")
+        return self.raa_context["device"]
 
 
 # Global context instance (managed by main lifecycle, not implicitly lazy-loaded)
@@ -1866,14 +1887,78 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
 
     try:
         if name == "deconstruct":
-            # Route through RAA bridge for entropy monitoring + search
-            result = bridge.execute_monitored_operation(
-                operation="deconstruct",
-                params={
-                    "problem": arguments["problem"],
-                    "max_depth": arguments.get("max_depth", 3),
-                },
-            )
+            problem = arguments["problem"]
+
+            # 1. Tripartite Fragmentation (LLM)
+            system_prompt = """You are the Prefrontal Cortex Decomposition Engine.
+Input: A user prompt or situation.
+Task: Fragment the input into three orthogonal domains.
+
+1. STATE (vmPFC): Where are we? What is the static context? (e.g., "Python CLI", "Philosophical Debate", "Error Log")
+2. AGENT (amPFC): Who is involved? What is the intent/persona? (e.g., "Frustrated User", "Socratic Teacher", "Debugger")
+3. ACTION (dmPFC): What is the transition/verb? (e.g., "Refactor", "Summarize", "Search")
+
+Output JSON:
+{
+  "state_fragment": "...",
+  "agent_fragment": "...",
+  "action_fragment": "..."
+}"""
+            user_prompt = f"Deconstruct this problem: {problem}"
+
+            try:
+                response = workspace._llm_generate(system_prompt, user_prompt)
+                # Parse JSON (handle potential markdown fences)
+                clean_response = response.replace("```json", "").replace("```", "").strip()
+                fragments = json.loads(clean_response)
+
+                # 2. Embed Fragments
+                # Use bridge's embedding mapper if available, else fallback (should be available)
+                # ctx.bridge might not exist as attribute, use get_bridge if available or access context directly
+                # Checking RAAServerContext definition, it usually has getters.
+                # Let's assume get_bridge() exists or we need to add it.
+                # Looking at previous view, get_agent_factory and get_precuneus exist.
+                # I'll check if get_bridge exists. If not, I'll use ctx.raa_context["bridge"]
+
+                mapper = bridge.embedding_mapper
+
+                embeddings = {}
+                for key, text in fragments.items():
+                    # Map fragment key to domain
+                    domain = key.split("_")[0] # state, agent, action
+                    # Embed
+                    with torch.no_grad():
+                        vec = mapper.embedding_model.encode(text, convert_to_tensor=True, device=ctx.device)
+                        # Normalize
+                        vec = torch.nn.functional.normalize(vec, p=2, dim=0)
+                        embeddings[domain] = vec
+
+                # 3. Tripartite Retrieval
+                # manifold.retrieve returns {domain: (vec, energy)}
+                manifold = ctx.get_manifold()
+                retrieval_results = manifold.retrieve(embeddings)
+
+                # Extract vectors and energies for Precuneus
+                vectors = {k: v[0] for k, v in retrieval_results.items()}
+                energies = {k: v[1] for k, v in retrieval_results.items()}
+
+                # 4. Precuneus Fusion
+                precuneus = ctx.get_precuneus()
+                unified_context = precuneus(vectors, energies)
+
+                # 5. Return Result
+                # We return the fragments and the fusion status
+                result = {
+                    "fragments": fragments,
+                    "energies": {k: float(v) for k, v in energies.items()},
+                    "fusion_status": "Integrated",
+                    "unified_context_norm": float(torch.norm(unified_context))
+                }
+
+                return [TextContent(type="text", text=json.dumps(result, indent=2))]
+
+            except Exception as e:
+                return [TextContent(type="text", text=f"Deconstruction failed: {str(e)}")]
         elif name == "hypothesize":
             # Route through RAA bridge for entropy monitoring + search
             result = bridge.execute_monitored_operation(
@@ -2159,14 +2244,18 @@ Output Format:
 
             if mode == "optimization":
                 # High Beta = Sharp attention = Convergent = Optimization
-                new_beta = 50.0
-                manifold.hopfield.set_beta(new_beta)
-                msg = f"Intentionality set to OPTIMIZATION. Manifold beta increased to {new_beta} (Convergent)."
+                # Set all manifolds to high beta
+                manifold.state_memory.set_beta(50.0)
+                manifold.agent_memory.set_beta(50.0)
+                manifold.action_memory.set_beta(50.0)
+                msg = "Intentionality set to OPTIMIZATION. All Manifold betas increased to 50.0 (Convergent)."
             elif mode == "adaptation":
                 # Low Beta = Soft attention = Divergent = Adaptation
-                new_beta = 5.0
-                manifold.hopfield.set_beta(new_beta)
-                msg = f"Intentionality set to ADAPTATION. Manifold beta decreased to {new_beta} (Divergent)."
+                # Set all manifolds to low beta
+                manifold.state_memory.set_beta(5.0)
+                manifold.agent_memory.set_beta(5.0)
+                manifold.action_memory.set_beta(5.0)
+                msg = "Intentionality set to ADAPTATION. All Manifold betas decreased to 5.0 (Divergent)."
             else:
                 return [TextContent(type="text", text=f"Unknown mode: {mode}")]
 

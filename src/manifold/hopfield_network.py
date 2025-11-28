@@ -21,6 +21,11 @@ class HopfieldConfig:
     beta: float = (
         10.0  # Inverse temperature for softmax (increased from 1.0 for meaningful variance)
     )
+    # Tripartite Betas
+    beta_state: float = 5.0   # Low beta for broad context association (vmPFC)
+    beta_agent: float = 10.0  # Medium beta for persona/intent (amPFC)
+    beta_action: float = 50.0 # High beta for precise tool selection (dmPFC)
+
     max_patterns: int = 1000
     update_steps: int = 10  # Number of iterations for convergence
     adaptive_beta: bool = False  # Enable context-dependent beta
