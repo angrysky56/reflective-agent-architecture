@@ -62,12 +62,16 @@ class ModernHopfieldNetwork(nn.Module):
         self.register_buffer("patterns", torch.empty(0, config.embedding_dim))
         self.num_patterns = 0
 
-    def store_pattern(self, pattern: torch.Tensor) -> None:
+        # Metadata storage (parallel list)
+        self.pattern_metadata = []
+
+    def store_pattern(self, pattern: torch.Tensor, metadata: Optional[dict] = None) -> None:
         """
         Store a new pattern in the Hopfield memory.
 
         Args:
             pattern: Embedding vector of shape (embedding_dim,) or (batch, embedding_dim)
+            metadata: Optional dictionary of metadata for the pattern
         """
         if pattern.dim() == 1:
             pattern = pattern.unsqueeze(0)
@@ -78,6 +82,17 @@ class ModernHopfieldNetwork(nn.Module):
         # Add to pattern storage
         self.patterns = torch.cat([self.patterns, pattern.to(self.device)], dim=0)
         self.num_patterns = self.patterns.shape[0]
+
+        # Store metadata
+        if metadata is None:
+            metadata = {}
+        self.pattern_metadata.append(metadata)
+
+    def get_pattern_metadata(self, index: int) -> dict:
+        """Get metadata for a specific pattern index."""
+        if 0 <= index < len(self.pattern_metadata):
+            return self.pattern_metadata[index]
+        return {}
 
     def get_patterns(self) -> torch.Tensor:
         """Return all stored patterns."""
@@ -255,6 +270,7 @@ class ModernHopfieldNetwork(nn.Module):
         """Clear all stored patterns."""
         self.patterns = torch.empty(0, self.config.embedding_dim).to(self.device)
         self.num_patterns = 0
+        self.pattern_metadata = []
 
     def __repr__(self) -> str:
         adaptive_str = " (adaptive)" if self.config.adaptive_beta else ""

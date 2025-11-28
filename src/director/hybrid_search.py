@@ -139,7 +139,8 @@ class HybridSearchStrategy:
             "knn_success": 0,
             "ltn_success": 0,
             "total_failures": 0,
-            "waypoints_stored": 0
+            "waypoints_stored": 0,
+            "scaffolding_success": 0  # Track when k-NN retrieves an LTN waypoint
         }
 
     def search(
@@ -277,6 +278,15 @@ class HybridSearchStrategy:
                     logger.debug("k-NN result failed Sheaf validation")
                 return None
 
+        # Check for Scaffolding Effect (did we retrieve a synthetic waypoint?)
+        best_idx = knn_result.neighbor_indices[0]
+        if hasattr(self.manifold, "get_pattern_metadata"):
+            meta = self.manifold.get_pattern_metadata(best_idx)
+            if meta.get("is_synthetic", False):
+                self.search_stats["scaffolding_success"] += 1
+                if self.config.verbose:
+                    logger.info("✓ Scaffolding Effect Verified: k-NN retrieved synthetic LTN waypoint!")
+
         # Convert to HybridSearchResult
         hybrid_result = HybridSearchResult(
             best_pattern=knn_result.best_pattern,
@@ -337,7 +347,13 @@ class HybridSearchStrategy:
         stored = False
         if self.config.enable_waypoint_storage:
             try:
-                self.manifold.store_pattern(waypoint.unsqueeze(0))
+                # Store with metadata to track scaffolding effect
+                metadata = {"is_synthetic": True, "source": "ltn"}
+                if hasattr(self.manifold, "store_pattern") and "metadata" in self.manifold.store_pattern.__code__.co_varnames:
+                     self.manifold.store_pattern(waypoint.unsqueeze(0), metadata=metadata)
+                else:
+                     self.manifold.store_pattern(waypoint.unsqueeze(0))
+
                 stored = True
                 self.search_stats["waypoints_stored"] += 1
                 if self.config.verbose:

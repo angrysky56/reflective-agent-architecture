@@ -83,17 +83,27 @@ class Manifold:
         )
         self.action_memory = ModernHopfieldNetwork(action_config)
 
-    def store_pattern(self, pattern, domain: str = "state"):
+    def store_pattern(self, pattern, domain: str = "state", metadata: Optional[dict] = None):
         """Store pattern in specific domain."""
         if domain == "state":
-            self.state_memory.store_pattern(pattern)
+            self.state_memory.store_pattern(pattern, metadata)
         elif domain == "agent":
-            self.agent_memory.store_pattern(pattern)
+            self.agent_memory.store_pattern(pattern, metadata)
         elif domain == "action":
-            self.action_memory.store_pattern(pattern)
+            self.action_memory.store_pattern(pattern, metadata)
         else:
             # Default to state if unknown
-            self.state_memory.store_pattern(pattern)
+            self.state_memory.store_pattern(pattern, metadata)
+
+    def get_pattern_metadata(self, index: int, domain: str = "state") -> dict:
+        """Get metadata for a specific pattern index."""
+        if domain == "state":
+            return self.state_memory.get_pattern_metadata(index)
+        elif domain == "agent":
+            return self.agent_memory.get_pattern_metadata(index)
+        elif domain == "action":
+            return self.action_memory.get_pattern_metadata(index)
+        return self.state_memory.get_pattern_metadata(index)
 
     def retrieve(self, query_dict: dict):
         """
