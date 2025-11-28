@@ -82,6 +82,7 @@ class CWDRAABridge:
         config: Optional[BridgeConfig] = None,
         pointer: Optional[Any] = None,  # Optional GoalController (Pointer)
         processor: Optional[Any] = None,  # Optional Processor for shadow monitoring
+        sleep_cycle: Optional[Any] = None,  # Optional SleepCycle for auto-nap
         get_current_goal: Optional[Callable[[], torch.Tensor]] = None,  # Optional goal provider
     ):
         """
@@ -99,6 +100,7 @@ class CWDRAABridge:
         self.config = config or BridgeConfig()
         self.pointer = pointer
         self.processor = processor
+        self.sleep_cycle = sleep_cycle
         self._get_current_goal_fn = get_current_goal
 
         # Initialize components: reuse CWD server's embedding model if available
@@ -252,6 +254,18 @@ class CWDRAABridge:
         # Log to persistent history
         cognitive_state, energy = self.raa_director.latest_cognitive_state
         diagnostics = getattr(self.raa_director, "latest_diagnostics", {})
+
+        # Phase 7: Energy Recharge Protocol (Auto-Nap)
+        # If energy is critically low (e.g., < -0.6), trigger a sleep cycle
+        if self.sleep_cycle is not None and energy < -0.6:
+            logger.info(f"CRITICAL ENERGY DEPLETION ({energy:.3f}). Triggering Auto-Nap.")
+            try:
+                nap_results = self.sleep_cycle.dream(epochs=1)
+                logger.info(f"Auto-Nap complete: {nap_results['message']}")
+                # Re-check state after nap
+                cognitive_state, energy = self.raa_director.latest_cognitive_state
+            except Exception as e:
+                logger.error(f"Auto-Nap failed: {e}")
 
         self.history.log_operation(
             operation=operation,

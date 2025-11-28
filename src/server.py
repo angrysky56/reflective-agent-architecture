@@ -1211,9 +1211,14 @@ CRITICAL: Output your final answer directly. You may think internally, but end w
         # LLM validation for semantic entailment
         system_prompt = (
             "You are a precise constraint validator. Your task: determine if content satisfies a rule.\n\n"
+            "CRITERIA FOR SATISFACTION:\n"
+            "1. PREMISES: Are the starting assumptions clear?\n"
+            "2. INFERENCE: Are the logical steps valid?\n"
+            "3. CONCLUSION: Is the final claim justified by the premises?\n"
+            "4. COMPLETENESS: Does the argument hold together without missing links?\n\n"
             "Output format (choose ONE):\n"
-            "YES - if content clearly satisfies the constraint\n"
-            "NO - if content does not satisfy the constraint\n\n"
+            "YES - if content clearly satisfies the constraint AND meets the criteria above\n"
+            "NO - if content fails the constraint OR lacks logical completeness\n\n"
             "Be direct. Do not explain. Just output YES or NO."
         )
 
@@ -1557,6 +1562,9 @@ class RAAServerContext:
             device=device,
         )
 
+        # Initialize Sleep Cycle
+        self.sleep_cycle = SleepCycle(workspace=self.workspace)
+
         bridge = CWDRAABridge(
             cwd_server=self.workspace,
             raa_director=director,
@@ -1564,6 +1572,7 @@ class RAAServerContext:
             config=bridge_cfg,
             pointer=pointer,
             processor=processor,
+            sleep_cycle=self.sleep_cycle,
         )
 
         # Initialize Agent Factory
@@ -2087,8 +2096,8 @@ Output JSON:
             vis = director.visualize_last_thought()
             return [TextContent(type="text", text=vis)]
         elif name == "take_nap":
-            # Initialize Sleep Cycle with current workspace
-            sleep_cycle = SleepCycle(workspace=workspace)
+            # Use shared Sleep Cycle instance
+            sleep_cycle = ctx.sleep_cycle
             results = sleep_cycle.dream(epochs=arguments.get("epochs", 5))
             return [TextContent(type="text", text=json.dumps(results, indent=2))]
         elif name == "explore_for_utility":
