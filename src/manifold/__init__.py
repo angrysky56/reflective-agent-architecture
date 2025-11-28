@@ -9,6 +9,8 @@ Key Papers:
 - Modern Hopfield Networks with Continuous-Time Memories (2025) - arXiv:2502.10122
 """
 
+from typing import Optional
+
 from .hopfield_network import HopfieldConfig, ModernHopfieldNetwork
 from .pattern_curriculum import (
     ManualPatternCurriculum,
@@ -129,3 +131,30 @@ class Manifold:
     def hopfield(self):
         """Legacy accessor - returns state memory by default."""
         return self.state_memory
+
+    def get_patterns(self):
+        """Delegate to state memory (default domain)."""
+        return self.state_memory.get_patterns()
+
+    def energy(self, state):
+        """Delegate to state memory."""
+        return self.state_memory.energy(state)
+
+    def set_beta(self, beta: float):
+        """Set inverse temperature for all memories."""
+        self.state_memory.set_beta(beta)
+        self.agent_memory.set_beta(beta)
+        self.action_memory.set_beta(beta)
+
+    def compute_adaptive_beta(self, entropy: float, max_entropy: Optional[float] = None) -> float:
+        """Delegate to state memory for adaptive beta calculation."""
+        return self.state_memory.compute_adaptive_beta(entropy, max_entropy)
+
+    @property
+    def beta(self) -> float:
+        """Return current beta (from state memory)."""
+        return self.state_memory.beta
+
+    def get_attention(self, state):
+        """Delegate to state memory."""
+        return self.state_memory.get_attention(state)

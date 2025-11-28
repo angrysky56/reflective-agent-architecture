@@ -233,6 +233,7 @@ For a detailed guide on how to operate the Reflective Agent (including the new T
       diagnose_antifragility: Analyze architecture for antifragile adaptation opportunities
       orthogonal_dimensions_analyzer: Analyze concepts as independent dimensions (Statistical vs Causal)
       set_intentionality: Set cognitive mode (Optimization vs Adaptation) via Manifold beta
+      revise: Refine beliefs using Hybrid Operator C (LTN + Hopfield)
 
     protocol:
 
@@ -446,6 +447,7 @@ needed
 6. **Empirically validated**: 20% accuracy on RAT vs 0% baseline, demonstrating reframing effectiveness
 7. **Sheaf-theoretic diagnostics**: Topological analysis of stuck states via cellular sheaf cohomology, enabling principled escalation decisions based on H¹ obstructions and monodromy analysis
 8. **Tripartite Architecture**: "Fragment-then-Integrate" processing splitting cognition into State, Agent, and Action streams, fused by an energy-gated Precuneus.
+9. **Hybrid Operator C**: A continuous belief revision mechanism combining Logic Tensor Networks (LTN) with Hopfield energy landscapes to refine concepts against evidence and constraints.
 
 ## Blah blah blah, mostly out of date initital dev stuff
 

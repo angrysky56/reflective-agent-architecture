@@ -146,6 +146,25 @@ class ModernHopfieldNetwork(nn.Module):
 
         return new_state
 
+    def get_attention(self, state: torch.Tensor) -> torch.Tensor:
+        """
+        Get attention weights for a given state.
+
+        Args:
+            state: Current state (embedding_dim,) or (batch, embedding_dim)
+
+        Returns:
+            Attention weights (batch, num_patterns)
+        """
+        if state.dim() == 1:
+            state = state.unsqueeze(0)
+
+        # Compute attention weights over stored patterns
+        similarities = torch.matmul(state, self.patterns.T)  # (batch, num_patterns)
+        attention = f.softmax(self.beta * similarities, dim=-1)  # (batch, num_patterns)
+
+        return attention
+
     def retrieve(
         self, query: torch.Tensor, num_steps: Optional[int] = None
     ) -> Tuple[torch.Tensor, torch.Tensor]:

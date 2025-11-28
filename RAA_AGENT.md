@@ -50,6 +50,18 @@ Do not simply generate an answer. **Construct it.**
     - `set_intentionality(mode="adaptation")`: Low Beta. Use when stuck, exploring new ideas, or "Learning Starved".
     - `set_intentionality(mode="optimization")`: High Beta. Use when refining a solution or converging on a final answer.
 
+### Phase 5: Refinement (Belief Revision)
+**Tool**: `revise`
+- **When**: You have a belief or hypothesis that conflicts with new evidence, or when you need to "fine-tune" a concept to satisfy specific logical constraints.
+- **Why**: To perform **continuous optimization** in the cognitive manifold (Operator C). This finds a "waypoint" that balances:
+    1.  **Distance**: Staying close to the original belief.
+    2.  **Evidence**: Moving towards the new evidence.
+    3.  **Energy**: Avoiding high-energy barriers (confusion/instability).
+    4.  **Constraints**: Satisfying logical rules (e.g., "Must be consistent").
+- **Action**: `revise(belief="...", evidence="...", constraints=["..."])`.
+- **Output**: Returns a `revised_content` string (the nearest existing concept to the refined state) and a `selection_score` (energy).
+- **Note**: This is a powerful tool for resolving contradictions or adapting to feedback without discarding prior knowledge.
+
 ---
 
 ## 3. Meta-Cognition (Introspection)

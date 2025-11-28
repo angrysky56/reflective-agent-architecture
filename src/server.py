@@ -1629,7 +1629,11 @@ class RAAServerContext:
             use_energy_aware_search=True,
             device=device,
         )
-        director = Director(manifold, director_cfg)
+        director = Director(
+            manifold,
+            director_cfg,
+            embedding_fn=lambda text: torch.tensor(self.workspace._embed_text(text), device=device)
+        )
 
         # Initialize Processor for Cognitive Proprioception
         processor_cfg = ProcessorConfig(
@@ -1979,6 +1983,23 @@ RAA_TOOLS = [
                 }
             },
             "required": ["mode"]
+        },
+    ),
+    Tool(
+        name="revise",
+        description="Refine a belief or concept using Hybrid Operator C (LTN + Hopfield). Adjusts a thought-node to better match evidence while respecting logical constraints and energy barriers.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "belief": {"type": "string", "description": "The current belief or thought content to revise"},
+                "evidence": {"type": "string", "description": "New evidence or target concept to align with"},
+                "constraints": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "List of natural language constraints the revision must satisfy"
+                }
+            },
+            "required": ["belief", "evidence"]
         },
     ),
 ]
@@ -2442,6 +2463,64 @@ Output Format:
                 return [TextContent(type="text", text=f"Unknown mode: {mode}")]
 
             return [TextContent(type="text", text=msg)]
+
+        elif name == "revise":
+            # 1. Get components
+            director = ctx.get_director()
+            workspace = ctx.workspace
+
+            # 2. Embed inputs
+            belief_text = arguments["belief"]
+            evidence_text = arguments["evidence"]
+            constraints = arguments.get("constraints", [])
+
+            # Use workspace embedding model
+            belief_emb = torch.tensor(workspace._embed_text(belief_text), device=ctx.device)
+            evidence_emb = torch.tensor(workspace._embed_text(evidence_text), device=ctx.device)
+
+            # 3. Execute Hybrid Search (Operator C)
+            result = director.hybrid_search.search(
+                current_state=belief_emb,
+                evidence=evidence_emb,
+                constraints=constraints,
+                context={"operation": "revise_tool"}
+            )
+
+            if result:
+                # 4. Decode result
+                best_emb = result.best_pattern.cpu().tolist()
+
+                # Query Chroma for nearest neighbor
+                query_result = workspace.collection.query(
+                    query_embeddings=[best_emb],
+                    n_results=1
+                )
+
+                revised_content = "No matching thought found."
+                if query_result["documents"] and query_result["documents"][0]:
+                    revised_content = query_result["documents"][0][0]
+
+                # Sanitize score for JSON (handle inf/nan)
+                score = result.selection_score
+                if isinstance(score, float) and (score == float('inf') or score == float('-inf') or score != score):
+                    score = str(score)
+
+                response = {
+                    "status": "success",
+                    "strategy": result.strategy.value,
+                    "revised_content": revised_content,
+                    "selection_score": score,
+                    "knn_attempted": result.knn_attempted,
+                    "ltn_attempted": result.ltn_attempted,
+                    "sheaf_validated": result.sheaf_validated
+                }
+            else:
+                response = {
+                    "status": "failure",
+                    "message": "Revision failed. Could not find valid stable state."
+                }
+
+            return [TextContent(type="text", text=json.dumps(response, indent=2))]
 
         else:
             return [TextContent(type="text", text=f"Unknown tool: {name}")]

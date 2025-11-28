@@ -12,11 +12,13 @@ This is the Phase 1 (MVP) implementation following SEARCH_MECHANISM_DESIGN.md.
 
 import logging
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, Optional
 
 import torch
 
 from .entropy_monitor import EntropyMonitor
+from .hybrid_search import HybridSearchConfig, HybridSearchStrategy
+from .ltn_refiner import LTNConfig, LTNRefiner
 from .matrix_monitor import MatrixMonitor, MatrixMonitorConfig
 from .search_mvp import SearchResult, energy_aware_knn_search, knn_search
 from .sheaf_diagnostics import SheafAnalyzer, SheafConfig, SheafDiagnostics
@@ -53,6 +55,9 @@ class DirectorConfig:
     # Matrix Monitor
     matrix_monitor_config: Optional[MatrixMonitorConfig] = None
 
+    # Hybrid Search
+    hybrid_search_config: Optional[HybridSearchConfig] = None
+
 
 class DirectorMVP:
     """
@@ -63,13 +68,19 @@ class DirectorMVP:
     conceptual framings.
     """
 
-    def __init__(self, manifold, config: Optional[DirectorConfig] = None):
+    def __init__(
+        self,
+        manifold,
+        config: Optional[DirectorConfig] = None,
+        embedding_fn: Optional[Callable[[str], torch.Tensor]] = None
+    ):
         """
         Initialize Director.
 
         Args:
             manifold: Manifold (Modern Hopfield Network) to search
             config: Director configuration
+            embedding_fn: Function to embed text for LTN constraints
         """
         self.manifold = manifold
         self.config = config or DirectorConfig()
@@ -90,6 +101,36 @@ class DirectorMVP:
             config=self.config.matrix_monitor_config or MatrixMonitorConfig(device=self.config.device)
         )
         self.matrix_monitor.seed_defaults()
+
+        # 4. Hybrid Search Strategy (Operator C)
+        hybrid_cfg = self.config.hybrid_search_config or HybridSearchConfig(
+            knn_k=self.config.search_k,
+            knn_metric=self.config.search_metric,
+            knn_exclude_threshold=self.config.exclude_threshold,
+        )
+
+        # Initialize LTN Refiner
+        # Use provided embedding_fn or a dummy that warns
+        def dummy_embed(text: str) -> torch.Tensor:
+            logger.warning("Using dummy embedding function. Constraints will fail.")
+            # Return a 1D tensor of size 1 just to satisfy type checks,
+            # though it will likely fail dimension checks if used.
+            # Ideally we should raise an error if constraints are used.
+            return torch.zeros(1, device=self.config.device)
+
+        ltn_config = hybrid_cfg.ltn_config or LTNConfig(device=self.config.device)
+        self.ltn_refiner = LTNRefiner(
+            embedding_fn=embedding_fn or dummy_embed,
+            config=ltn_config
+        )
+
+        self.hybrid_search = HybridSearchStrategy(
+            manifold=self.manifold,
+            ltn_refiner=self.ltn_refiner,
+            sheaf_analyzer=self.sheaf_analyzer,
+            config=hybrid_cfg
+        )
+
         # Cognitive State
         self.latest_cognitive_state: tuple[str, float] = ("Unknown", 0.0)
         self.latest_diagnostics: dict[str, Any] = {}
@@ -126,39 +167,18 @@ class DirectorMVP:
         Returns:
             SearchResult if alternative found, None if search failed
         """
-        # Get patterns from Manifold
-        memory_patterns = self.manifold.get_patterns()
-
-        if memory_patterns.shape[0] == 0:
-            logger.warning("Cannot search: Manifold has no stored patterns")
-            return None
-
+        # Delegate to Hybrid Search Strategy
+        # This handles both fast k-NN and slow LTN refinement
         try:
-            # Choose search strategy based on configuration
-            if self.config.use_energy_aware_search:
-                # Energy-aware search: aligns with Hopfield energy landscape
-                result = energy_aware_knn_search(
-                    current_state=current_state,
-                    memory_patterns=memory_patterns,
-                    energy_evaluator=self.manifold.energy,
-                    k=self.config.search_k,
-                    metric=self.config.search_metric,
-                    exclude_threshold=self.config.exclude_threshold,
-                )
-                logger.debug("Used energy-aware search (Hopfield-aligned)")
-            else:
-                # Basic k-NN search (Phase 1 MVP)
-                result = knn_search(
-                    current_state=current_state,
-                    memory_patterns=memory_patterns,
-                    k=self.config.search_k,
-                    metric=self.config.search_metric,
-                    exclude_threshold=self.config.exclude_threshold,
-                )
-                logger.debug("Used basic k-NN search")
+            result = self.hybrid_search.search(
+                current_state=current_state,
+                evidence=None, # Director search is usually unsupervised/intrinsic, unless context provides evidence
+                constraints=[],
+                context=context
+            )
 
             # Log search episode
-            if self.config.log_search_episodes:
+            if self.config.log_search_episodes and result:
                 self._log_search_episode(current_state, result, context)
 
             return result
@@ -174,13 +194,13 @@ class DirectorMVP:
         context: Optional[Dict[str, Any]] = None,
     ) -> Optional[torch.Tensor]:
         """
-        Main Director loop: monitor → detect → compute adaptive beta → search → return.
+        Main Director loop: monitor -> detect -> compute adaptive beta -> search -> return.
 
         This is the primary interface used by the RAA integration.
 
         The Director now dynamically adjusts exploration based on confusion:
-        - High entropy (confusion) → low beta → more exploratory search
-        - Low entropy (confidence) → high beta → more focused search
+        - High entropy (confusion) -> low beta -> more exploratory search
+        - Low entropy (confidence) -> high beta -> more focused search
 
         Args:
             current_state: Current goal state from Pointer
