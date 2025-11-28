@@ -95,10 +95,10 @@ class CWDConfig(BaseSettings):
     neo4j_user: str = Field(default="neo4j")
     neo4j_password: str = Field(...)  # Required from environment - no default
     chroma_path: str = Field(default="./chroma_data")
-    embedding_model: str = Field(default="qwen3-embedding:0.6b")
-    confidence_threshold: float = Field(default=0.3)  # Lowered for asymmetric embeddings
+    embedding_model: str = Field(default="BAAI/bge-large-en-v1.5")
+    confidence_threshold: float = Field(default=0.7)  # Lower to .3 for asymmetric embeddings
     llm_base_url: str = Field(default="http://localhost:11434")
-    llm_model: str = Field(default="qwen3:4b")
+    llm_model: str = Field(default="kimi-k2-thinking:cloud")
 
 
 class CognitiveWorkspace:
