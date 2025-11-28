@@ -17,9 +17,12 @@ RAA synthesizes three active research frontiers:
 
 ## Core Components
 
-### 1. The Manifold (Associative Memory)
-- **Implementation**: Modern Hopfield Network with Fenchel-Young energy framework
-- **Function**: Stores semantic knowledge as energy landscape with basin attractors
+### 1. The Tripartite Manifold (Associative Memory)
+- **Implementation**: Three specialized Modern Hopfield Networks (vmPFC, amPFC, dmPFC)
+- **Function**: Stores semantic knowledge as energy landscapes in three orthogonal domains:
+  - **State (vmPFC)**: Static context and environment (Low Beta)
+  - **Agent (amPFC)**: Personas and intent (Medium Beta)
+  - **Action (dmPFC)**: Transition dynamics and tools (High Beta)
 - **Key Papers**:
   - Hopfield-Fenchel-Young Networks (2024)
   - Modern Hopfield Networks with Continuous-Time Memories (2025)
@@ -40,7 +43,12 @@ RAA synthesizes three active research frontiers:
 - **Search Engine**: Structured exploration of Manifold to find alternative framings
 - **Key Innovation**: Entropy-triggered associative search for goal reframing
 
-### 5. Sheaf Diagnostics (Topological Analysis) - NEW
+### 5. The Precuneus (Integrator) - NEW
+- **Implementation**: Energy-gated fusion layer
+- **Function**: Fuses the three Manifold streams (State, Agent, Action) into a unified experience.
+- **Mechanism**: **"Silence the Confusion"**. Uses Hopfield Energy as a proxy for uncertainty. High energy (confusion) in one stream leads to low weight in the fusion, preventing hallucinations from contaminating the global state.
+
+### 6. Sheaf Diagnostics (Topological Analysis)
 - **Implementation**: Cellular sheaf cohomology analysis of network structure
 - **Function**: Detects *topological obstructions* to learning that entropy alone cannot see
 - **Key Concepts**:
@@ -70,12 +78,12 @@ RAA synthesizes three active research frontiers:
 ## The "Aha!" Loop
 
 ```
-1. Task Input → Pointer sets initial goal
-2. Processor generates response (biased by goal)
-3. Director monitors entropy → Detects "clash"
-4. Director suppresses current goal (adaptive beta: 10.0 → 5.0)
-5. Director searches Manifold for alternative basin (k-NN with energy scoring)
-6. Director updates Pointer with new goal
+1. Task Input → Deconstruct tool fragments into {State, Agent, Action}
+2. Tripartite Manifold retrieves from each domain (vmPFC, amPFC, dmPFC)
+3. Precuneus fuses streams using Energy Gating (silencing high-energy confusion)
+4. Director monitors entropy of the fused state → Detects "clash"
+5. If Clash: Director suppresses current goal (adaptive beta) & searches Manifold
+6. Pointer updates with new goal
 7. Processor resumes with new framing → Success
 ```
 
@@ -390,6 +398,7 @@ needed
 5. **Adaptive beta modulation**: Dynamic control of attention sharpness (exploration vs exploitation)
 6. **Empirically validated**: 20% accuracy on RAT vs 0% baseline, demonstrating reframing effectiveness
 7. **Sheaf-theoretic diagnostics**: Topological analysis of stuck states via cellular sheaf cohomology, enabling principled escalation decisions based on H¹ obstructions and monodromy analysis
+8. **Tripartite Architecture**: "Fragment-then-Integrate" processing splitting cognition into State, Agent, and Action streams, fused by an energy-gated Precuneus.
 
 ## Blah blah blah, mostly out of date initital dev stuff
 
@@ -433,6 +442,7 @@ action, showing:
 - ✅ **Documentation**: Added `docs/BETA_SCALING_AND_TESTING.md` explaining testing methodology
 - ✅ **Stateless Clarity**: Refactored server for explicit state management and improved testability
 - ✅ **Self-Correction**: Added LLM-based critique to synthesis and meta-commentary to cognitive state checks
+- ✅ **Tripartite Evolution**: Split Manifold into State/Agent/Action, implemented Precuneus Integrator, and updated Deconstruct tool.
 
 ## Current Results
 
