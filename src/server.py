@@ -25,6 +25,7 @@ Based on:
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
@@ -2495,7 +2496,10 @@ Output JSON:
         elif name == "take_nap":
             # Use shared Sleep Cycle instance
             sleep_cycle = ctx.sleep_cycle
-            results = sleep_cycle.dream(epochs=arguments.get("epochs", 5))
+            # Run in executor to avoid blocking event loop
+            loop = asyncio.get_running_loop()
+            epochs = arguments.get("epochs", 5)
+            results = await loop.run_in_executor(None, sleep_cycle.dream, epochs)
             return [TextContent(type="text", text=json.dumps(results, indent=2))]
         elif name == "explore_for_utility":
             result = workspace.explore_for_utility(
