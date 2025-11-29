@@ -248,7 +248,7 @@ class IntegratedIntelligence:
             tool_calls = []
 
             # We need to handle both text chunks and tool call chunks
-            async for chunk in self.llm_provider.chat_completion(messages, stream=False, temperature=0.3, max_tokens=500, tools=tools if tools else None):
+            async for chunk in self.llm_provider.chat_completion(messages, stream=False, temperature=0.3, max_tokens=4000, tools=tools if tools else None):
                 try:
                     # Check if chunk is a tool call JSON
                     if chunk.strip().startswith('{"tool_calls":'):
@@ -303,19 +303,12 @@ class IntegratedIntelligence:
                 return 1.0, "\\n\\n".join(results)
 
             # 5. Parse standard JSON response
-            import json
+            from .utils import extract_json_from_text
+            data = extract_json_from_text(response_content)
 
-            try:
-                # Clean up markdown
-                if "```json" in response_content:
-                    response_content = response_content.split("```json")[1].split("```")[0].strip()
-                elif "```" in response_content:
-                    response_content = response_content.split("```")[1].split("```")[0].strip()
-
-                data = json.loads(response_content)
+            if data:
                 return data.get("confidence", 0.8), data.get("action", "LLM_EXECUTION_REQUIRED")
-            except json.JSONDecodeError:
-                # Fallback if not JSON
+            else:
                 return 0.8, response_content if response_content else "LLM_EXECUTION_REQUIRED"
 
         except Exception as e:

@@ -1,22 +1,28 @@
+
+import asyncio
+import logging
+import os
 import sys
 
-import ollama
+# Add src to path
+sys.path.append(os.path.abspath("/home/ty/Repositories/ai_workspace/reflective-agent-architecture"))
 
-models = ["qwen3:4b", "kimi-k2-thinking:cloud"]
+from src.compass.adapters import Message, RAALLMProvider
 
-for model in models:
-    print(f"\nTesting model: {model}")
-    try:
-        response = ollama.chat(
-            model=model,
-            messages=[
-                {"role": "user", "content": "Say hello."}
-            ]
-        )
-        print("Response object keys:", response.keys())
-        if 'message' in response:
-            print("Content:", response['message']['content'])
-        else:
-            print("No message in response")
-    except Exception as e:
-        print(f"Error testing {model}: {e}")
+logging.basicConfig(level=logging.INFO)
+
+async def test_ollama():
+    print("Testing RAALLMProvider...")
+    provider = RAALLMProvider()
+    messages = [Message(role="user", content="Say hello")]
+
+    print("Calling chat_completion...")
+    full_response = ""
+    async for chunk in provider.chat_completion(messages, stream=False):
+        print(f"Chunk: {chunk!r}")
+        full_response += chunk
+
+    print(f"Full response: {full_response}")
+
+if __name__ == "__main__":
+    asyncio.run(test_ollama())

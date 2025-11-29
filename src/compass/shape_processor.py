@@ -90,14 +90,12 @@ Return JSON: {{ "intent": "string", "entities": ["list"], "constraints": ["list"
                 async for chunk in self.llm_provider.chat_completion(messages, stream=False, temperature=0.2):
                     response_content += chunk
 
-                import json
+                from .utils import extract_json_from_text
+                analysis = extract_json_from_text(response_content)
 
-                if "```json" in response_content:
-                    response_content = response_content.split("```json")[1].split("```")[0].strip()
-                elif "```" in response_content:
-                    response_content = response_content.split("```")[1].split("```")[0].strip()
-
-                analysis = json.loads(response_content)
+                if not analysis:
+                    import json
+                    raise json.JSONDecodeError("Failed to extract JSON", response_content, 0)
                 result["llm_analysis"] = analysis
                 self.logger.info(f"SHAPE LLM Analysis: {analysis.get('intent')}")
 

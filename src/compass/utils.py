@@ -410,6 +410,43 @@ def load_json(filepath: str) -> Dict:
         return json.load(f)
 
 
+def extract_json_from_text(text: str) -> Optional[Dict]:
+    """
+    Robustly extract JSON from text, handling markdown blocks and thinking tags.
+
+    Args:
+        text: Raw text from LLM
+
+    Returns:
+        Parsed dictionary or None if extraction failed
+    """
+    try:
+        # 1. Try finding markdown blocks
+        if "```json" in text:
+            content = text.split("```json")[1].split("```")[0].strip()
+            return json.loads(content)
+        elif "```" in text:
+            content = text.split("```")[1].split("```")[0].strip()
+            try:
+                return json.loads(content)
+            except json.JSONDecodeError:
+                pass # Continue to other methods
+
+        # 2. Try finding the first '{' and last '}'
+        start_idx = text.find("{")
+        end_idx = text.rfind("}")
+
+        if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+            content = text[start_idx : end_idx + 1]
+            return json.loads(content)
+
+        # 3. Try parsing the whole text
+        return json.loads(text)
+
+    except (json.JSONDecodeError, ValueError):
+        return None
+
+
 # ============================================================================
 # Performance Utilities
 # ============================================================================

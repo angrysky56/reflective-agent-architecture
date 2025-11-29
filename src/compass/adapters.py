@@ -57,13 +57,31 @@ class RAALLMProvider:
             )
 
             for chunk in response:
+                logger.info(f"Raw chunk: {chunk}")
                 # Handle tool calls if present in chunk
                 # Ollama streaming response format:
                 # {'message': {'role': 'assistant', 'content': '...', 'tool_calls': [...]}}
 
-                msg = chunk.get("message", {})
-                content = msg.get("content", "")
-                tool_calls = msg.get("tool_calls", [])
+                # Handle chunk as object (Pydantic) or dict
+                msg = None
+                if hasattr(chunk, "message"):
+                    msg = chunk.message
+                elif isinstance(chunk, dict):
+                    msg = chunk.get("message", {})
+
+                content = ""
+                tool_calls = []
+
+                if msg:
+                    if hasattr(msg, "content"):
+                        content = msg.content
+                    elif isinstance(msg, dict):
+                        content = msg.get("content", "")
+
+                    if hasattr(msg, "tool_calls"):
+                        tool_calls = msg.tool_calls
+                    elif isinstance(msg, dict):
+                        tool_calls = msg.get("tool_calls", [])
 
                 if content:
                     yield content

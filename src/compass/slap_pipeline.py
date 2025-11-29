@@ -8,13 +8,12 @@ Scrutiny → Derivation → Rule-Based → Model → Semantic Formalization
 Now powered by LLM for deep semantic reasoning and advancement tracking.
 """
 
-import asyncio
+
 import json
 from typing import Any, Dict, List, Optional
 
 from .adapters import Message
-from .config import SLAPConfig
-from .utils import COMPASSLogger, advancement_score
+from .utils import COMPASSLogger, extract_json_from_text
 
 
 class SLAPPipeline:
@@ -133,18 +132,16 @@ Perform the SLAP analysis and output valid JSON in this format:
         try:
             # Call LLM
             response_content = ""
-            async for chunk in self.llm_provider.chat_completion(messages, stream=False, temperature=0.4):
+            async for chunk in self.llm_provider.chat_completion(messages, stream=False, temperature=0.4, max_tokens=4000):
                 response_content += chunk
 
             # Parse JSON
             try:
-                # Clean up markdown code blocks if present
-                if "```json" in response_content:
-                    response_content = response_content.split("```json")[1].split("```")[0].strip()
-                elif "```" in response_content:
-                    response_content = response_content.split("```")[1].split("```")[0].strip()
+                # Parse JSON
+                plan = extract_json_from_text(response_content)
 
-                plan = json.loads(response_content)
+                if not plan:
+                    raise json.JSONDecodeError("Failed to extract JSON", response_content, 0)
 
                 # Ensure advancement score exists
                 if "advancement_score" not in plan:
