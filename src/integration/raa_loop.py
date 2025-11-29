@@ -242,7 +242,7 @@ class ReflectiveAgentArchitecture:
 
             # Append token
             next_token = step_result["next_token"]
-            current_ids = torch.cat([current_ids, next_token.unsqueeze(-1)], dim=-1)
+            current_ids = torch.cat([current_ids, next_token], dim=-1)
 
             if return_history:
                 history.append(step_result)

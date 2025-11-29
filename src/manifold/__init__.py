@@ -168,3 +168,24 @@ class Manifold:
     def get_attention(self, state):
         """Delegate to state memory."""
         return self.state_memory.get_attention(state)
+
+    def to(self, device):
+        """Move all sub-networks to device."""
+        self.state_memory.to(device)
+        self.agent_memory.to(device)
+        self.action_memory.to(device)
+        return self
+
+    @property
+    def num_patterns(self) -> int:
+        """Total number of patterns across all domains."""
+        return (
+            self.state_memory.num_patterns +
+            self.agent_memory.num_patterns +
+            self.action_memory.num_patterns
+        )
+
+    @property
+    def embedding_dim(self) -> int:
+        """Return embedding dimension (assumed same for all)."""
+        return self.state_memory.embedding_dim

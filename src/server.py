@@ -56,6 +56,7 @@ from src.integration.cwd_raa_bridge import BridgeConfig, CWDRAABridge
 from src.integration.precuneus import PrecuneusIntegrator
 from src.integration.sleep_cycle import SleepCycle
 from src.manifold import HopfieldConfig, Manifold
+from src.persistence.work_history import WorkHistory
 from src.pointer.goal_controller import GoalController, PointerConfig
 from src.processor import Processor, ProcessorConfig
 from src.substrate import (
@@ -178,6 +179,9 @@ class CognitiveWorkspace:
 
         # Initialize database schema enhancements
         self._initialize_gen3_schema()
+
+        # Initialize Work History
+        self.history = WorkHistory()
 
         logger.info("Cognitive Workspace initialized with Gen 3 architecture")
 
@@ -1911,14 +1915,24 @@ Output JSON:
             return result
 
         elif name == "hypothesize":
-            return bridge.execute_monitored_operation(
-                operation="hypothesize",
-                params={
-                    "node_a_id": arguments["node_a_id"],
-                    "node_b_id": arguments["node_b_id"],
-                    "context": arguments.get("context"),
-                },
+            # Metabolic Cost: Hypothesis is a Search operation (Topology Tunneling)
+            if self.workspace.ctx.ledger:
+                from decimal import Decimal
+
+                from src.substrate import EnergyToken, MeasurementCost
+                # Cost ~ Search Cost (1.0)
+                self.workspace.ctx.ledger.record_transaction(MeasurementCost(
+                    energy=EnergyToken(Decimal("1.0"), "joules"),
+                    operation_name="hypothesize"
+                ))
+
+            # 1. Topology Tunneling (Graph + Vector + Analogy)
+            result = self.workspace.hypothesize(
+                node_a_id=arguments["node_a_id"],
+                node_b_id=arguments["node_b_id"],
+                context=arguments.get("context")
             )
+            return result
         elif name == "synthesize":
             result = bridge.execute_monitored_operation(
                 operation="synthesize",
@@ -2346,6 +2360,17 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
 
     try:
         if name == "deconstruct":
+            # Metabolic Cost: Deconstruction is expensive (Analysis)
+            if ctx.ledger:
+                from decimal import Decimal
+
+                from src.substrate import EnergyToken, MeasurementCost
+                # Cost ~ Learning Cost (5.0)
+                ctx.ledger.record_transaction(MeasurementCost(
+                    energy=EnergyToken(Decimal("5.0"), "joules"),
+                    operation_name="deconstruct"
+                ))
+
             problem = arguments["problem"]
 
             # 1. Tripartite Fragmentation (LLM)
@@ -2451,6 +2476,17 @@ Output JSON:
             except Exception as e:
                 return [TextContent(type="text", text=f"Deconstruction failed: {str(e)}")]
         elif name == "hypothesize":
+            # Metabolic Cost: Hypothesis is a Search operation (Topology Tunneling)
+            if ctx.ledger:
+                from decimal import Decimal
+
+                from src.substrate import EnergyToken, MeasurementCost
+                # Cost ~ Search Cost (1.0)
+                ctx.ledger.record_transaction(MeasurementCost(
+                    energy=EnergyToken(Decimal("1.0"), "joules"),
+                    operation_name="hypothesize"
+                ))
+
             # Route through RAA bridge for entropy monitoring + search
             result = bridge.execute_monitored_operation(
                 operation="hypothesize",
