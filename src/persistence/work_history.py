@@ -45,6 +45,9 @@ class WorkHistory:
                 if "diagnostics" not in columns:
                     cursor.execute("ALTER TABLE history ADD COLUMN diagnostics TEXT")
 
+                if "causal_impact" not in columns:
+                    cursor.execute("ALTER TABLE history ADD COLUMN causal_impact REAL")
+
                 conn.commit()
         except sqlite3.Error as e:
             logger.error(f"Failed to initialize history DB: {e}")
@@ -56,7 +59,8 @@ class WorkHistory:
         result: Any,
         cognitive_state: str = "Unknown",
         energy: float = 0.0,
-        diagnostics: Optional[Dict[str, Any]] = None
+        diagnostics: Optional[Dict[str, Any]] = None,
+        causal_impact: float = 0.0
     ) -> None:
         """
         Log an operation and its context to history.
@@ -76,9 +80,9 @@ class WorkHistory:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
                 cursor.execute("""
-                    INSERT INTO history (operation, params, result_summary, cognitive_state, energy, diagnostics)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                """, (operation, params_json, summary, cognitive_state, energy, diagnostics_json))
+                    INSERT INTO history (operation, params, result_summary, cognitive_state, energy, diagnostics, causal_impact)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (operation, params_json, summary, cognitive_state, energy, diagnostics_json, causal_impact))
                 conn.commit()
 
             logger.debug(f"Logged operation '{operation}' to history.")

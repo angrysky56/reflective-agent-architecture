@@ -23,7 +23,7 @@ class PrecuneusIntegrator(nn.Module):
         # Learnable "Default Mode" bias
         self.default_mode_bias = nn.Parameter(torch.zeros(dim))
 
-    def forward(self, vectors: dict, energies: dict) -> torch.Tensor:
+    def forward(self, vectors: dict, energies: dict, causal_signature: torch.Tensor = None) -> torch.Tensor:
         """
         Integrate the tripartite streams.
 
@@ -31,6 +31,8 @@ class PrecuneusIntegrator(nn.Module):
             vectors: {'state': tensor, 'agent': tensor, 'action': tensor}
             energies: {'state': float, 'agent': float, 'action': float}
                       (Lower energy = higher certainty)
+            causal_signature: Optional tensor representing agent's causal history.
+                              Used to modulate weights (Continuity Field).
 
         Returns:
             integrated: Unified experience tensor (dim,)
@@ -38,10 +40,26 @@ class PrecuneusIntegrator(nn.Module):
 
         # 1. Normalize Energies to Gating Weights (0 to 1)
         # We invert energy: High energy (confusion) -> Low weight
-        # This effectively implements the "Silence the confusion" logic
         state_w = self._energy_to_gate(energies['state'])
         agent_w = self._energy_to_gate(energies['agent'])
         action_w = self._energy_to_gate(energies['action'])
+
+        # 1.5 Apply Continuity Field (Causal Signature)
+        # If a causal signature is provided, it modulates the weights.
+        # Strong causal history -> Higher weight stability.
+        if causal_signature is not None:
+            # Simple modulation: Boost weights based on alignment with causal signature
+            # This is a simplification of the TKUI tensor contraction
+            continuity_boost = torch.sigmoid(torch.norm(causal_signature))
+
+            # Apply boost primarily to the 'agent' stream as it carries the identity
+            agent_w = agent_w * (1.0 + 0.5 * continuity_boost)
+
+            # Normalize weights to keep them in reasonable range
+            total_w = state_w + agent_w + action_w + 1e-6
+            state_w = state_w / total_w
+            agent_w = agent_w / total_w
+            action_w = action_w / total_w
 
         # 2. Gate the signals
         state_gated = vectors['state'] * state_w

@@ -2637,13 +2637,11 @@ Output JSON:
             # We use a heuristic: if H^0 > 1.5 * vertex_dim (assuming vertex_dim is roughly constant/average)
             # Actually, we can just check if H^0 is significantly larger than expected.
             # Let's assume "fragmentation" if H^0 is large.
-            # A better proxy for the "Noble Lie" case is if we have multiple disconnected components.
             h0_dim = diagnosis.cohomology.h0_dimension
             # Heuristic: If H0 is very large, it suggests fragmentation.
             # But we don't know the "expected" H0 without knowing the vertex dim structure.
             # Let's use a simpler check: If H0 > 0 and H1 == 0, we might be in a fragmented but consistent state.
 
-            # For the "Noble Lie" case, the user wants to detect "disconnected islands".
             # If we have multiple components, H0 dim scales with K.
             if h0_dim > 10: # Arbitrary threshold for "fragmented" for now, pending better calibration
                  signals.append(f"High H^0 dimension ({h0_dim}). Possible graph fragmentation (disconnected islands).")

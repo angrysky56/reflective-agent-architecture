@@ -88,13 +88,33 @@ Query "red" retrieves ["apple" (high attention), "fruit" (medium)]
 
 ### Setup & Dependencies
 ```bash
-# Installation (uv is the standard tool)
+# Installation (uv is the standard tool - ALWAYS use it)
 uv sync                    # Basic install
 uv sync --extra dev        # With pytest, black, ruff, mypy
 uv sync --extra notebooks  # Add Jupyter support
+uv sync --extra server     # CWD + Ollama MCP server (includes chromadb, neo4j, sentence-transformers, ollama)
 
 # Environment
 uv run python script.py    # Execute with managed environment
+```
+
+### MCP Server Setup (CWD Integration)
+```bash
+# 1. Configure environment variables
+cp .env.example .env
+# Edit .env: NEO4J_PASSWORD (required), NEO4J_URI, EMBEDDING_MODEL
+
+# 2. Start external services (required for MCP server)
+# Neo4j (Docker or Desktop):
+docker run -p 7687:7687 -p 7474:7474 -e NEO4J_AUTH=neo4j:your_password neo4j
+# Ollama:
+ollama serve
+ollama pull qwen2.5:3b  # or qwen3:latest
+
+# 3. Run MCP server (stdio mode for Claude Desktop)
+uv run python src/server.py
+
+# 4. Configure Claude Desktop (see examples/cwd_integration_example.py for config)
 ```
 
 ### Testing Commands
@@ -178,9 +198,13 @@ manifold = Manifold(config)
 
 1. **Testing with pseudo-logits only** - Use full system test with Processor for realistic entropy variance
 2. **Beta range too narrow** - Needs 10x range (5.0-50.0), not 2x (0.5-2.0)
-3. **Forgetting normalization** - Always normalize embeddings before Manifold operations
+3. **Forgetting normalization** - Always normalize embeddings before Manifold operations: `F.normalize(pattern, p=2, dim=-1)`
 4. **Empty entropy history** - Check for NaN handling when computing statistics on empty lists
 5. **Wrong integration mode** - Generation tasks need `ReflectiveAgentArchitecture`, embedding tasks need `RAAReasoningLoop`
+6. **Hardcoding credentials** - Never hardcode Neo4j/Ollama credentials; always use environment variables (`.env` file)
+7. **Missing external services** - MCP server requires Neo4j (bolt://localhost:7687) and Ollama (localhost:11434) running
+8. **Not using dataclass configs** - All components use `@dataclass` configs, never positional args in constructors
+9. **Skipping CWD deconstruction** - For context-dependent queries, always `deconstruct` source material first before synthesis
 
 ## Key Files for Understanding System
 
@@ -220,8 +244,47 @@ See `src/integration/README.md`, `docs/INTEGRATION_PROGRESS.md`, and `src/integr
 - Pass a `Pointer` (GoalController) instance to `CWDRAABridge(pointer=pointer)` or a callback `get_current_goal=lambda: pointer.get_current_goal()`.
 - On entropy clash, the bridge can call `Director.search(current_goal)` and, if a `Pointer` is provided, update the goal via `pointer.set_goal(result.best_pattern)`.
 
+## MCP Server Architecture (System 2 + System 3)
+
+### System 2: RAA-CWD Reasoning Loop
+The MCP server (`src/server.py`) integrates two cognitive systems:
+- **RAA (Reflective Agent Architecture)**: Fast metacognitive monitoring with entropy-driven search
+- **CWD (Cognitive Workspace Database)**: Graph-based reasoning with topology tunneling
+
+**Key MCP Tools**:
+- `deconstruct`: Break problems into State/Agent/Action fragments (Tripartite Manifold)
+- `hypothesize`: Find analogical bridges between concepts via topology tunneling
+- `synthesize`: Merge thought-nodes in latent space with compression tracking
+- `revise`: Continuous belief revision using Hybrid Operator C (LTN + Hopfield)
+- `check_cognitive_state`: Monitor agent's thinking mode (Focused/Broad/Looping)
+
+### System 3: Escalation Architecture
+When internal search exhausts (high entropy + max search attempts), Director escalates to:
+- **COMPASS Framework**: Multi-step planning and metacognitive orchestration (SHAPE → oMCD → SLAP → SMART)
+- **Heavy-Duty Models**: External consultation (Claude Opus, o1) via `consult_compass` tool
+- **Antifragile Agents**: Specialized ephemeral agents spawned for topological obstructions:
+  - **Debater Agents** for tension loops (contradictions)
+  - **Explorer Agents** for H¹ holes (missing concepts)
+
+### Cognitive State Monitoring
+The Director tracks:
+- **Entropy**: Shannon entropy from logits/attention distributions
+- **Energy**: Hopfield energy (basin stability)
+- **oMCD**: Cognitive resource allocation (0-100 scale)
+- **Cognitive Mode**: Focused/Broad/Looping/Unknown
+
+**Automatic interventions**:
+- Entropy > 80.0 → Triggers COMPASS consultation
+- oMCD > 80.0 → Resource allocation warning
+- "Looping" state → Diagnose topological obstructions
+
+See `RAA_AGENT.md` for complete agent protocol and `docs/SYSTEM3_ESCALATION_ARCHITECTURE.md` for escalation design.
+
 ## Additional Resources
 
 - Theoretical foundations: `docs/REFERENCES.md` (Nobel Prize-winning Modern Hopfield Networks, entropy-based metacognition papers)
 - Search design: `docs/SEARCH_MECHANISM_DESIGN.md`
+- System 3 escalation: `docs/SYSTEM3_ESCALATION_ARCHITECTURE.md`
+- Agent protocol: `RAA_AGENT.md` (operational guide for AI agents using MCP server)
+- CWD integration: `src/integration/README.md` (Phase 1-4 roadmap)
 - Known issues: `todo_list.md`

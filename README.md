@@ -50,9 +50,20 @@ RAA synthesizes three active research frontiers:
 - **Cognitive Proprioception**: The agent "feels" its own thinking process (Focused, Looping, Creative).
 
 ### 5. The Precuneus (Integrator) - NEW
-- **Implementation**: Energy-gated fusion layer
+- **Implementation**: Energy-gated fusion layer with Continuity Field modulation
 - **Function**: Fuses the three Manifold streams (State, Agent, Action) into a unified experience.
-- **Mechanism**: **"Silence the Confusion"**. Uses Hopfield Energy as a proxy for uncertainty. High energy (confusion) in one stream leads to low weight in the fusion, preventing hallucinations from contaminating the global state.
+- **Mechanism**:
+    - **Energy Gating**: "Silence the Confusion". High energy (confusion) -> low weight.
+    - **Continuity Field**: Modulates weights based on "Causal Signatures" (historical impact), ensuring stable identity over time (TKUI Axiom 4).
+
+### 6. The Meta-Controller (Adaptive Orchestrator) - NEW
+- **Implementation**: High-level controller sitting above COMPASS
+- **Function**: Adaptively selects processing workflows based on task intent.
+- **Workflows**:
+    - **STANDARD**: Balanced reasoning.
+    - **RESEARCH**: Deep deconstruction and information gathering.
+    - **CREATIVE**: High-temperature hypothesis generation.
+    - **DEBUG**: Strict constraint validation.
 
 ### 6. Sheaf Diagnostics (Topological Analysis)
 - **Implementation**: Cellular sheaf cohomology analysis of network structure
@@ -449,6 +460,8 @@ needed
 8. **Tripartite Architecture**: "Fragment-then-Integrate" processing splitting cognition into State, Agent, and Action streams, fused by an energy-gated Precuneus.
 9. **Hybrid Operator C**: A continuous belief revision mechanism combining Logic Tensor Networks (LTN) with Hopfield energy landscapes to refine concepts against evidence and constraints.
 10. **Bidirectional COMPASS Integration**: Seamless interoperability between RAA (System 2) and COMPASS (System 3), allowing agents to delegate complex tasks and tools to call each other.
+11. **Meta-Controller**: Adaptive workflow orchestration that bridges semantic intent (Macro) with parameter-level control (Micro).
+12. **Continuity Fields**: Temporal identity preservation via causal signature tracking in the Precuneus.
 
 ## System 3: Adaptive Agents & COMPASS
 

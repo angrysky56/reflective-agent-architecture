@@ -176,6 +176,20 @@ E_biased(ξ) = E_hopfield(ξ) - λ * U(tool)
 
 Will implement compression-based attractor strengthening.
 
+### 6. ContinuityService
+**Location**: `continuity_service.py`
+**Status**: ✅ Fully Implemented
+
+Calculates "Causal Signatures" for agents based on `WorkHistory` to support Continuity Fields in the Precuneus.
+
+**Example Usage**:
+```python
+from src.integration import ContinuityService
+
+service = ContinuityService(work_history)
+signature = service.get_causal_signature("Explorer")
+```
+
 ## Testing
 
 ### Run Integration Tests
