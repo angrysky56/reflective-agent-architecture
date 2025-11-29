@@ -1,4 +1,5 @@
 
+import asyncio
 import json
 import logging
 import os
@@ -42,51 +43,57 @@ class ExternalMCPManager:
 
         mcp_servers = config.get("mcpServers", {})
 
+        tasks = []
         for name, server_config in mcp_servers.items():
             # Skip self if present
             if name == "cognitive-workspace-db":
                 continue
+            tasks.append(self._connect_to_server(name, server_config))
 
-            command = server_config.get("command")
-            args = server_config.get("args", [])
-            env = server_config.get("env", {})
-
-            # Merge with current env
-            full_env = os.environ.copy()
-            full_env.update(env)
-
-            try:
-                logger.info(f"Connecting to MCP server: {name}")
-
-                server_params = StdioServerParameters(
-                    command=command,
-                    args=args,
-                    env=full_env
-                )
-
-                # Enter contexts
-                read, write = await self.stack.enter_async_context(stdio_client(server_params))
-                session = await self.stack.enter_async_context(ClientSession(read, write))
-
-                await session.initialize()
-
-                # List tools
-                result = await session.list_tools()
-                tools = result.tools
-
-                self.sessions[name] = session
-
-                for tool in tools:
-                    if tool.name in self.tools_map:
-                        logger.warning(f"Duplicate tool name '{tool.name}' from server '{name}'. Overwriting.")
-                    self.tools_map[tool.name] = (name, tool)
-
-                logger.info(f"Connected to {name}, loaded {len(tools)} tools")
-
-            except Exception as e:
-                logger.error(f"Failed to connect to MCP server {name}: {e}")
+        await asyncio.gather(*tasks)
 
         self.is_initialized = True
+
+    async def _connect_to_server(self, name: str, server_config: Dict[str, Any]):
+        """Connect to a single MCP server."""
+        command = server_config.get("command")
+        args = server_config.get("args", [])
+        env = server_config.get("env", {})
+
+        # Merge with current env
+        full_env = os.environ.copy()
+        full_env.update(env)
+
+        try:
+            logger.info(f"Connecting to MCP server: {name}")
+
+            server_params = StdioServerParameters(
+                command=command,
+                args=args,
+                env=full_env
+            )
+
+            # Enter contexts
+            read, write = await self.stack.enter_async_context(stdio_client(server_params))
+            session = await self.stack.enter_async_context(ClientSession(read, write))
+
+            await session.initialize()
+
+            # List tools
+            result = await session.list_tools()
+            tools = result.tools
+
+            self.sessions[name] = session
+
+            for tool in tools:
+                if tool.name in self.tools_map:
+                    logger.warning(f"Duplicate tool name '{tool.name}' from server '{name}'. Overwriting.")
+                self.tools_map[tool.name] = (name, tool)
+
+            logger.info(f"Connected to {name}, loaded {len(tools)} tools")
+
+        except Exception as e:
+            logger.error(f"Failed to connect to MCP server {name}: {e}")
 
     async def cleanup(self):
         """Close all connections."""

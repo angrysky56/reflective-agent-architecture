@@ -54,6 +54,7 @@ Thumbs.db
 
 # Ignore secrets
 *.env
+compass_mcp_config.json
 
 # Ignore pip
 pip-log.txt

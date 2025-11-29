@@ -48,12 +48,20 @@ async def verify_costs():
     except Exception as e:
         logger.info(f"Hypothesize failed as expected (dummy IDs): {e}")
 
+    # 3. Explore (Cost: 1.0 J)
+    logger.info("Running Explore (Cost: 1.0 J)...")
+    try:
+        await ctx.call_tool("explore_for_utility", {"focus_area": "cognitive architecture"})
+    except Exception as e:
+        logger.warning(f"Explore failed with error: {e}")
+
     # Verify History
     logger.info("Verifying Work History...")
-    history = workspace.history.get_recent_history(limit=20)
+    history = workspace.history.get_recent_history(limit=50)
 
     found_deconstruct_cost = False
     found_hypothesize_cost = False
+    found_explore_cost = False
 
     import json
     for entry in history:
@@ -69,20 +77,24 @@ async def verify_costs():
             op_name = params.get("operation")
             logger.info(f"Found Transaction: {op_name} -> {cost} J")
 
-            if op_name == "deconstruct" and cost == "5.00":
+            if op_name == "deconstruct" and "5.0" in str(cost):
                 found_deconstruct_cost = True
-            if op_name == "hypothesize" and cost == "1.00":
+            elif op_name == "hypothesize" and "1.0" in str(cost):
                 found_hypothesize_cost = True
+            elif op_name == "explore_for_utility" and "1.0" in str(cost):
+                found_explore_cost = True
 
-    if found_deconstruct_cost:
-        logger.info("SUCCESS: Deconstruct cost recorded.")
-    else:
+    if not found_deconstruct_cost:
         logger.error("FAILURE: Deconstruct cost NOT found.")
-
-    if found_hypothesize_cost:
-        logger.info("SUCCESS: Hypothesize cost recorded.")
-    else:
+    if not found_hypothesize_cost:
         logger.error("FAILURE: Hypothesize cost NOT found.")
+    if not found_explore_cost:
+        logger.error("FAILURE: Explore cost NOT found.")
+
+    if found_deconstruct_cost and found_hypothesize_cost and found_explore_cost:
+        logger.info("SUCCESS: All metabolic costs verified!")
+    else:
+        logger.error("FAILURE: Not all metabolic costs were found.")
 
 if __name__ == "__main__":
     asyncio.run(verify_costs())

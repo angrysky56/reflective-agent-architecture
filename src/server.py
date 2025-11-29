@@ -1602,7 +1602,7 @@ class RAAServerContext:
         # 3. Initialize External MCP Manager
         from src.integration.external_mcp_client import ExternalMCPManager
         # Config path relative to project root
-        config_path = Path(__file__).parent.parent.parent / "compass_mcp_config.json"
+        config_path = Path(__file__).parent.parent / "compass_mcp_config.json"
         self.external_mcp = ExternalMCPManager(str(config_path))
 
         # Note: We need to await initialization, but this method is sync.
@@ -2497,6 +2497,15 @@ Output JSON:
                 },
             )
         elif name == "synthesize":
+            # Metabolic Cost: Synthesis is Integration (3.0)
+            if ctx.ledger:
+                from decimal import Decimal
+
+                from src.substrate import EnergyToken, MeasurementCost
+                ctx.ledger.record_transaction(MeasurementCost(
+                    energy=EnergyToken(Decimal("3.0"), "joules"),
+                    operation_name="synthesize"
+                ))
             result = bridge.execute_monitored_operation(
                 operation="synthesize",
                 params={
@@ -2519,6 +2528,15 @@ Output JSON:
                 result["critique"] = critique
 
         elif name == "constrain":
+            # Metabolic Cost: Constraint is Validation (2.0)
+            if ctx.ledger:
+                from decimal import Decimal
+
+                from src.substrate import EnergyToken, MeasurementCost
+                ctx.ledger.record_transaction(MeasurementCost(
+                    energy=EnergyToken(Decimal("2.0"), "joules"),
+                    operation_name="constrain"
+                ))
             result = bridge.execute_monitored_operation(
                 operation="constrain",
                 params={
@@ -2547,6 +2565,15 @@ Output JSON:
                 },
             )
         elif name == "resolve_meta_paradox":
+            # Metabolic Cost: Paradox Resolution is System 3 (10.0)
+            if ctx.ledger:
+                from decimal import Decimal
+
+                from src.substrate import EnergyToken, MeasurementCost
+                ctx.ledger.record_transaction(MeasurementCost(
+                    energy=EnergyToken(Decimal("10.0"), "joules"),
+                    operation_name="resolve_meta_paradox"
+                ))
             result = workspace.resolve_meta_paradox(
                 conflict=arguments["conflict"]
             )
@@ -2585,6 +2612,15 @@ Output JSON:
             results = await loop.run_in_executor(None, sleep_cycle.dream, epochs)
             return [TextContent(type="text", text=json.dumps(results, indent=2))]
         elif name == "explore_for_utility":
+            # Metabolic Cost: Exploration is Search (1.0)
+            if ctx.ledger:
+                from decimal import Decimal
+
+                from src.substrate import EnergyToken, MeasurementCost
+                ctx.ledger.record_transaction(MeasurementCost(
+                    energy=EnergyToken(Decimal("1.0"), "joules"),
+                    operation_name="explore_for_utility"
+                ))
             result = workspace.explore_for_utility(
                 focus_area=arguments.get("focus_area"),
                 max_candidates=arguments.get("max_candidates", 10),
@@ -2879,6 +2915,15 @@ Output Format:
             return [TextContent(type="text", text=json.dumps(response, indent=2))]
 
         elif name == "consult_compass":
+            # Metabolic Cost: Delegation is Expensive (5.0)
+            if ctx.ledger:
+                from decimal import Decimal
+
+                from src.substrate import EnergyToken, MeasurementCost
+                ctx.ledger.record_transaction(MeasurementCost(
+                    energy=EnergyToken(Decimal("5.0"), "joules"),
+                    operation_name="consult_compass"
+                ))
             # Delegate to COMPASS framework via Director
             director = ctx.raa_context.get("director")
             if not director or not director.compass:
@@ -2907,6 +2952,10 @@ async def main():
 
     # Initialize context on startup
     server_context.initialize()
+
+    # Initialize external MCPs (async)
+    if server_context.external_mcp:
+        await server_context.external_mcp.initialize()
 
     try:
         async with stdio_server() as (read_stream, write_stream):
