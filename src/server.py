@@ -723,6 +723,11 @@ CRITICAL: Output your final answer directly. You may think internally, but end w
             content = re.sub(r"[ \t]+", " ", content)  # Normalize spaces
             content = content.strip()
 
+            if not content and response["message"]["content"].strip():
+                # If stripping removed everything, revert to raw content (safety net)
+                logger.warning("Stripping removed all content, reverting to raw output")
+                content = response["message"]["content"].strip()
+
             return content if content else "[No output generated]"
         except Exception as e:
             logger.error(f"LLM generation error: {e}", exc_info=True)
@@ -1398,7 +1403,7 @@ CRITICAL: Output your final answer directly. You may think internally, but end w
             "\n\nSynthesis:"
         )
 
-        return self._llm_generate(system_prompt, user_prompt, max_tokens=2000)
+        return self._llm_generate(system_prompt, user_prompt, max_tokens=4000)
 
     # ========================================================================
     # Cognitive Primitive 4: Constrain
