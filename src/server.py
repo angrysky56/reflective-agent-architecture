@@ -2568,8 +2568,10 @@ Output JSON:
                 advice = "Stop. Use 'diagnose_pointer' to check for obstructions, or 'hypothesize' to jump to a new track."
             elif state == "Confused":
                 advice = "High entropy detected. Use 'deconstruct' to simplify the problem."
-            elif energy > -0.5:
+            elif energy > -0.5 and state != "Unknown":
                 advice = "Energy is high. Try to 'synthesize' recent thoughts to find a more stable basin."
+            elif state == "Unknown":
+                advice = "Cognitive state is uninitialized. Perform operations (e.g., 'deconstruct', 'hypothesize') to generate thought patterns."
 
             # Meta-Commentary (Self-Awareness)
             # Retrieve recent history for context
