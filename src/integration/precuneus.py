@@ -1,6 +1,7 @@
+from typing import Any
+
 import torch
 import torch.nn as nn
-import torch.nn.functional as f
 
 
 class PrecuneusIntegrator(nn.Module):
@@ -10,6 +11,8 @@ class PrecuneusIntegrator(nn.Module):
     Fuses the three Tripartite streams (State, Agent, Action) into a unified
     experience vector. Uses Hopfield Energy as a proxy for uncertainty to
     gate (down-weight) confused streams.
+
+    Now also modulates State stream weight based on Cognitive State Entropy.
     """
 
     def __init__(self, dim: int):
@@ -23,7 +26,7 @@ class PrecuneusIntegrator(nn.Module):
         # Learnable "Default Mode" bias
         self.default_mode_bias = nn.Parameter(torch.zeros(dim))
 
-    def forward(self, vectors: dict, energies: dict, causal_signature: torch.Tensor = None) -> torch.Tensor:
+    def forward(self, vectors: dict, energies: dict, causal_signature: torch.Tensor = None, cognitive_state: Any = None) -> torch.Tensor:
         """
         Integrate the tripartite streams.
 
@@ -33,9 +36,8 @@ class PrecuneusIntegrator(nn.Module):
                       (Lower energy = higher certainty)
             causal_signature: Optional tensor representing agent's causal history.
                               Used to modulate weights (Continuity Field).
-
-        Returns:
-            integrated: Unified experience tensor (dim,)
+            cognitive_state: Optional StateDescriptor from Director.
+                             Used to modulate State stream weight based on entropy.
         """
 
         # 1. Normalize Energies to Gating Weights (0 to 1)
@@ -60,6 +62,40 @@ class PrecuneusIntegrator(nn.Module):
             state_w = state_w / total_w
             agent_w = agent_w / total_w
             action_w = action_w / total_w
+
+        # 1.6 Apply Cognitive State Entropy Modulation (Phase 6)
+        if cognitive_state is not None:
+            # High entropy (confusion) -> Trust external/action more -> Lower State weight
+            # Low entropy (crystallized) -> Trust internal state more -> Higher State weight
+
+            # Entropy is typically 0.0 to ~5.0+
+            # We want a multiplier.
+            # If entropy is high (e.g. > 2.0), we reduce state_w.
+            # If entropy is low (e.g. < 0.5), we boost state_w.
+
+            entropy = getattr(cognitive_state, 'entropy', 1.0)
+
+            # Sigmoid-like modulation centered at 1.0
+            # entropy 0 -> boost
+            # entropy 2 -> dampen
+
+            # Simple heuristic:
+            # multiplier = 1.0 / (1.0 + entropy)  -> 0.5 at ent=1, 0.33 at ent=2
+            # But we want to boost if low.
+
+            # Let's use: multiplier = 2.0 / (1.0 + entropy)
+            # ent=0 -> mult=2.0
+            # ent=1 -> mult=1.0
+            # ent=3 -> mult=0.5
+
+            entropy_mod = 2.0 / (1.0 + max(0.0, float(entropy)))
+            state_w = state_w * entropy_mod
+
+        # Normalize weights again to keep them in reasonable range
+        total_w = state_w + agent_w + action_w + 1e-6
+        state_w = state_w / total_w
+        agent_w = agent_w / total_w
+        action_w = action_w / total_w
 
         # 2. Gate the signals
         state_gated = vectors['state'] * state_w

@@ -31,6 +31,7 @@ import logging
 import re
 import time
 from collections.abc import Sequence
+from decimal import Decimal
 from pathlib import Path
 from typing import Any, Dict
 
@@ -57,6 +58,12 @@ from src.integration.sleep_cycle import SleepCycle
 from src.manifold import HopfieldConfig, Manifold
 from src.pointer.goal_controller import GoalController, PointerConfig
 from src.processor import Processor, ProcessorConfig
+from src.substrate import (
+    EnergyToken,
+    MeasurementLedger,
+    OperationCostProfile,
+    SubstrateAwareDirector,
+)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -1657,6 +1664,36 @@ class RAAServerContext:
             mcp_client=self
         )
 
+        # Initialize Substrate Layer
+        # Start with 1000.0 Joules
+        initial_energy = EnergyToken(Decimal("1000.0"), "joules")
+        self.ledger = MeasurementLedger(initial_energy)
+
+        # Wire ledger to WorkHistory for persistence
+        def persist_transaction(cost, balance):
+            try:
+                self.workspace.history.log_operation(
+                    operation="substrate_transaction",
+                    params={
+                        "cost": str(cost.total_energy()),
+                        "operation": cost.operation_name
+                    },
+                    result={"balance": str(balance)},
+                    energy=float(balance.amount)
+                )
+            except Exception as e:
+                logger.error(f"Failed to persist transaction: {e}")
+
+        self.ledger.set_transaction_callback(persist_transaction)
+
+        # Wrap Director with Substrate Awareness
+        # This makes every director call consume energy
+        self.substrate_director = SubstrateAwareDirector(
+            director=director,
+            ledger=self.ledger,
+            cost_profile=OperationCostProfile() # Use defaults
+        )
+
         # Initialize Processor for Cognitive Proprioception
         processor_cfg = ProcessorConfig(
             vocab_size=50257,
@@ -1665,7 +1702,8 @@ class RAAServerContext:
             num_heads=4,
             device=device
         )
-        processor = Processor(processor_cfg, director=director)
+        # Inject Substrate Director into Processor so monitoring costs energy
+        processor = Processor(processor_cfg, director=self.substrate_director)
 
         # Bridge config
         bridge_cfg = BridgeConfig(
@@ -1682,7 +1720,7 @@ class RAAServerContext:
 
         bridge = CWDRAABridge(
             cwd_server=self.workspace,
-            raa_director=director,
+            raa_director=self.substrate_director, # Use substrate-aware director
             manifold=manifold,
             config=bridge_cfg,
             pointer=pointer,
@@ -1726,7 +1764,7 @@ class RAAServerContext:
             "device": device,
             "manifold": manifold,
             "pointer": pointer,
-            "director": director,
+            "director": self.substrate_director, # Expose substrate-aware director
             "processor": processor,
             "bridge": bridge,
             "agent_factory": self.agent_factory,
@@ -1851,7 +1889,9 @@ Output JSON:
             energies = {k: v[1] for k, v in retrieval_results.items()}
 
             # 4. Precuneus Fusion
-            unified_context = self.get_precuneus()(vectors, energies)
+            # Get current cognitive state for entropy modulation
+            cognitive_state = self.substrate_director.latest_cognitive_state
+            unified_context = self.get_precuneus()(vectors, energies, cognitive_state=cognitive_state)
 
             # 5. Gödel Detector
             is_paradox = all(e == float('inf') for e in energies.values())
@@ -2374,8 +2414,10 @@ Output JSON:
                 energies = {k: v[1] for k, v in retrieval_results.items()}
 
                 # 4. Precuneus Fusion
+                director = ctx.get_director()
+                cognitive_state = director.latest_cognitive_state
                 precuneus = ctx.get_precuneus()
-                unified_context = precuneus(vectors, energies)
+                unified_context = precuneus(vectors, energies, cognitive_state=cognitive_state)
 
                 # 5. Gödel Detector (Paradox Check)
                 # If all streams are infinite energy, the system is in a "Thermodynamic Crash"

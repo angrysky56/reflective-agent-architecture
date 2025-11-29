@@ -6,7 +6,7 @@ including oMCD resource allocation, SLAP weights, SMART metrics, and Self-Discov
 """
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 import numpy as np
 
@@ -80,7 +80,7 @@ class SelfDiscoverConfig:
     """Configuration for Self-Discover reinforcement learning framework."""
 
     # Trial limits
-    max_trials: int = 10
+    max_trials: int = 3
 
     # Memory configuration
     max_memory_size: int = 100  # Maximum number of self-reflections to store
