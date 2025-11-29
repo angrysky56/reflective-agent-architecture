@@ -281,7 +281,7 @@ class SelfDiscoverEngine:
         complexity_score = 0.5
         if len(task.split()) > 50:
             complexity_score += 0.2
-        if any(word in task.lower() for word in ["impossible", "unknown", "undecidable"]):
+        if any(word in task.lower() for word in ["impossible", "undecidable"]):
             complexity_score += 0.3
 
         return {"solvability_score": max(0.0, 1.0 - complexity_score), "estimated_complexity": complexity_score, "missing_info_detected": "?" in task or "find" in task.lower()}

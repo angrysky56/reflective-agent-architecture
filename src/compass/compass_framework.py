@@ -10,7 +10,7 @@ This is the main orchestrator that coordinates all subsystems:
 - Integrated Intelligence (Execution Layer)
 """
 
-from datetime import timedelta
+
 from typing import Any, Dict, List, Optional
 
 from .config import COMPASSConfig, get_config
@@ -269,7 +269,7 @@ def quick_solve(task: str, **config_overrides) -> Dict[str, Any]:
     Returns:
         Solution result
     """
-    from config import create_custom_config
+    from .config import create_custom_config
 
     config = create_custom_config(**config_overrides) if config_overrides else None
     compass = create_compass(config)

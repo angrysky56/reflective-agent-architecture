@@ -11,7 +11,7 @@ import math
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 
@@ -74,19 +74,19 @@ def calculate_cost(z: float, alpha: float, nu: float) -> float:
     return alpha * (z**nu)
 
 
-def calculate_benefit(z: float, R: float, confidence: float) -> float:
+def calculate_benefit(z: float, r: float, confidence: float) -> float:
     """
     Calculate benefit of resource allocation (oMCD model).
 
     Args:
         z: Amount of cognitive resources invested
-        R: Importance weight
+        r: Importance weight
         confidence: Decision confidence
 
     Returns:
         Benefit of resource allocation
     """
-    return R * confidence
+    return r * confidence
 
 
 def update_precision(initial_precision: float, resources: float, beta: float) -> float:
@@ -204,7 +204,7 @@ class COMPASSLogger:
 class Trajectory:
     """Represents a sequence of actions and observations."""
 
-    steps: List[Tuple[Any, Any]]  # List of (action, observation) pairs
+    steps: List[tuple[Any, Any]]  # List of (action, observation) pairs
     score: Optional[float] = None
     timestamp: datetime = None
 

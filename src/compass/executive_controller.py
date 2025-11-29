@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional
 from .config import ExecutiveControllerConfig, SelfDiscoverConfig, oMCDConfig
 from .omcd_controller import oMCDController
 from .self_discover_engine import SelfDiscoverEngine
-from .utils import COMPASSLogger, Goal, Trajectory
+from .utils import COMPASSLogger, Trajectory
 
 
 class ExecutiveController:
@@ -77,7 +77,7 @@ class ExecutiveController:
 
         # 4. Resource Allocation (oMCD)
         # Calculate importance based on goal priority and solvability
-        importance = (current_goal.priority if current_goal else 0.5) * solvability.get("solvability_score", 0.5)
+        importance = max(0.01, (current_goal.priority if current_goal else 0.5) * solvability.get("solvability_score", 0.5))
 
         allocation = self.omcd.determine_resource_allocation(current_state, importance=importance, available_resources=self.omcd.config.max_resources - self.omcd.total_resources_allocated)
 
