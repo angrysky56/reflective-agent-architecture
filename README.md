@@ -73,8 +73,9 @@ RAA synthesizes three active research frontiers:
     - **SubstrateAwareDirector**: Wraps the Director to enforce energy costs for monitoring and search.
     - **Precuneus Integration**: Uses entropy to modulate memory trust (High Entropy = Low Trust).
 - **Impact**: Prevents infinite loops and creates biological constraints that force efficient reasoning.
+- **Units**: Energy is measured in **Joules (J)**. See [Entropy & Metabolic Units](docs/ENTROPY_CALCULATION.md) for details.
 
-### 6. Sheaf Diagnostics (Topological Analysis)
+### 8. Sheaf Diagnostics (Topological Analysis)
 - **Implementation**: Cellular sheaf cohomology analysis of network structure
 - **Function**: Detects *topological obstructions* to learning that entropy alone cannot see
 - **Key Concepts**:
