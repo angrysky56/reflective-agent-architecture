@@ -1,0 +1,117 @@
+
+"""
+Adapters for integrating COMPASS with RAA infrastructure.
+"""
+import logging
+from dataclasses import dataclass
+from typing import Any, AsyncGenerator, Dict, List, Optional, Union
+
+import ollama
+
+logger = logging.getLogger(__name__)
+
+@dataclass
+class Message:
+    """Message dataclass for LLM interaction."""
+    role: str
+    content: str
+
+class RAALLMProvider:
+    """
+    Adapter for RAA's LLM (Ollama) to be used by COMPASS.
+    """
+    def __init__(self, model_name: str = "kimi-k2-thinking:cloud"):
+        self.model_name = model_name
+
+    async def chat_completion(
+        self,
+        messages: List[Message],
+        stream: bool = False,
+        temperature: float = 0.7,
+        max_tokens: int = 2000,
+        tools: Optional[List[Dict]] = None
+    ) -> AsyncGenerator[str, None]:
+        """
+        Chat completion wrapper for Ollama.
+        """
+        # Convert messages to Ollama format
+        ollama_messages = [{"role": m.role, "content": m.content} for m in messages]
+
+        try:
+            # Note: Ollama python client is synchronous for now unless using AsyncClient
+            # But COMPASS expects an async generator. We will simulate it.
+
+            # If tools are provided, we should pass them (Ollama supports tools)
+            options = {
+                "temperature": temperature,
+                "num_predict": max_tokens
+            }
+
+            # Call Ollama
+            response = ollama.chat(
+                model=self.model_name,
+                messages=ollama_messages,
+                options=options,
+                tools=tools if tools else None,
+                stream=True # We stream to yield chunks
+            )
+
+            for chunk in response:
+                # Handle tool calls if present in chunk
+                # Ollama streaming response format:
+                # {'message': {'role': 'assistant', 'content': '...', 'tool_calls': [...]}}
+
+                msg = chunk.get("message", {})
+                content = msg.get("content", "")
+                tool_calls = msg.get("tool_calls", [])
+
+                if content:
+                    yield content
+
+                if tool_calls:
+                    # COMPASS expects a JSON string for tool calls in a specific format
+                    # or it handles tool_calls object.
+                    # IntegratedIntelligence._llm_intelligence handles:
+                    # if chunk.strip().startswith('{"tool_calls":'):
+
+                    # We need to serialize tool calls to JSON if we want to match that exact logic,
+                    # OR we can modify IntegratedIntelligence to handle objects.
+                    # For now, let's yield a JSON string representation
+                    import json
+                    # Ensure tool_calls are serializable (convert to dict if needed)
+                    serializable_tool_calls = []
+                    for tc in tool_calls:
+                        if hasattr(tc, "model_dump"):
+                            serializable_tool_calls.append(tc.model_dump())
+                        elif hasattr(tc, "dict"):
+                            serializable_tool_calls.append(tc.dict())
+                        elif isinstance(tc, dict):
+                            serializable_tool_calls.append(tc)
+                        else:
+                            # Fallback: try vars() or str()
+                            try:
+                                serializable_tool_calls.append(vars(tc))
+                            except:
+                                serializable_tool_calls.append(str(tc))
+
+                    yield json.dumps({"tool_calls": serializable_tool_calls})
+
+        except Exception as e:
+            logger.error(f"Error in RAALLMProvider: {e}")
+            yield f"Error: {str(e)}"
+
+# Mock MCP Client for now, or implement if needed
+class RAAMCPClient:
+    """
+    Adapter for RAA's tool system to look like an MCP client.
+    """
+    def __init__(self, workspace):
+        self.workspace = workspace
+
+    async def call_tool(self, name: str, arguments: Dict[str, Any]) -> Any:
+        """Execute a tool on the workspace."""
+        # This is a placeholder. RAA tools are methods on workspace or bridge.
+        # We might need to map tool names to methods.
+        logger.warning(f"Tool execution not fully implemented in adapter: {name}")
+        return f"Tool {name} executed (mock)"
+

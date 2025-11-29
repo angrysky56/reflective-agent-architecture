@@ -16,11 +16,14 @@ from typing import Any, Callable, Dict, Optional
 
 import torch
 
+from src.compass.adapters import RAALLMProvider
+from src.compass.compass_framework import COMPASS
+
 from .entropy_monitor import EntropyMonitor
 from .hybrid_search import HybridSearchConfig, HybridSearchStrategy
 from .ltn_refiner import LTNConfig, LTNRefiner
 from .matrix_monitor import MatrixMonitor, MatrixMonitorConfig
-from .search_mvp import SearchResult, energy_aware_knn_search, knn_search
+from .search_mvp import SearchResult
 from .sheaf_diagnostics import SheafAnalyzer, SheafConfig, SheafDiagnostics
 
 logger = logging.getLogger(__name__)
@@ -72,7 +75,8 @@ class DirectorMVP:
         self,
         manifold,
         config: Optional[DirectorConfig] = None,
-        embedding_fn: Optional[Callable[[str], torch.Tensor]] = None
+        embedding_fn: Optional[Callable[[str], torch.Tensor]] = None,
+        mcp_client: Optional[Any] = None
     ):
         """
         Initialize Director.
@@ -81,9 +85,11 @@ class DirectorMVP:
             manifold: Manifold (Modern Hopfield Network) to search
             config: Director configuration
             embedding_fn: Function to embed text for LTN constraints
+            mcp_client: Optional MCP client for tool execution
         """
         self.manifold = manifold
         self.config = config or DirectorConfig()
+        self.mcp_client = mcp_client
 
         # Entropy monitor
         self.monitor = EntropyMonitor(
@@ -131,6 +137,10 @@ class DirectorMVP:
             config=hybrid_cfg
         )
 
+        # 5. COMPASS Framework (Metacognitive Orchestration)
+        # Initialize with RAA LLM adapter and MCP client
+        self.compass = COMPASS(llm_provider=RAALLMProvider(), mcp_client=self.mcp_client)
+
         # Cognitive State
         self.latest_cognitive_state: tuple[str, float] = ("Unknown", 0.0)
         self.latest_diagnostics: dict[str, Any] = {}
@@ -138,6 +148,7 @@ class DirectorMVP:
 
         # Search episode logging
         self.search_episodes = []
+
 
     def check_entropy(self, logits: torch.Tensor) -> tuple[bool, float]:
         """
@@ -218,6 +229,57 @@ class DirectorMVP:
             context = {}
         context["entropy"] = entropy_value
         context["threshold"] = self.monitor.get_threshold()
+
+        # --- COMPASS Resource Allocation (oMCD) ---
+        # Map Director state to oMCD state
+        # High entropy = Low value difference (hard decision)
+        # Precision = 1/variance (approximate)
+
+        # Heuristic mapping:
+        # value_difference ~ 1 / (1 + entropy)
+        # precision ~ 1.0 (default)
+
+        omcd_state = {
+            "value_difference": 1.0 / (1.0 + entropy_value),
+            "precision": 1.0,
+            "variance": 1.0
+        }
+
+        # Determine allocation
+        allocation = self.compass.omcd_controller.determine_resource_allocation(
+            current_state=omcd_state,
+            importance=10.0, # Default importance
+            available_resources=100.0 # Default available
+        )
+
+        logger.info(f"COMPASS oMCD Allocation: {allocation['amount']:.2f} resources (Confidence: {allocation['confidence']:.3f})")
+        context["compass_allocation"] = allocation
+
+        # If allocation is very high, we might want to trigger full COMPASS processing
+        # For now, we just log it and use it to inform search (potentially)
+        if allocation['amount'] > 80.0:
+            logger.warning(f"High entropy/allocation detected ({allocation['amount']:.2f}). Triggering COMPASS intervention.")
+
+            # Trigger COMPASS asynchronously
+            import asyncio
+            try:
+                # We need to get the running loop or create a task
+                # Since check_and_search is sync, we assume there's an event loop running (e.g. in the server)
+                loop = asyncio.get_running_loop()
+
+                task_desc = f"High Entropy Intervention: Entropy={entropy_value:.2f}, Allocation={allocation['amount']:.2f}. Analyze context and intervene."
+                # Pass current context copy
+                task_ctx = context.copy() if context else {}
+
+                loop.create_task(self.compass.process_task(task_desc, task_ctx))
+                logger.info("COMPASS intervention task scheduled.")
+
+            except RuntimeError:
+                logger.warning("No running event loop. Skipping async COMPASS trigger.")
+            except Exception as e:
+                logger.error(f"Failed to trigger COMPASS: {e}")
+
+        # ------------------------------------------
 
         # Step 2: Check if intervention needed
         if not is_clash:

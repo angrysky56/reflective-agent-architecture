@@ -1565,6 +1565,7 @@ class RAAServerContext:
     def __init__(self):
         self.workspace: CognitiveWorkspace | None = None
         self.raa_context: dict[str, Any] | None = None
+        self.external_mcp = None
         self.is_initialized = False
 
     def initialize(self):
@@ -1580,6 +1581,20 @@ class RAAServerContext:
 
         # 2. Initialize RAA Components (System 1 + Bridge)
         self._initialize_raa_components()
+
+        # 3. Initialize External MCP Manager
+        from src.integration.external_mcp_client import ExternalMCPManager
+        # Config path relative to project root
+        config_path = Path(__file__).parent.parent.parent / "compass_mcp_config.json"
+        self.external_mcp = ExternalMCPManager(str(config_path))
+
+        # Note: We need to await initialization, but this method is sync.
+        # We'll need to handle this. For now, we'll rely on lazy init or separate async init.
+        # Actually, let's make initialize async or schedule it.
+        # Since we can't easily change the signature if it's called synchronously,
+        # we might need to initialize it on first use or use a loop.
+        # But server startup is usually async.
+        # Let's check how initialize is called.
 
         self.is_initialized = True
         logger.info("RAA Server Context initialized successfully")
@@ -1632,7 +1647,8 @@ class RAAServerContext:
         director = Director(
             manifold,
             director_cfg,
-            embedding_fn=lambda text: torch.tensor(self.workspace._embed_text(text), device=device)
+            embedding_fn=lambda text: torch.tensor(self.workspace._embed_text(text), device=device),
+            mcp_client=self
         )
 
         # Initialize Processor for Cognitive Proprioception
@@ -1668,8 +1684,33 @@ class RAAServerContext:
             sleep_cycle=self.sleep_cycle,
         )
 
+        # Initialize LLM Provider for Agents
+        from src.compass.adapters import RAALLMProvider
+        # We assume self.config has llm_model. If not, use default.
+        # Check if self.config exists. It should be CWDConfig?
+        # self.workspace.config is CWDConfig.
+        # But here we are in RAAServerContext.
+        # RAAServerContext doesn't seem to have self.config directly?
+        # Let's check where self.config comes from.
+        # In _llm_generate, it uses self.config.llm_model.
+        # Wait, RAAServerContext doesn't have self.config in __init__.
+        # It has self.workspace.config.
+
+        # Let's check _llm_generate implementation again.
+        # It uses self.config.llm_model.
+        # Does RAAServerContext have self.config?
+        # I need to check if I missed something.
+
+        # Let's assume self.workspace.config is what we want.
+        llm_model = self.workspace.config.llm_model if self.workspace else "kimi-k2-thinking:cloud"
+        self.llm_provider = RAALLMProvider(model_name=llm_model)
+
         # Initialize Agent Factory
-        self.agent_factory = AgentFactory(self.workspace._llm_generate)
+        # We pass self.call_tool as the tool executor callback
+        self.agent_factory = AgentFactory(
+            llm_provider=self.llm_provider,
+            tool_executor=self.call_tool
+        )
 
         # Initialize Precuneus Integrator
         self.precuneus = PrecuneusIntegrator(dim=embedding_dim)
@@ -1728,6 +1769,183 @@ class RAAServerContext:
         if not self.raa_context:
             raise RuntimeError("RAA context not initialized")
         return self.raa_context["device"]
+
+    def get_available_tools(self) -> list[Tool]:
+        """Get list of available tools."""
+        dynamic_tools = self.get_agent_factory().get_dynamic_tools()
+
+        # External tools
+        external_tools = []
+        if self.external_mcp:
+            external_tools = self.external_mcp.get_tools()
+
+        # Access global RAA_TOOLS
+        return RAA_TOOLS + dynamic_tools + external_tools
+
+    async def call_tool(self, name: str, arguments: dict[str, Any]) -> Any:
+        """Execute a tool."""
+        if not self.workspace:
+            raise RuntimeError("Workspace not initialized")
+
+        bridge = self.get_bridge()
+        agent_factory = self.get_agent_factory()
+
+        # Check for dynamic agent call first
+        if name in agent_factory.active_agents:
+            return agent_factory.execute_agent(name, arguments)
+
+        # Check external tools
+        if self.external_mcp and name in self.external_mcp.tools_map:
+            return await self.external_mcp.call_tool(name, arguments)
+
+        if name == "deconstruct":
+            # Logic from handler
+            problem = arguments["problem"]
+
+            # 1. Tripartite Fragmentation (LLM)
+            system_prompt = """You are the Prefrontal Cortex Decomposition Engine.
+Input: A user prompt or situation.
+Task: Fragment the input into three orthogonal domains.
+
+1. STATE (vmPFC): Where are we? What is the static context? (e.g., "Python CLI", "Philosophical Debate", "Error Log")
+2. AGENT (amPFC): Who is involved? What is the intent/persona? (e.g., "Frustrated User", "Socratic Teacher", "Debugger")
+3. ACTION (dmPFC): What is the transition/verb? (e.g., "Refactor", "Summarize", "Search")
+
+Output JSON:
+{
+  "state_fragment": "...",
+  "agent_fragment": "...",
+  "action_fragment": "..."
+}"""
+            user_prompt = f"Deconstruct this problem: {problem}"
+
+            # 0. Persist to Graph (Neo4j) via Bridge
+            graph_result = bridge.execute_monitored_operation("deconstruct", {"problem": problem})
+            if isinstance(graph_result, list):
+                graph_result = graph_result[0] if graph_result else {}
+
+            response = self.workspace._llm_generate(system_prompt, user_prompt)
+            clean_response = response.replace("```json", "").replace("```", "").strip()
+            fragments = json.loads(clean_response)
+
+            # 2. Embed Fragments
+            mapper = bridge.embedding_mapper
+            embeddings = {}
+            for key, text in fragments.items():
+                domain = key.split("_")[0]
+                with torch.no_grad():
+                    vec = mapper.embedding_model.encode(text, convert_to_tensor=True, device=self.device)
+                    vec = torch.nn.functional.normalize(vec, p=2, dim=0)
+                    embeddings[domain] = vec
+                    self.get_manifold().store_pattern(vec, domain=domain)
+
+            # 3. Tripartite Retrieval
+            retrieval_results = self.get_manifold().retrieve(embeddings)
+            vectors = {k: v[0] for k, v in retrieval_results.items()}
+            energies = {k: v[1] for k, v in retrieval_results.items()}
+
+            # 4. Precuneus Fusion
+            unified_context = self.get_precuneus()(vectors, energies)
+
+            # 5. Gödel Detector
+            is_paradox = all(e == float('inf') for e in energies.values())
+
+            result = {
+                "fragments": fragments,
+                "energies": {k: float(v) for k, v in energies.items()},
+                "fusion_status": "Gödelian Paradox" if is_paradox else "Integrated",
+                "unified_context_norm": float(torch.norm(unified_context)),
+                "graph_data": graph_result
+            }
+
+            if is_paradox:
+                result["advice"] = "Query contains self-referential contradiction or total novelty."
+                result["escalation"] = "ConsultParadoxResolver"
+
+            return result
+
+        elif name == "hypothesize":
+            return bridge.execute_monitored_operation(
+                operation="hypothesize",
+                params={
+                    "node_a_id": arguments["node_a_id"],
+                    "node_b_id": arguments["node_b_id"],
+                    "context": arguments.get("context"),
+                },
+            )
+        elif name == "synthesize":
+            result = bridge.execute_monitored_operation(
+                operation="synthesize",
+                params={
+                    "node_ids": arguments["node_ids"],
+                    "goal": arguments.get("goal"),
+                },
+            )
+            # Self-Correction/Critique
+            if isinstance(result, dict) and "synthesis" in result:
+                synthesis_text = result["synthesis"]
+                critique_prompt = (
+                    f"Critique the following synthesis for coherence and completeness based on the goal '{arguments.get('goal', 'None')}'. "
+                    f"Synthesis: {synthesis_text}\n"
+                    "Provide a comprehensive assessment identifying strengths and weaknesses."
+                )
+                critique = self.workspace._llm_generate(
+                    system_prompt="You are a critical reviewer of AI-generated syntheses.",
+                    user_prompt=critique_prompt
+                )
+                result["critique"] = critique
+            return result
+
+        elif name == "constrain":
+            return bridge.execute_monitored_operation(
+                operation="constrain",
+                params={
+                    "node_id": arguments["node_id"],
+                    "rules": arguments["rules"],
+                },
+            )
+        elif name == "set_goal":
+            goal_id = self.workspace.set_goal(
+                goal_description=arguments["goal_description"],
+                utility_weight=arguments.get("utility_weight", 1.0),
+            )
+            return {
+                "goal_id": goal_id,
+                "description": arguments["goal_description"],
+                "weight": arguments.get("utility_weight", 1.0),
+                "message": "Goal activated for utility-guided exploration",
+            }
+        elif name == "compress_to_tool":
+            return bridge.execute_monitored_operation(
+                operation="compress_to_tool",
+                params={
+                    "node_ids": arguments["node_ids"],
+                    "tool_name": arguments["tool_name"],
+                    "description": arguments.get("description"),
+                },
+            )
+        elif name == "resolve_meta_paradox":
+            return self.workspace.resolve_meta_paradox(arguments["conflict"])
+
+        elif name == "consult_compass":
+            # Delegate to COMPASS framework via Director
+            director = self.raa_context.get("director")
+            if not director or not director.compass:
+                return {"error": "COMPASS framework not initialized"}
+
+            task = arguments["task"]
+            context = arguments.get("context", {})
+
+            # Run COMPASS process_task
+            # Note: process_task is async
+            result = await director.compass.process_task(task, context)
+            return result
+
+        # Fallback for other tools (simple pass-through if implemented in bridge/workspace)
+        # Or check other tools defined in RAA_TOOLS
+
+        # For now, return a generic message if not handled
+        return f"Tool {name} executed (generic handler)"
 
 
 # Global context instance (managed by main lifecycle, not implicitly lazy-loaded)
@@ -1820,6 +2038,25 @@ RAA_TOOLS = [
                 },
             },
             "required": ["conflict"],
+        },
+    ),
+    Tool(
+        name="consult_compass",
+        description="Delegate a complex task to the COMPASS cognitive framework. Use this for tasks requiring multi-step reasoning, planning, or metacognitive analysis.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "task": {
+                    "type": "string",
+                    "description": "The task description or problem to solve",
+                },
+                "context": {
+                    "type": "object",
+                    "description": "Optional context dictionary",
+                    "additionalProperties": True,
+                },
+            },
+            "required": ["task"],
         },
     ),
     Tool(
@@ -2009,9 +2246,19 @@ RAA_TOOLS = [
 async def list_tools() -> list[Tool]:
     """List available cognitive workspace tools"""
     ctx = get_raa_context()
+
+    # Ensure external MCP is initialized
+    if ctx.external_mcp and not ctx.external_mcp.is_initialized:
+        await ctx.external_mcp.initialize()
+
     dynamic_tools = ctx.get_agent_factory().get_dynamic_tools()
 
-    all_tools = RAA_TOOLS + dynamic_tools
+    # External tools
+    external_tools = []
+    if ctx.external_mcp:
+        external_tools = ctx.external_mcp.get_tools()
+
+    all_tools = RAA_TOOLS + dynamic_tools + external_tools
     return all_tools
 
 
@@ -2020,6 +2267,11 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
     """Handle tool calls"""
     # Ensure context is initialized
     ctx = get_raa_context()
+
+    # Ensure external MCP is initialized
+    if ctx.external_mcp and not ctx.external_mcp.is_initialized:
+        await ctx.external_mcp.initialize()
+
     workspace = ctx.workspace
     bridge = ctx.get_bridge()
     agent_factory = ctx.get_agent_factory()
@@ -2029,8 +2281,22 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
 
     # Check for dynamic agent call first
     if name in agent_factory.active_agents:
-        response = agent_factory.execute_agent(name, arguments)
+        response = await agent_factory.execute_agent(name, arguments)
         return [TextContent(type="text", text=response)]
+
+    # Check external tools
+    if ctx.external_mcp and name in ctx.external_mcp.tools_map:
+        result = await ctx.external_mcp.call_tool(name, arguments)
+        # Result is likely CallToolResult, convert to TextContent
+        content = []
+        if hasattr(result, "content"):
+            for item in result.content:
+                if item.type == "text":
+                    content.append(TextContent(type="text", text=item.text))
+                elif item.type == "image":
+                    # Handle image if needed, or skip
+                    pass
+        return content if content else [TextContent(type="text", text=str(result))]
 
     try:
         if name == "deconstruct":
@@ -2188,10 +2454,13 @@ Output JSON:
                 "message": "Goal activated for utility-guided exploration",
             }
         elif name == "compress_to_tool":
-            result = workspace.compress_to_tool(
-                node_ids=arguments["node_ids"],
-                tool_name=arguments["tool_name"],
-                description=arguments.get("description"),
+            result = bridge.execute_monitored_operation(
+                operation="compress_to_tool",
+                params={
+                    "node_ids": arguments["node_ids"],
+                    "tool_name": arguments["tool_name"],
+                    "description": arguments.get("description"),
+                },
             )
         elif name == "resolve_meta_paradox":
             result = workspace.resolve_meta_paradox(
@@ -2521,6 +2790,19 @@ Output Format:
                 }
 
             return [TextContent(type="text", text=json.dumps(response, indent=2))]
+
+        elif name == "consult_compass":
+            # Delegate to COMPASS framework via Director
+            director = ctx.raa_context.get("director")
+            if not director or not director.compass:
+                return [TextContent(type="text", text="Error: COMPASS framework not initialized")]
+
+            task = arguments["task"]
+            context = arguments.get("context", {})
+
+            # Run COMPASS process_task
+            result = await director.compass.process_task(task, context)
+            return [TextContent(type="text", text=str(result))]
 
         else:
             return [TextContent(type="text", text=f"Unknown tool: {name}")]

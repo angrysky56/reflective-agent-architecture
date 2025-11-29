@@ -448,6 +448,30 @@ needed
 7. **Sheaf-theoretic diagnostics**: Topological analysis of stuck states via cellular sheaf cohomology, enabling principled escalation decisions based on H¹ obstructions and monodromy analysis
 8. **Tripartite Architecture**: "Fragment-then-Integrate" processing splitting cognition into State, Agent, and Action streams, fused by an energy-gated Precuneus.
 9. **Hybrid Operator C**: A continuous belief revision mechanism combining Logic Tensor Networks (LTN) with Hopfield energy landscapes to refine concepts against evidence and constraints.
+10. **Bidirectional COMPASS Integration**: Seamless interoperability between RAA (System 2) and COMPASS (System 3), allowing agents to delegate complex tasks and tools to call each other.
+
+## System 3: Adaptive Agents & COMPASS
+
+The architecture now features a fully integrated "System 3" layer:
+
+### 1. Adaptive Agents (The "Topological Immune System")
+When the Director detects specific topological obstructions (via Sheaf Diagnostics), it spawns specialized ephemeral agents:
+- **Debater Agents** (Tension Loops): Resolve contradictions by finding higher-order synthesis.
+- **Explorer Agents** (H1 Holes): Find missing concepts to fill topological voids.
+
+**New Capability**: These agents are now equipped with **RAA Tools** (e.g., `consult_compass`, `revise`), allowing them to leverage the full power of the architecture.
+
+### 2. COMPASS Integration
+The COMPASS framework (Cognitive Omni-Model for Planning, Analysis, and System Synthesis) is now natively integrated:
+- **`consult_compass` Tool**: Allows RAA to delegate complex, multi-step reasoning tasks to COMPASS.
+- **Automatic Intervention**: The Director automatically triggers COMPASS when cognitive entropy or oMCD allocation exceeds critical thresholds (> 80.0).
+- **Bidirectional Tool Use**: COMPASS can autonomously call RAA tools (like `deconstruct`) to solve problems.
+
+### 3. Operator C (Belief Revision)
+Implemented via the `revise` tool, Operator C allows for rigorous belief updating:
+- **Inputs**: Current Belief, New Evidence, Logical Constraints.
+- **Mechanism**: Hybrid search combining LTN truth values and Hopfield energy minimization.
+- **Output**: A revised belief that satisfies constraints while integrating evidence.
 
 ## Blah blah blah, mostly out of date initital dev stuff
 

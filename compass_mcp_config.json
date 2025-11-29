@@ -1,0 +1,119 @@
+{
+  "mcpServers": {
+    "desktop-commander": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@wonderwhy-er/desktop-commander@latest"
+      ]
+    },
+    "brave-search": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-brave-search"
+      ],
+      "env": {
+        "BRAVE_API_KEY": "BSAmcA2N_HqwdO9DsboEf-dWu5i8msv"
+      }
+    },
+    "fetch": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-fetch"
+      ]
+    },
+    "docker-mcp": {
+      "command": "uvx",
+      "args": [
+        "docker-mcp"
+      ]
+    },
+    "chroma": {
+      "command": "uvx",
+      "args": [
+        "chroma-mcp",
+        "--client-type",
+        "persistent",
+        "--data-dir",
+        "/home/ty/Repositories/chroma-db"
+      ]
+    },
+    "neo4j-mcp": {
+      "type": "stdio",
+      "command": "neo4j-mcp",
+      "args": [],
+      "env": {
+        "NEO4J_URI": "bolt://localhost:7687",
+        "NEO4J_USERNAME": "neo4j",
+        "NEO4J_PASSWORD": "00000000",
+        "NEO4J_DATABASE": "neo4j",
+        "NEO4J_READ_ONLY": "false"
+      }
+    },
+    "advanced-reasoning": {
+      "command": "node",
+      "args": [
+        "/home/ty/Repositories/ai_workspace/advanced-reasoning-mcp/build/index.js"
+      ]
+    },
+    "fmcp": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/home/ty/Repositories/fermat-mcp",
+        "run",
+        "server.py"
+      ]
+    },
+    "playwright": {
+      "command": "npx",
+      "args": [
+        "@playwright/mcp@latest",
+        "--browser",
+        "chrome"
+      ]
+    },
+    "gitmcp": {
+      "command": "npx",
+      "args": [
+        "mcp-remote",
+        "https://gitmcp.io/docs"
+      ]
+    },
+    "graph-of-thoughts": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/home/ty/Repositories/ai_workspace/graph-of-thoughts-mcp/graph_of_thoughts_mcp",
+        "run",
+        "server.py"
+      ]
+    },
+    "notebooklm": {
+      "command": "npx",
+      "args": [
+        "notebooklm-mcp@latest"
+      ]
+    },
+    "arxiv-mcp-server": {
+      "command": "uv",
+      "args": [
+        "tool",
+        "run",
+        "arxiv-mcp-server",
+        "--storage-path",
+        "/home/ty/Documents/core_bot_instruction_concepts/arxiv-papers"
+      ]
+    },
+    "reflective_agent_architecture": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/home/ty/Repositories/ai_workspace/reflective-agent-architecture/src",
+        "run",
+        "server.py"
+      ]
+    }
+  }
+}
