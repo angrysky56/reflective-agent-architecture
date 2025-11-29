@@ -22,6 +22,7 @@ Phase 1 Components (from COMPASS plan #1-3):
 - MeasurementCost: Energy cost metadata structure
 """
 
+from .director_integration import OperationCostProfile, SubstrateAwareDirector
 from .energy_token import EnergyToken
 from .ledger import InsufficientEnergyError, MeasurementLedger
 from .measurement_cost import MeasurementCost
@@ -41,6 +42,8 @@ __all__ = [
     "StateTransitionRegistry",
     "StateTransitionCost",
     "InvalidTransitionError",
+    "SubstrateAwareDirector",
+    "OperationCostProfile",
 ]
 
 __version__ = "0.1.0-phase1"
