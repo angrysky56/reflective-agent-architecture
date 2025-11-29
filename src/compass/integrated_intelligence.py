@@ -5,13 +5,13 @@ Implements multi-modal intelligence combining learning, reasoning, NLU,
 uncertainty quantification, and decision synthesis.
 """
 
-import math
-from typing import Any, Callable, Dict, List, Optional, Tuple
+
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
 from .config import IntegratedIntelligenceConfig
-from .utils import COMPASSLogger, ObjectiveState, Trajectory, entropy, sigmoid
+from .utils import COMPASSLogger, sigmoid
 
 
 class IntegratedIntelligence:
@@ -259,7 +259,7 @@ class IntegratedIntelligence:
                             tool_calls.extend(data["tool_calls"])
                     else:
                         response_content += chunk
-                except:
+                except Exception:
                     response_content += chunk
 
             # 4. Execute Tools if present

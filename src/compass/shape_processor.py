@@ -7,9 +7,8 @@ and adaptive learning from feedback.
 
 import re
 from collections import defaultdict
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
-from .config import SHAPEConfig
 from .utils import COMPASSLogger
 
 
