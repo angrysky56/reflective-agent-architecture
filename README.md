@@ -65,6 +65,15 @@ RAA synthesizes three active research frontiers:
     - **CREATIVE**: High-temperature hypothesis generation.
     - **DEBUG**: Strict constraint validation.
 
+### 7. The Substrate API (Metabolic Layer) - NEW
+- **Implementation**: Energy accounting system based on thermodynamic axioms.
+- **Function**: Enforces "cognitive metabolism" - every thought costs energy.
+- **Components**:
+    - **MeasurementLedger**: Tracks energy consumption (Joules) for all operations.
+    - **SubstrateAwareDirector**: Wraps the Director to enforce energy costs for monitoring and search.
+    - **Precuneus Integration**: Uses entropy to modulate memory trust (High Entropy = Low Trust).
+- **Impact**: Prevents infinite loops and creates biological constraints that force efficient reasoning.
+
 ### 6. Sheaf Diagnostics (Topological Analysis)
 - **Implementation**: Cellular sheaf cohomology analysis of network structure
 - **Function**: Detects *topological obstructions* to learning that entropy alone cannot see
