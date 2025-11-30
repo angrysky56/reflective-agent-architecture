@@ -683,16 +683,31 @@ Framework: Cognitive Workspace Database (System 2 Reasoning)
 
 CRITICAL: Output your final answer directly. You may think internally, but end with clear, concise output."""
 
-            response = ollama.chat(
-                model=self.config.llm_model,
-                messages=[
-                    {"role": "system", "content": enhanced_system},
-                    {"role": "user", "content": user_prompt},
-                ],
-                options={"num_predict": max_tokens, "temperature": 0.7},
-            )
-            content = response["message"]["content"].strip()
-            logger.info(f"Raw LLM output: {content[:500]}...")  # Log first 500 chars for debug
+            # Retry loop for robustness
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    response = ollama.chat(
+                        model=self.config.llm_model,
+                        messages=[
+                            {"role": "system", "content": enhanced_system},
+                            {"role": "user", "content": user_prompt},
+                        ],
+                        # Kimi/Thinking models often prefer higher temperature
+                        options={"num_predict": max_tokens, "temperature": 1.0},
+                    )
+                    content = response["message"]["content"].strip()
+                    logger.info(f"Raw LLM output (attempt {attempt+1}): {content[:500]}...")
+
+                    if content:
+                        break
+                    else:
+                        logger.warning(f"Empty output from LLM (attempt {attempt+1})")
+                        time.sleep(1) # Brief pause before retry
+                except Exception as e:
+                    logger.error(f"LLM generation error (attempt {attempt+1}): {e}")
+                    if attempt == max_retries - 1:
+                        raise
 
             # Strip reasoning artifacts that models add
             # Remove <think>...</think> blocks, but be careful not to delete everything
