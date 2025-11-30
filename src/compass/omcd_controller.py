@@ -129,44 +129,49 @@ class oMCDController:
 
         return best_z
 
-    def should_stop(self, current_score: float, iteration: int, allocation: Dict) -> bool:
+    def should_stop(self, current_score: float, iteration: int, allocation: Dict, target_score: float = 0.8) -> bool:
         """
         Determine if optimal stopping criterion is met.
 
-        Implements the control policy: π_ω(t) = 0 if Q(0, Δμ(t)) >= ω(t)
+        Implements the control policy: Stop if success threshold reached OR resources exhausted.
 
         Args:
             current_score: Current quality score
             iteration: Current iteration number
             allocation: Current resource allocation
+            target_score: Target score to achieve (pass_threshold)
 
         Returns:
             True if should stop, False if should continue
         """
-        # Calculate Q-value for stopping
-        confidence = allocation["confidence"]
-        resources_used = (iteration + 1) * self.config.kappa
+        # 1. Success Criterion
+        if current_score >= target_score:
+            self.logger.info(f"Stopping: Target score reached ({current_score:.3f} >= {target_score})")
+            return True
 
-        Q_stop = self.config.R * confidence - self.config.alpha * (resources_used**self.config.nu)
+        # 2. Resource Exhaustion Criterion
+        if self.total_resources_allocated >= self.config.max_resources:
+            self.logger.info(f"Stopping: Resources exhausted ({self.total_resources_allocated:.1f} >= {self.config.max_resources})")
+            return True
 
-        # Dynamic threshold that decreases over time
-        threshold = self.config.threshold_omega * math.exp(-0.1 * iteration)
-
-        # Check goal status if goals exist
+        # 3. Goal Completion Criterion
         if self.goal_stack:
             current_goal = self.goal_stack[-1]
             if current_goal.status == "completed":
                 self.logger.debug(f"Stopping: Goal '{current_goal.description}' completed")
                 return True
 
-        should_stop = (
-            Q_stop >= threshold or confidence >= self.config.min_confidence or current_score >= 0.95  # Near-perfect score
-        )
+        # 4. Q-Value / Economic Stopping (Optional / Secondary)
+        # We relax this to prioritize persistence unless cost is overwhelming
+        confidence = allocation["confidence"]
+        resources_used = (iteration + 1) * self.config.kappa
+        Q_stop = self.config.R * confidence - self.config.alpha * (resources_used**self.config.nu)
 
-        if should_stop:
-            self.logger.debug(f"Stopping criterion met: Q={Q_stop:.3f}, threshold={threshold:.3f}, confidence={confidence:.3f}")
+        # Only stop on Q-value if we are VERY confident but somehow score is low (unlikely but possible)
+        # OR if we are bleeding resources with no gain.
+        # For now, we enforce persistence: don't stop just because of Q-value unless it's extreme.
 
-        return should_stop
+        return False
 
     def establish_goal(self, description: str, priority: float = 0.5, parent_id: Optional[str] = None) -> Goal:
         """

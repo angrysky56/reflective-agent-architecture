@@ -3158,7 +3158,15 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
 
             # Run COMPASS process_task
             result = await director.compass.process_task(task, context)
-            return [TextContent(type="text", text=str(result))]
+
+            # Return the clean Final Report if available, otherwise fallback to solution
+            final_report = result.get("final_report", result.get("solution", str(result)))
+
+            # Include success status prefix
+            status = "SUCCESS" if result.get("success", False) else "PARTIAL/FAILURE"
+            output = f"[{status}]\n\n{final_report}"
+
+            return [TextContent(type="text", text=output)]
 
         else:
             return [TextContent(type="text", text=f"Unknown tool: {name}")]

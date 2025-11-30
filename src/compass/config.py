@@ -80,7 +80,7 @@ class SelfDiscoverConfig:
     """Configuration for Self-Discover reinforcement learning framework."""
 
     # Trial limits
-    max_trials: int = 3
+    max_trials: int = 10
 
     # Memory configuration
     max_memory_size: int = 100  # Maximum number of self-reflections to store

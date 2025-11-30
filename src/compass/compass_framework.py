@@ -218,11 +218,15 @@ class COMPASS:
                     self.logger.info("Executive Controller signaled stop")
                     break
 
+            # Generate Final Report
+            final_report = self._generate_final_report(task_text, solution, trajectory, final_score)
+
             self.logger.info(f"Task completed: score={final_score:.3f}")
 
             return {
                 "success": final_score >= self.config.self_discover.pass_threshold,
                 "solution": solution,
+                "final_report": final_report,
                 "score": final_score,
                 "iterations": i + 1,
                 "resources_used": self.omcd_controller.total_resources_allocated,
@@ -235,12 +239,51 @@ class COMPASS:
             return {
                 "success": False,
                 "solution": f"Error: {str(e)}",
+                "final_report": f"Task failed due to critical error: {str(e)}",
                 "score": 0.0,
                 "iterations": 0,
                 "resources_used": 0.0,
                 "reflections": [],
                 "trajectory": {"steps": [{"error": str(e)}]}
             }
+
+    def _generate_final_report(self, task: str, solution: str, trajectory: Trajectory, score: float) -> str:
+        """
+        Generate a clean, professional final report for the client.
+        Synthesizes the trajectory and solution into a coherent summary.
+        """
+        try:
+            # Create a summary of the trajectory
+            steps_summary = []
+            for step in trajectory.steps:
+                action = step.get("action", "Unknown action")
+                result = step.get("result", "No result")
+                # Truncate long results for the prompt
+                if isinstance(result, str) and len(result) > 500:
+                    result = result[:500] + "..."
+                steps_summary.append(f"- Action: {action}\n  Result: {result}")
+
+            trajectory_text = "\n".join(steps_summary)
+
+            prompt = (
+                f"Task: {task}\n\n"
+                f"Execution History:\n{trajectory_text}\n\n"
+                f"Final Solution/Answer: {solution}\n\n"
+                f"Confidence Score: {score:.2f}\n\n"
+                "Generate a professional 'Final Report' for the client based on the above. "
+                "The report should be concise, easy to read, and focus on the answer/solution. "
+                "Briefly mention the methodology used (e.g., 'Researched X, then calculated Y') but avoid detailed internal logs or complaints about tools. "
+                "Structure it with a clear 'Answer' section and a brief 'Methodology' section."
+            )
+
+            report = self._llm_generate(
+                system_prompt="You are a professional AI analyst generating a final report.",
+                user_prompt=prompt
+            )
+            return report
+        except Exception as e:
+            self.logger.error(f"Error generating final report: {e}")
+            return f"Report generation failed. Raw Solution: {solution}"
 
     async def _execute_reasoning_step(self, task: str, plan: Dict, modules: List[int], resources: Dict, context: Optional[Dict]) -> Dict:
         """Execute a single reasoning step using Integrated Intelligence."""

@@ -81,7 +81,7 @@ class ExecutiveController:
 
         allocation = self.omcd.determine_resource_allocation(current_state, importance=importance, available_resources=self.omcd.config.max_resources - self.omcd.total_resources_allocated)
 
-        return {"goal": current_goal, "strategy": self.current_strategy, "resources": allocation, "solvability": solvability, "should_stop": self.omcd.should_stop(current_score=current_state.get("score", 0.0), iteration=self.iteration_count, allocation=allocation)}
+        return {"goal": current_goal, "strategy": self.current_strategy, "resources": allocation, "solvability": solvability, "should_stop": self.omcd.should_stop(current_score=current_state.get("score", 0.0), iteration=self.iteration_count, allocation=allocation, target_score=self.self_discover.config.pass_threshold)}
 
     def evaluate_reasoning_quality(self, trajectory: Trajectory, objectives: List) -> float:
         """
