@@ -48,6 +48,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from sentence_transformers import SentenceTransformer
 
 from src.cognition.meta_validator import MetaValidator
+from src.compass.orthogonal_dimensions import OrthogonalDimensionsAnalyzer
 
 # RAA imports
 from src.director import Director, DirectorConfig
@@ -2811,24 +2812,12 @@ Output JSON:
             concept_b = arguments["concept_b"]
             context = arguments.get("context", "")
 
-            system_prompt = """You are an Orthogonal Dimensions Analyzer.
-Your task is to analyze the relationship between two concepts, NOT as a linear spectrum, but as independent dimensions in a 2D cognitive space.
+            # Use the dedicated analyzer class
+            # In the future, we can inject the ContinuityField from the context/integrator
+            analyzer = OrthogonalDimensionsAnalyzer(continuity_field=None)
 
-Dimensions:
-1. Statistical Compression (X-Axis): How well does it capture patterns/regularities? (Low = Noise, High = Efficient Encoding)
-2. Causal Understanding (Y-Axis): How well does it model cause-and-effect mechanisms? (Low = Correlation, High = Explanation)
-
-Intentionality Selector:
-Identify what "Intentionality" (Goal/Purpose) would select for one dimension over the other.
-
-Output Format:
-1. Analysis: Brief analysis of how each concept scores on both dimensions.
-2. Coordinates: Assign (X, Y) scores (0-10) for both concepts.
-3. Quadrant: Place them in the 4 Quadrants (Q1: Noise, Q2: Verbose, Q3: Insight, Q4: Overfitting).
-4. Intentionality: What goal selects for Concept A vs Concept B?
-5. Synthesis: How do they relate orthogonally?
-"""
-            user_prompt = f"Analyze the relationship between '{concept_a}' and '{concept_b}'.\nContext: {context}"
+            system_prompt = analyzer.SYSTEM_PROMPT
+            user_prompt = analyzer.construct_analysis_prompt(concept_a, concept_b, context)
 
             response = workspace._llm_generate(system_prompt, user_prompt)
             return [TextContent(type="text", text=response)]

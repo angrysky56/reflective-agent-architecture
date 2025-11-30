@@ -11,6 +11,8 @@ Key Papers:
 
 from typing import Optional
 
+import torch
+
 from .hopfield_network import HopfieldConfig, ModernHopfieldNetwork
 from .pattern_curriculum import (
     ManualPatternCurriculum,
@@ -115,6 +117,10 @@ class Manifold:
         Returns:
             Dict with (vector, energy) tuples for each domain.
         """
+        # Handle legacy/single-tensor call (default to state memory)
+        if isinstance(query_dict, torch.Tensor):
+            return self.state_memory.retrieve(query_dict)
+
         results = {}
 
         # State
