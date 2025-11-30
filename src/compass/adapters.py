@@ -42,25 +42,7 @@ class RAALLMProvider:
             logger.info(f"RAALLMProvider: Creating AsyncClient for model {self.model_name}")
             client = AsyncClient()
 
-            # DEBUG: Print exact tools format being passed
-            import json
-            import sys
 
-            # Force flush and write to file
-            debug_msg = f"\n==== DEBUG: RAALLMProvider call at {__import__('datetime').datetime.now()} ====\n"
-            debug_msg += f"Model: {self.model_name}\n"
-            debug_msg += f"Messages count: {len(ollama_messages)}\n"
-            debug_msg += f"Tools provided: {tools is not None}\n"
-            if tools:
-                debug_msg += f"Tools count: {len(tools)}\n"
-            debug_msg += "="*50 + "\n"
-
-            # Write to file AND stdout
-            with open("/tmp/compass_llm_calls.log", "a") as f:
-                f.write(debug_msg)
-                f.flush()
-            # print(debug_msg, flush=True)
-            sys.stdout.flush()
 
 
             # If tools are provided, we should pass them (Ollama supports tools)

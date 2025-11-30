@@ -85,14 +85,14 @@ RAA synthesizes three active research frontiers:
 - **Integration**: Provides principled escalation criteria for System 3 (heavy compute)
 - **Source**: Based on ["Sheaf Cohomology of Linear Predictive Coding Networks" (Seely, 2025)](https://arxiv.org/abs/2511.11092)
 
-### 6. System 3 (Antifragile Agent Factory) - DESIGNED
+### 9. System 3 (Antifragile Agent Factory) - DESIGNED
 - **Concept**: A "Topological Immune System" that spawns specialized agents as antibodies against structural obstructions
 - **Function**: Translates mathematical diagnostics into agent archetypes:
   - **Tension Loops** $\rightarrow$ Spawn **Debater Agents** (Behavioral Plasticity)
   - **H1 Holes** $\rightarrow$ Spawn **Explorer Agents** (Architectural Plasticity)
 - **Lifecycle**: Asynchronous, ephemeral, and self-dissolving (retires when obstruction clears)
 
-### 7. Orthogonal Dimensions Framework (Crystallized Insight)
+### 10. Orthogonal Dimensions Framework (Crystallized Insight)
 - **Discovery**: "Understanding" (Causal) and "Compression" (Statistical) are **orthogonal dimensions**, not a linear spectrum.
 - **Tool**: `orthogonal_dimensions_analyzer`
 - **Mechanism**:
@@ -101,6 +101,26 @@ RAA synthesizes three active research frontiers:
     - **Selector**: **Intentionality** determines which protocol activates.
 - **Implication**: Explains why systems can have high compression without understanding (Overfitting/Stochastic Parrots) or high understanding with low compression (Verbose Explanations).
 - **Control**: Use `set_intentionality(mode="optimization"|"adaptation")` to manually switch the agent's cognitive mode (Beta control).
+
+### 11. Stereoscopic Engine (Dual-Layer Dynamics) - NEW
+- **Function**: Orchestrates the interaction between the "Generative Function" (LLM/System 2) and the "Continuity Field" (System 1).
+- **Mechanism**:
+    - **Parallax Check**: Compares the proposed intervention (Generative) with the historical identity (Continuity).
+    - **Plasticity Gating**: Allows or rejects interventions based on the "Unconditioned Condition" (Code Length).
+- **Goal**: Ensures that new intelligence doesn't destabilize the agent's core identity.
+
+### 12. Plasticity Gate (Uncertainty-Based Filtering) - NEW
+- **Function**: A dynamic filter that controls the learning rate and intervention acceptance.
+- **Logic**:
+    - **High Uncertainty (Confusion)**: Gate OPENS (High Plasticity). The system is willing to learn and change.
+    - **Low Uncertainty (Confidence)**: Gate CLOSES (Low Plasticity). The system relies on established patterns.
+- **Metric**: Uses "Code Length" (Compression) as a proxy for uncertainty.
+
+### 13. Continuity Field (Causal Identity) - NEW
+- **Function**: Maintains the agent's "Causal Identity" over time.
+- **Structure**: A topological field that maps causal signatures (invariants) to the Manifold.
+- **Role**: Acts as the "immune system" against catastrophic forgetting and identity drift.
+
 
 ## The "Aha!" Loop
 
@@ -255,6 +275,7 @@ For a detailed guide on how to operate the Reflective Agent (including the new T
       orthogonal_dimensions_analyzer: Analyze concepts as independent dimensions (Statistical vs Causal)
       set_intentionality: Set cognitive mode (Optimization vs Adaptation) via Manifold beta
       revise: Refine beliefs using Hybrid Operator C (LTN + Hopfield)
+      consult_compass: Delegate complex tasks to the COMPASS cognitive framework
 
     protocol:
 
@@ -268,6 +289,9 @@ For a detailed guide on how to operate the Reflective Agent (including the new T
       Automatic Director monitoring of System 2 reasoning
       Pointer goal updates from search results
       Tool library for compressed knowledge reuse
+      Stereoscopic Engine: Dual-layer regulation of interventions via Plasticity Gate and Continuity Field
+      Plasticity Gate: Evaluates proposed changes against uncertainty and identity constraints
+      Continuity Field: Maintains identity coherence and integrates accepted interventions
 
   ## sentencetransformers model will take time to download the first run
 
@@ -472,6 +496,8 @@ needed
 10. **Bidirectional COMPASS Integration**: Seamless interoperability between RAA (System 2) and COMPASS (System 3), allowing agents to delegate complex tasks and tools to call each other.
 11. **Meta-Controller**: Adaptive workflow orchestration that bridges semantic intent (Macro) with parameter-level control (Micro).
 12. **Continuity Fields**: Temporal identity preservation via causal signature tracking in the Precuneus.
+13. **Stereoscopic Regulation**: A dual-process control mechanism that validates high-level reasoning (Generative) against low-level identity constraints (Continuity).
+
 
 ## System 3: Adaptive Agents & COMPASS
 
@@ -677,8 +703,9 @@ reflective-agent-architecture/
 │   ├── processor/          # Transformer components
 │   ├── pointer/            # Goal controller
 │   ├── director/           # Metacognitive monitor + search
-│   ├── integration/        # Full RAA loop + CWD integration
-│   └── server.py           # MCP server (CWD + RAA bridge)
+│    ├── integration/        # Full RAA loop + CWD integration
+    ├── cognition/          # TKUI Components (Stereoscopic Engine, Plasticity Gate, Continuity Field)
+    └── server.py           # MCP server (CWD + RAA bridge)
 ├── tests/                  # Unit and integration tests (all passing ✅)
 ├── docs/                   # Detailed documentation and theory
 │   ├── REFERENCES.md       # Theoretical foundations bibliography

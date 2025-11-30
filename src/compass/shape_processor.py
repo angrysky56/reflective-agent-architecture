@@ -93,13 +93,27 @@ Return JSON: {{ "intent": "string", "entities": ["list"], "constraints": ["list"
                 analysis = extract_json_from_text(response_content)
 
                 if not analysis:
-                    import json
-                    raise json.JSONDecodeError("Failed to extract JSON", response_content, 0)
+                    # Provide fallback structure instead of raising
+                    self.logger.warning("JSON extraction failed, using fallback heuristic analysis")
+                    analysis = {
+                        "intent": self._extract_intent(user_input),
+                        "entities": self._extract_entities(user_input),
+                        "constraints": self._extract_constraints(user_input),
+                        "goals": self._extract_goals(user_input)
+                    }
+
                 result["llm_analysis"] = analysis
                 self.logger.info(f"SHAPE LLM Analysis: {analysis.get('intent')}")
 
             except Exception as e:
                 self.logger.warning(f"SHAPE LLM analysis failed: {e}")
+                # Still provide fallback to prevent None
+                result["llm_analysis"] = {
+                    "intent": self._extract_intent(user_input),
+                    "entities": self._extract_entities(user_input),
+                    "constraints": self._extract_constraints(user_input),
+                    "goals": self._extract_goals(user_input)
+                }
 
         self.logger.debug(f"Found {len(shorthand_elements)} shorthand elements")
         return result

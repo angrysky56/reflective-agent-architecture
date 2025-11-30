@@ -23,28 +23,6 @@
         "docker-mcp"
       ]
     },
-    "fmcp": {
-      "command": "uv",
-      "args": [
-        "--directory",
-        "/path/to/fermat-mcp",
-        "run",
-        "server.py"
-      ]
-    },
-    "gitmcp": {
-      "command": "npx",
-      "args": [
-        "mcp-remote",
-        "https://gitmcp.io/docs"
-      ]
-    },
-    "notebooklm": {
-      "command": "npx",
-      "args": [
-        "notebooklm-mcp@latest"
-      ]
-    },
     "arxiv-mcp-server": {
       "command": "uv",
       "args": [

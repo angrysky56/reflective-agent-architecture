@@ -48,7 +48,7 @@ class COMPASS:
 
         # Load tool configuration from environment
         import os
-        tools_enabled = os.getenv("COMPASS_TOOLS_ENABLED", "false").lower() == "true"
+        tools_enabled = os.getenv("COMPASS_TOOLS_ENABLED", "true").lower() == "true"
         self.config.intelligence.enable_tools = tools_enabled
 
         self.logger = logger or COMPASSLogger("COMPASS", level=self.config.log_level)

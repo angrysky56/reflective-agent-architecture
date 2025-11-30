@@ -133,8 +133,23 @@ Perform the SLAP analysis and output valid JSON in this format:
         try:
             # Call LLM
             response_content = ""
-            async for chunk in self.llm_provider.chat_completion(messages, stream=False, temperature=0.4, max_tokens=4000):
-                response_content += chunk
+            self.logger.info("SLAP: About to call llm_provider.chat_completion")
+
+            try:
+                async for chunk in self.llm_provider.chat_completion(messages, stream=False, temperature=0.4, max_tokens=4000):
+                    response_content += chunk
+                self.logger.info(f"SLAP: LLM call completed, response length: {len(response_content)}")
+            except Exception as iteration_error:
+                self.logger.error(f"SLAP: Error during LLM iteration: {iteration_error}", exc_info=True)
+                import traceback
+                with open("/tmp/slap_iteration_error.log", "w") as f:
+                    f.write("SLAP LLM Iteration Error\n")
+                    f.write("=" * 50 + "\n")
+                    f.write(f"Error Type: {type(iteration_error).__name__}\n")
+                    f.write(f"Error Message: {str(iteration_error)}\n")
+                    f.write("\nFull Traceback:\n")
+                    traceback.print_exc(file=f)
+                raise  # Re-raise to trigger outer exception handler
 
             # Parse JSON
             try:
@@ -142,6 +157,13 @@ Perform the SLAP analysis and output valid JSON in this format:
                 plan = extract_json_from_text(response_content)
 
                 if not plan:
+                    self.logger.warning(f"SLAP: JSON extraction failed. Response preview: {response_content[:200]}")
+                    # Write full response to file for debugging
+                    with open("/tmp/slap_raw_response.txt", "w") as f:
+                        f.write("SLAP LLM Raw Response (JSON extraction failed)\n")
+                        f.write("=" * 50 + "\n")
+                        f.write(response_content)
+                    self.logger.warning("Full LLM response written to /tmp/slap_raw_response.txt")
                     raise json.JSONDecodeError("Failed to extract JSON", response_content, 0)
 
                 # Ensure advancement score exists
@@ -170,6 +192,23 @@ Perform the SLAP analysis and output valid JSON in this format:
         except Exception as e:
             self.logger.error(f"Error in SLAP LLM execution: {e}", exc_info=True)
             self.logger.error(f"SLAP llm_provider type: {type(self.llm_provider)}")
+            self.logger.error(f"Exception details: {type(e).__name__}: {str(e)}")
+
+            # Write detailed traceback to file for inspection
+            import traceback
+            try:
+                with open("/tmp/slap_llm_error.log", "w") as f:
+                    f.write("SLAP LLM Error Details\n")
+                    f.write("=" * 50 + "\n")
+                    f.write(f"Exception Type: {type(e).__name__}\n")
+                    f.write(f"Exception Message: {str(e)}\n")
+                    f.write(f"LLM Provider Type: {type(self.llm_provider)}\n")
+                    f.write("\nFull Traceback:\n")
+                    traceback.print_exc(file=f)
+                self.logger.error("Detailed error written to /tmp/slap_llm_error.log")
+            except Exception as log_err:
+                self.logger.error(f"Failed to write error log: {log_err}")
+
             return self._create_fallback_plan(task, representation_type)
 
     def _create_fallback_plan(self, task: str, representation_type: str) -> Dict[str, Any]:

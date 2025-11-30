@@ -144,7 +144,7 @@ class IntegratedIntelligenceConfig:
     delta_learning_factor: float = 0.1
 
     # Tool usage
-    enable_tools: bool = False
+    enable_tools: bool = True  # Enable MCP tools for research and information gathering
 
 
 @dataclass

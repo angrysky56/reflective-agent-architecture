@@ -5,10 +5,15 @@ Implements multi-modal intelligence combining learning, reasoning, NLU,
 uncertainty quantification, and decision synthesis.
 """
 
-
-from typing import Any, Dict, List, Optional, Tuple
+# TKUI Integration
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 import numpy as np
+
+from src.cognition.generative_function import GenerativeFunction
+
+if TYPE_CHECKING:
+    from src.cognition.stereoscopic_engine import StereoscopicEngine
 
 from .config import IntegratedIntelligenceConfig
 from .utils import COMPASSLogger, sigmoid
@@ -27,7 +32,7 @@ class IntegratedIntelligence:
     - Neural activation
     """
 
-    def __init__(self, config: IntegratedIntelligenceConfig, logger: Optional[COMPASSLogger] = None, llm_provider: Optional[Any] = None, mcp_client: Optional[Any] = None):
+    def __init__(self, config: IntegratedIntelligenceConfig, logger: Optional[COMPASSLogger] = None, llm_provider: Optional[Any] = None, mcp_client: Optional[Any] = None, stereoscopic_engine: Optional["StereoscopicEngine"] = None):
         """
         Initialize Integrated Intelligence.
 
@@ -36,14 +41,26 @@ class IntegratedIntelligence:
             logger: Optional logger instance
             llm_provider: Optional LLM provider instance
             mcp_client: Optional MCP client instance
+            stereoscopic_engine: Optional StereoscopicEngine instance for TKUI validation
         """
         self.config = config
         self.logger = logger or COMPASSLogger("IntegratedIntelligence")
         self.llm_provider = llm_provider
         self.mcp_client = mcp_client
 
+        # TKUI Components
+        self.stereoscopic_engine = stereoscopic_engine
+        self.generative_function = None
+
+        if self.stereoscopic_engine:
+            # Initialize Generative Function adapter if engine is present
+            # Use the engine's embedding dim to ensure compatibility
+            self.generative_function = GenerativeFunction(embedding_dim=self.stereoscopic_engine.embedding_dim)
+            self.logger.info("IntegratedIntelligence: TKUI Stereoscopic Engine & Generative Function enabled")
+
         # Initialize learning memory (Q-table)
         self.Q_table = {}
+        self.knowledge_base = {} # Initialize knowledge base
 
         self.logger.info("Integrated Intelligence initialized")
 
@@ -63,7 +80,11 @@ class IntegratedIntelligence:
         Returns:
             Decision dictionary
         """
+
+
         self.logger.debug("Synthesizing decision with integrated intelligence")
+
+
 
         # Convert inputs to feature vector
         features = self._extract_features(task, reasoning_plan, modules, resources, context)
@@ -100,6 +121,33 @@ class IntegratedIntelligence:
 
         # Calculate universal intelligence score
         universal_score = self._universal_intelligence(intelligence_scores)
+
+        # TKUI: Stereoscopic Regulation
+        if self.stereoscopic_engine:
+            # Use the feature vector as the proposed intervention
+            # In a real system, this would be the semantic embedding of the proposed action
+            # Here we use the feature state as a proxy
+            intervention_vector = features
+
+            # Pad or truncate if dimensions don't match
+            if intervention_vector.shape[0] != self.stereoscopic_engine.embedding_dim:
+                # Simple resizing for prototype
+                new_vec = np.zeros(self.stereoscopic_engine.embedding_dim)
+                min_dim = min(intervention_vector.shape[0], self.stereoscopic_engine.embedding_dim)
+                new_vec[:min_dim] = intervention_vector[:min_dim]
+                intervention_vector = new_vec
+
+            success, gate_score, msg = self.stereoscopic_engine.process_intervention(
+                intervention_vector,
+                context=f"Task: {task[:50]}..."
+            )
+
+            intelligence_scores["stereoscopic_gate"] = gate_score
+
+            if not success:
+                self.logger.warning(f"Stereoscopic Engine rejected intervention: {msg}")
+                # Penalize universal score to reflect rejection
+                universal_score *= 0.5
 
         # Generate decision
         action = llm_action if llm_action else self._generate_action(universal_score, reasoning_plan, modules)
@@ -183,17 +231,26 @@ class IntegratedIntelligence:
         try:
             # 1. Fetch available tools
             tools = []
+
+
+
             if self.mcp_client:
-                self.logger.info("Fetching tools from MCP client")
+                self.logger.info(f"Fetching tools from MCP client (type: {type(self.mcp_client).__name__})")
+
+
                 try:
                     from .mcp_tool_adapter import get_available_tools_for_llm
 
                     tools = await get_available_tools_for_llm(self.mcp_client)
-                    self.logger.info(f"Fetched {len(tools)} tools")
-                except ImportError:
-                    self.logger.warning("Could not import mcp_tool_adapter")
+                    self.logger.info(f"Successfully fetched {len(tools)} tools: {[t['function']['name'] for t in tools] if tools else 'none'}")
+
+
+                except ImportError as e:
+                    self.logger.error(f"Could not import mcp_tool_adapter: {e}", exc_info=True)
+
                 except Exception as e:
-                    self.logger.warning(f"Failed to fetch tools: {e}")
+                    self.logger.error(f"Failed to fetch tools: {e}", exc_info=True)
+
 
             # 2. Construct prompt
             self.logger.info("Constructing LLM prompt")
@@ -272,7 +329,35 @@ class IntegratedIntelligence:
                 except Exception:
                     response_content += chunk
 
-            # 4. Execute Tools if present
+            # 4. TKUI Stereoscopic Engine Validation
+            # Before executing tools or returning action, validate with Plasticity Gate
+            if self.stereoscopic_engine and self.generative_function:
+                self.logger.info("Validating proposed action with Stereoscopic Engine")
+
+                # Determine what to validate (tool calls or text action)
+                proposed_intervention_text = ""
+                if tool_calls:
+                    proposed_intervention_text = f"Execute tools: {[tc['function']['name'] for tc in tool_calls]}"
+                else:
+                    proposed_intervention_text = response_content
+
+                # Generate intervention vector
+                intervention_vector = self.generative_function.text_to_intervention(proposed_intervention_text)
+
+                if intervention_vector is not None:
+                    # Process intervention
+                    success, score, msg = self.stereoscopic_engine.process_intervention(
+                        intervention_vector=intervention_vector,
+                        context=f"Task: {task}"
+                    )
+
+                    if not success:
+                        self.logger.warning(f"Stereoscopic Engine REJECTED intervention: {msg}")
+                        return 0.1, f"Action Rejected by Plasticity Gate: {msg}. Please revise approach."
+                    else:
+                        self.logger.info(f"Stereoscopic Engine ACCEPTED intervention (Score: {score:.3f})")
+
+            # 5. Execute Tools if present
             if tool_calls:
                 self.logger.info(f"Integrated Intelligence decided to execute {len(tool_calls)} tools")
                 results = []
@@ -312,7 +397,7 @@ class IntegratedIntelligence:
                 # Return tool results as the action
                 return 1.0, "\\n\\n".join(results)
 
-            # 5. Parse standard JSON response
+            # 6. Parse standard JSON response
             from .utils import extract_json_from_text
             data = extract_json_from_text(response_content)
 

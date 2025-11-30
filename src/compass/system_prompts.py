@@ -45,6 +45,7 @@ COMPASS (Cognitive Orchestration & Metacognitive Planning for Adaptive Semantic 
 3.  **SLAP** (Semantic Logic Auto Progressor): Generates the reasoning plan (Conceptualization -> Representation -> Facts -> Scrutiny -> Derivation).
 4.  **oMCD** (Online Metacognitive Control of Decisions): Manages resource allocation (confidence vs. cost).
 5.  **Constraint Governor**: Monitors for logical contradictions, compositionality errors, and shallow processing (System Trace/Scrutiny).
+6.  **Stereoscopic Engine** (Dual-Layer Regulation): Regulates interventions via the Plasticity Gate (checks against uncertainty/identity) and integrates changes into the Continuity Field (maintains identity coherence).
 
 **Your Role**:
 You are the **Execution Layer**. Your job is to:
