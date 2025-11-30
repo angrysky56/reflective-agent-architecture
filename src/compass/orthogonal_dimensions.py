@@ -64,6 +64,15 @@ Perform the Orthogonal Dimensions Analysis as described.
         if not self.continuity_field:
             return {"error": "No Continuity Field available for vector analysis"}
 
+        # DEBUG LOGGING
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"DEBUG: Analyzing vectors. ContinuityField ID: {id(self.continuity_field)}")
+        if hasattr(self.continuity_field, 'anchors'):
+            logger.info(f"DEBUG: ContinuityField anchors count: {len(self.continuity_field.anchors)}")
+        else:
+            logger.info("DEBUG: ContinuityField has no 'anchors' attribute")
+
         # This is a placeholder for the advanced vector logic
         # In the future, we would project both onto the manifold and compare residuals
         drift_a = self.continuity_field.get_drift_metric(vector_a)

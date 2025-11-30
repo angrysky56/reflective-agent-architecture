@@ -53,6 +53,8 @@ from src.compass.orthogonal_dimensions import OrthogonalDimensionsAnalyzer
 # RAA imports
 from src.director import Director, DirectorConfig
 from src.integration.agent_factory import AgentFactory
+from src.integration.continuity_field import ContinuityField
+from src.integration.continuity_service import ContinuityService
 from src.integration.cwd_raa_bridge import BridgeConfig, CWDRAABridge
 from src.integration.precuneus import PrecuneusIntegrator
 from src.integration.sleep_cycle import SleepCycle
@@ -109,6 +111,7 @@ class CWDConfig(BaseSettings):
     confidence_threshold: float = Field(default=0.7)  # Lower to .3 for asymmetric embeddings
     llm_base_url: str = Field(default="http://localhost:11434")
     llm_model: str = Field(default="kimi-k2-thinking:cloud")
+    compass_model: str = Field(default="kimi-k2-thinking:cloud")  # Can be different from llm_model
 
 
 class CognitiveWorkspace:
@@ -137,30 +140,50 @@ class CognitiveWorkspace:
         is_qwen = "qwen" in config.embedding_model.lower()
         has_gpu = torch.cuda.is_available()
 
-        if is_qwen and has_gpu:
-            try:
-                # Try flash_attention_2 for GPU acceleration (requires flash-attn package)
-                self.embedding_model = SentenceTransformer(
-                    config.embedding_model,
-                    model_kwargs={"attn_implementation": "flash_attention_2", "device_map": "auto"},
-                    tokenizer_kwargs={"padding_side": "left"},
-                )
-                logger.info("Initialized Qwen embedding model with flash_attention_2 (GPU)")
-            except Exception as e:
-                # Fallback to standard (works on CPU and GPU without flash-attn)
-                logger.info(f"flash_attention_2 not available, using standard attention: {e}")
+        try:
+            if is_qwen and has_gpu:
+                try:
+                    # Try flash_attention_2 for GPU acceleration (requires flash-attn package)
+                    self.embedding_model = SentenceTransformer(
+                        config.embedding_model,
+                        model_kwargs={"attn_implementation": "flash_attention_2", "device_map": "auto"},
+                        tokenizer_kwargs={"padding_side": "left"},
+                    )
+                    logger.info("Initialized Qwen embedding model with flash_attention_2 (GPU)")
+                except Exception as e:
+                    # Fallback to standard (works on CPU and GPU without flash-attn)
+                    logger.info(f"flash_attention_2 not available, using standard attention: {e}")
+                    self.embedding_model = SentenceTransformer(
+                        config.embedding_model, tokenizer_kwargs={"padding_side": "left"}
+                    )
+                    logger.info("Initialized standard embedding model (Qwen, GPU fallback)")
+            elif is_qwen:
+                # CPU mode - just use left padding for Qwen
                 self.embedding_model = SentenceTransformer(
                     config.embedding_model, tokenizer_kwargs={"padding_side": "left"}
                 )
-        elif is_qwen:
-            # CPU mode - just use left padding for Qwen
-            self.embedding_model = SentenceTransformer(
-                config.embedding_model, tokenizer_kwargs={"padding_side": "left"}
-            )
-            logger.info("Initialized Qwen embedding model (CPU)")
-        else:
-            # Standard models (all-MiniLM, etc.)
-            self.embedding_model = SentenceTransformer(config.embedding_model)
+                logger.info("Initialized Qwen embedding model (CPU)")
+            else:
+                # Standard models (all-MiniLM, etc.)
+                self.embedding_model = SentenceTransformer(config.embedding_model)
+                logger.info("Initialized standard embedding model")
+
+            # Initialize Continuity Field (Identity Manifold)
+            embedding_dim = self.embedding_model.get_sentence_embedding_dimension()
+            self.continuity_field = ContinuityField(embedding_dim=embedding_dim)
+
+            # Initialize with base anchors to prevent "empty field" errors
+            base_concepts = ["existence", "agent", "action", "thought", "reasoning", "utility"]
+            for concept in base_concepts:
+                vector = self.embedding_model.encode(concept)
+                self.continuity_field.add_anchor(vector)
+            logger.info(f"Initialized ContinuityField with dim={embedding_dim} and {len(base_concepts)} base anchors")
+            logger.info(f"DEBUG: Server ContinuityField ID: {id(self.continuity_field)}")
+            logger.info(f"DEBUG: Server ContinuityField anchors: {len(self.continuity_field.anchors)}")
+
+        except Exception as e:
+            logger.error(f"Failed to initialize embedding model: {e}")
+            raise
 
         # Create Chroma collection
         self.collection = self.chroma_client.get_or_create_collection(
@@ -183,6 +206,12 @@ class CognitiveWorkspace:
 
         # Initialize Work History
         self.history = WorkHistory()
+
+        # Initialize Continuity Service
+        self.continuity_service = ContinuityService(
+            continuity_field=self.continuity_field,
+            work_history=self.history
+        )
 
         logger.info("Cognitive Workspace initialized with Gen 3 architecture")
 
@@ -693,7 +722,6 @@ CRITICAL: Output your final answer directly. You may think internally, but end w
                             {"role": "system", "content": enhanced_system},
                             {"role": "user", "content": user_prompt},
                         ],
-                        # Kimi/Thinking models often prefer higher temperature
                         options={"num_predict": max_tokens, "temperature": 1.0},
                     )
                     content = response["message"]["content"].strip()
@@ -1677,11 +1705,18 @@ class RAAServerContext:
             use_energy_aware_search=True,
             device=device,
         )
+
+        # Create LLM provider for COMPASS
+        from src.compass.adapters import RAALLMProvider
+        llm_provider = RAALLMProvider(model_name=self.workspace.config.compass_model)
+
         director = Director(
             manifold,
             director_cfg,
             embedding_fn=lambda text: torch.tensor(self.workspace._embed_text(text), device=device),
-            mcp_client=self
+            mcp_client=self,
+            continuity_service=self.workspace.continuity_service,
+            llm_provider=llm_provider
         )
 
         # Initialize Substrate Layer
@@ -2828,14 +2863,43 @@ Output JSON:
             context = arguments.get("context", "")
 
             # Use the dedicated analyzer class
-            # In the future, we can inject the ContinuityField from the context/integrator
-            analyzer = OrthogonalDimensionsAnalyzer(continuity_field=None)
+            # Inject ContinuityField from workspace
+            analyzer = OrthogonalDimensionsAnalyzer(continuity_field=ctx.workspace.continuity_field)
 
-            system_prompt = analyzer.SYSTEM_PROMPT
-            user_prompt = analyzer.construct_analysis_prompt(concept_a, concept_b, context)
+            # 1. Generate Vectors
+            # Use workspace embedding model
+            vector_a = ctx.workspace.embedding_model.encode(concept_a)
+            vector_b = ctx.workspace.embedding_model.encode(concept_b)
 
-            response = workspace._llm_generate(system_prompt, user_prompt)
-            return [TextContent(type="text", text=response)]
+            # 2. Analyze Vectors (Quantitative)
+            vector_analysis = analyzer.analyze_vectors(vector_a, vector_b)
+
+            # 3. Analyze Concepts (Qualitative - LLM)
+            prompt = analyzer.construct_analysis_prompt(concept_a, concept_b, context)
+
+            # Call LLM
+            response = ollama.chat(
+                model=ctx.workspace.config.llm_model,
+                messages=[
+                    {"role": "system", "content": analyzer.SYSTEM_PROMPT},
+                    {"role": "user", "content": prompt}
+                ],
+                options={"temperature": 1.0} # Analysis benefits from some creativity
+            )
+
+            analysis_text = response['message']['content']
+
+            # Combine results
+            result = {
+                "concepts": {
+                    "a": concept_a,
+                    "b": concept_b
+                },
+                "vector_analysis": vector_analysis,
+                "qualitative_analysis": analysis_text
+            }
+
+            return [TextContent(type="text", text=json.dumps(result, indent=2))]
 
         elif name == "set_intentionality":
             mode = arguments["mode"].lower()

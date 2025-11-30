@@ -60,6 +60,7 @@ class SLAPPipeline:
             Reasoning plan dictionary
         """
         self.logger.info(f"Creating SLAP reasoning plan (Type: {representation_type})")
+        self.logger.info(f"SLAP llm_provider: {'SET' if self.llm_provider else 'None'} (type: {type(self.llm_provider).__name__ if self.llm_provider else 'N/A'})")
 
         if not self.llm_provider:
             self.logger.warning("No LLM provider available for SLAP. Returning fallback plan.")
@@ -167,7 +168,8 @@ Perform the SLAP analysis and output valid JSON in this format:
                 return self._create_fallback_plan(task, representation_type)
 
         except Exception as e:
-            self.logger.error(f"Error in SLAP LLM execution: {e}")
+            self.logger.error(f"Error in SLAP LLM execution: {e}", exc_info=True)
+            self.logger.error(f"SLAP llm_provider type: {type(self.llm_provider)}")
             return self._create_fallback_plan(task, representation_type)
 
     def _create_fallback_plan(self, task: str, representation_type: str) -> Dict[str, Any]:

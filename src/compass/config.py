@@ -143,6 +143,9 @@ class IntegratedIntelligenceConfig:
     # Transfer learning
     delta_learning_factor: float = 0.1
 
+    # Tool usage
+    enable_tools: bool = False
+
 
 @dataclass
 class ConstraintGovernorConfig:

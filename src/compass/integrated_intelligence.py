@@ -90,6 +90,8 @@ class IntegratedIntelligence:
         intelligence_scores["neural"] = self._neural_intelligence(features)
 
         # 7. LLM Reasoning (if available)
+        # DEBUG: IntegratedIntelligence llm_provider = {self.llm_provider}
+        self.logger.info(f"IntegratedIntelligence: llm_provider is {'SET' if self.llm_provider else 'None'}")
         if self.llm_provider:
             llm_score, llm_action = await self._llm_intelligence(task, reasoning_plan, context)
             intelligence_scores["llm"] = llm_score
@@ -176,20 +178,25 @@ class IntegratedIntelligence:
         if not self.llm_provider:
             return 0.5, None
 
+        self.logger.info("IntegratedIntelligence._llm_intelligence called")
+
         try:
             # 1. Fetch available tools
             tools = []
             if self.mcp_client:
+                self.logger.info("Fetching tools from MCP client")
                 try:
                     from .mcp_tool_adapter import get_available_tools_for_llm
 
                     tools = await get_available_tools_for_llm(self.mcp_client)
+                    self.logger.info(f"Fetched {len(tools)} tools")
                 except ImportError:
                     self.logger.warning("Could not import mcp_tool_adapter")
                 except Exception as e:
                     self.logger.warning(f"Failed to fetch tools: {e}")
 
             # 2. Construct prompt
+            self.logger.info("Constructing LLM prompt")
             from .system_prompts import COMPASS_CORE_PROMPT
 
             system_prompt = COMPASS_CORE_PROMPT
@@ -247,8 +254,11 @@ class IntegratedIntelligence:
             response_content = ""
             tool_calls = []
 
+            self.logger.info(f"IntegratedIntelligence: Calling LLM with {len(tools) if tools else 0} tools")
+
             # We need to handle both text chunks and tool call chunks
-            async for chunk in self.llm_provider.chat_completion(messages, stream=False, temperature=0.3, max_tokens=4000, tools=tools if tools else None):
+            tools_to_use = tools if (tools and self.config.enable_tools) else None
+            async for chunk in self.llm_provider.chat_completion(messages, stream=False, temperature=0.3, max_tokens=4000, tools=tools_to_use):
                 try:
                     # Check if chunk is a tool call JSON
                     if chunk.strip().startswith('{"tool_calls":'):
@@ -312,7 +322,7 @@ class IntegratedIntelligence:
                 return 0.8, response_content if response_content else "LLM_EXECUTION_REQUIRED"
 
         except Exception as e:
-            self.logger.error(f"Error in LLM intelligence: {e}")
+            self.logger.error(f"Error in LLM intelligence: {e}", exc_info=True)
             return 0.5, f"Error: {str(e)}"
 
     def _generate_action(self, score: float, reasoning_plan: Dict, modules: List[int]) -> str:

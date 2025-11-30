@@ -7,7 +7,7 @@ by providing a temporal identity vector without requiring the Precuneus to be st
 """
 
 import logging
-from typing import Dict
+from typing import Any, Dict, Optional
 
 import numpy as np
 import torch
@@ -26,13 +26,15 @@ class ContinuityService:
     to rigorously track semantic drift.
     """
 
-    def __init__(self, work_history: WorkHistory, decay_factor: float = 0.9, embedding_dim: int = 64):
+    def __init__(self, work_history: WorkHistory, decay_factor: float = 0.9, embedding_dim: int = 64, continuity_field: Optional[ContinuityField] = None):
         self.work_history = work_history
         self.decay_factor = decay_factor
         self.embedding_dim = embedding_dim
 
         # Maintain a Continuity Field (Identity Manifold) for each agent
         self.fields: Dict[str, ContinuityField] = {}
+        if continuity_field:
+            self.fields["system"] = continuity_field
 
     def get_causal_signature(self, agent_id: str, dim: int = 64) -> torch.Tensor:
         """
@@ -79,16 +81,26 @@ class ContinuityService:
 
         return modulated_vector
 
-    def add_anchor(self, agent_id: str, vector: torch.Tensor) -> None:
+    def add_anchor(self, agent_id: str, vector: Any, metadata: Optional[Dict[str, Any]] = None) -> None:
         """
         Consolidate a state into the agent's Identity Manifold.
         Call this when the agent successfully completes a task or reaches a stable state.
         """
         if agent_id not in self.fields:
-            self.fields[agent_id] = ContinuityField(embedding_dim=vector.shape[0])
+            # If passing numpy array, get dim from shape
+            dim = vector.shape[0]
+            self.fields[agent_id] = ContinuityField(embedding_dim=dim)
 
-        self.fields[agent_id].add_anchor(vector.detach().cpu().numpy())
+        # Handle both Tensor and numpy array
+        if hasattr(vector, "detach"):
+             vec_np = vector.detach().cpu().numpy()
+        else:
+             vec_np = vector
+
+        self.fields[agent_id].add_anchor(vec_np)
         logger.info(f"Added anchor to Continuity Field for agent {agent_id}")
+        if metadata:
+            logger.info(f"Anchor metadata: {metadata}")
 
     def _calculate_heuristic_vector(self, agent_id: str, dim: int) -> torch.Tensor:
         """

@@ -48,7 +48,7 @@ class COMPASSOrchestrator:
         # Phase 1: Initialize oMCD only
         self.omcd = oMCDController(self.config.omcd)
 
-        print("[COMPASS] Orchestrator initialized (Phase 1: oMCD resource allocation)")
+        # print("[COMPASS] Orchestrator initialized (Phase 1: oMCD resource allocation)")
 
     def allocate_resources(
         self,

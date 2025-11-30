@@ -473,7 +473,8 @@ class Timer:
         if self.logger:
             self.logger.info(message)
         else:
-            print(message)
+            # print(message)
+            pass
 
     @property
     def elapsed(self) -> float:

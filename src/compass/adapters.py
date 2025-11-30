@@ -1,12 +1,9 @@
-
 """
 Adapters for integrating COMPASS with RAA infrastructure.
 """
 import logging
 from dataclasses import dataclass
-from typing import Any, AsyncGenerator, Dict, List, Optional, Union
-
-import ollama
+from typing import Any, AsyncGenerator, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -20,8 +17,9 @@ class RAALLMProvider:
     """
     Adapter for RAA's LLM (Ollama) to be used by COMPASS.
     """
-    def __init__(self, model_name: str = "kimi-k2-thinking:cloud"):
-        self.model_name = model_name
+    def __init__(self, model_name: Optional[str] = None):
+        import os
+        self.model_name = model_name or os.getenv("COMPASS_MODEL", "kimi-k2-thinking:cloud")
 
     async def chat_completion(
         self,
@@ -32,14 +30,38 @@ class RAALLMProvider:
         tools: Optional[List[Dict]] = None
     ) -> AsyncGenerator[str, None]:
         """
-        Chat completion wrapper for Ollama.
+        Chat completion wrapper for Ollama using AsyncClient.
         """
         # Convert messages to Ollama format
         ollama_messages = [{"role": m.role, "content": m.content} for m in messages]
 
         try:
-            # Note: Ollama python client is synchronous for now unless using AsyncClient
-            # But COMPASS expects an async generator. We will simulate it.
+            # Use Ollama's AsyncClient for proper async support
+            from ollama import AsyncClient
+
+            logger.info(f"RAALLMProvider: Creating AsyncClient for model {self.model_name}")
+            client = AsyncClient()
+
+            # DEBUG: Print exact tools format being passed
+            import json
+            import sys
+
+            # Force flush and write to file
+            debug_msg = f"\n==== DEBUG: RAALLMProvider call at {__import__('datetime').datetime.now()} ====\n"
+            debug_msg += f"Model: {self.model_name}\n"
+            debug_msg += f"Messages count: {len(ollama_messages)}\n"
+            debug_msg += f"Tools provided: {tools is not None}\n"
+            if tools:
+                debug_msg += f"Tools count: {len(tools)}\n"
+            debug_msg += "="*50 + "\n"
+
+            # Write to file AND stdout
+            with open("/tmp/compass_llm_calls.log", "a") as f:
+                f.write(debug_msg)
+                f.flush()
+            # print(debug_msg, flush=True)
+            sys.stdout.flush()
+
 
             # If tools are provided, we should pass them (Ollama supports tools)
             options = {
@@ -47,16 +69,19 @@ class RAALLMProvider:
                 "num_predict": max_tokens
             }
 
-            # Call Ollama
-            response = ollama.chat(
+            logger.info(f"RAALLMProvider: Calling client.chat with {len(ollama_messages)} messages, stream=True, tools={'provided' if tools else 'None'}")
+            # Call Ollama with async client
+            response = await client.chat(
                 model=self.model_name,
                 messages=ollama_messages,
                 options=options,
                 tools=tools if tools else None,
-                stream=True # We stream to yield chunks
+                stream=True  # We stream to yield chunks
             )
 
-            for chunk in response:
+            logger.info("RAALLMProvider: Successfully received response generator")
+
+            async for chunk in response:
                 logger.info(f"Raw chunk: {chunk}")
                 # Handle tool calls if present in chunk
                 # Ollama streaming response format:
@@ -109,13 +134,16 @@ class RAALLMProvider:
                             # Fallback: try vars() or str()
                             try:
                                 serializable_tool_calls.append(vars(tc))
-                            except:
+                            except Exception:
                                 serializable_tool_calls.append(str(tc))
 
                     yield json.dumps({"tool_calls": serializable_tool_calls})
 
         except Exception as e:
-            logger.error(f"Error in RAALLMProvider: {e}")
+            # logger.error(f"Error in RAALLMProvider: {e}", exc_info=True)
+            with open("/tmp/ollama_exception.log", "w") as f:
+                import traceback
+                traceback.print_exc(file=f)
             yield f"Error: {str(e)}"
 
 # Mock MCP Client for now, or implement if needed

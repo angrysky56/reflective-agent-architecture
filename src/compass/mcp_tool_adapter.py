@@ -6,6 +6,29 @@ import json
 from typing import Any, Dict, List, Tuple
 
 
+def _validate_schema(schema: Dict) -> bool:
+    """
+    Validate that a tool schema is compatible with Ollama/OpenAI.
+    """
+    try:
+        # 1. Must be an object type
+        if schema.get("type") != "object":
+            return False
+
+        # 2. Must have properties dict (can be empty)
+        if not isinstance(schema.get("properties", {}), dict):
+            return False
+
+        # 3. Check for specific problematic patterns
+        # Some MCP tools might use "anyOf" or "oneOf" at top level which Ollama struggles with
+        if "anyOf" in schema or "oneOf" in schema:
+            # Simple check - if it's complex, skip for now to be safe
+            return False
+
+        return True
+    except Exception:
+        return False
+
 async def get_available_tools_for_llm(mcp_client: Any) -> List[Dict]:
     """
     Get available tools in a format suitable for LLM calling.
@@ -26,6 +49,11 @@ async def get_available_tools_for_llm(mcp_client: Any) -> List[Dict]:
 
         llm_tools = []
         for tool in mcp_tools:
+            # Validate schema first
+            if not _validate_schema(tool.inputSchema):
+                # Skipping tool invalid_tool: Invalid or complex schema
+                continue
+
             # Convert MCP Tool to OpenAI format
             # MCP Tool has: name, description, inputSchema
             llm_tool = {
@@ -42,7 +70,7 @@ async def get_available_tools_for_llm(mcp_client: Any) -> List[Dict]:
 
     except Exception as e:
         # Fallback or log error
-        print(f"Error fetching tools: {e}")
+        # Error fetching tools: {e}
         return []
 
 def format_tool_call_for_mcp(tool_call: Dict) -> Tuple[str, Dict]:

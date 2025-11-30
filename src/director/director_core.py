@@ -12,12 +12,15 @@ This is the Phase 1 (MVP) implementation following SEARCH_MECHANISM_DESIGN.md.
 
 import logging
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, Optional
+from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
 
 import torch
 
 from src.compass.adapters import RAALLMProvider
 from src.compass.compass_framework import COMPASS
+
+if TYPE_CHECKING:
+    from src.integration.continuity_service import ContinuityService
 
 from .entropy_monitor import EntropyMonitor
 from .hybrid_search import HybridSearchConfig, HybridSearchStrategy
@@ -76,7 +79,9 @@ class DirectorMVP:
         manifold,
         config: Optional[DirectorConfig] = None,
         embedding_fn: Optional[Callable[[str], torch.Tensor]] = None,
-        mcp_client: Optional[Any] = None
+        mcp_client: Optional[Any] = None,
+        continuity_service: Optional["ContinuityService"] = None,
+        llm_provider: Optional[Any] = None,
     ):
         """
         Initialize Director.
@@ -86,10 +91,12 @@ class DirectorMVP:
             config: Director configuration
             embedding_fn: Function to embed text for LTN constraints
             mcp_client: Optional MCP client for tool execution
+            continuity_service: Optional ContinuityService for anchoring milestones
         """
         self.manifold = manifold
         self.config = config or DirectorConfig()
         self.mcp_client = mcp_client
+        self.continuity_service = continuity_service
 
         # Entropy monitor
         self.monitor = EntropyMonitor(
@@ -139,7 +146,9 @@ class DirectorMVP:
 
         # 5. COMPASS Framework (Metacognitive Orchestration)
         # Initialize with RAA LLM adapter and MCP client
-        self.compass = COMPASS(llm_provider=RAALLMProvider(), mcp_client=self.mcp_client)
+        # Use provided llm_provider or create default
+        _llm_provider = llm_provider if llm_provider is not None else RAALLMProvider()
+        self.compass = COMPASS(llm_provider=_llm_provider, mcp_client=self.mcp_client)
 
         # Cognitive State
         self.latest_cognitive_state: tuple[str, float] = ("Unknown", 0.0)
@@ -281,20 +290,89 @@ class DirectorMVP:
 
         # ------------------------------------------
 
-        # Step 2: Check if intervention needed
-        if not is_clash:
+        # Step 2: Check if intervention needed and perform search
+        new_goal = None
+        if is_clash:
+            logger.info(
+                f"Clash detected! Entropy={entropy_value:.3f} > "
+                f"threshold={self.monitor.get_threshold():.3f}"
+            )
+
+            # --- ADAPTIVE BETA LOGIC ---
+            # Store original beta to reset it after search
+            original_beta = self.manifold.beta
+            search_result = None
+
+            try:
+                # Step 3: Compute adaptive beta based on confusion (entropy)
+                # Let compute_adaptive_beta calculate max_entropy internally
+                adaptive_beta = self.manifold.compute_adaptive_beta(
+                    entropy=entropy_value, max_entropy=None
+                )
+
+                logger.info(
+                    f"Setting adaptive beta: {adaptive_beta:.3f} (original: {original_beta:.3f}, "
+                    f"entropy: {entropy_value:.3f})"
+                )
+
+                # Temporarily set the manifold's beta for this search
+                self.manifold.set_beta(adaptive_beta)
+
+                # Add adaptive beta to context for logging
+                context["adaptive_beta"] = adaptive_beta
+                context["original_beta"] = original_beta
+
+                # Step 4: Search for alternative using the adaptive beta
+                search_result = self.search(current_state, context)
+
+            except Exception as e:
+                logger.error(f"Search with adaptive beta failed: {e}")
+                # The 'finally' block will still run to clean up beta
+            finally:
+                # Step 5: CRITICAL - Reset beta to its original value
+                # This ensures the next generation step doesn't use the temporary exploratory beta
+                logger.debug(f"Resetting beta to original value: {original_beta:.3f}")
+                self.manifold.set_beta(original_beta)
+
+            # --- END ADAPTIVE BETA LOGIC ---
+
+            if search_result is None:
+                logger.warning("Search failed to find alternative")
+                return None
+
+            # Step 6: Return new goal
+            new_goal = search_result.best_pattern
+
+            logger.info(
+                f"Search successful. Selected neighbor with score={search_result.selection_score:.3f}"
+            )
+
+            # Anchor this milestone (Continuity)
+            if self.continuity_service:
+                try:
+                    # Convert tensor to numpy for continuity service
+                    state_np = new_goal.cpu().numpy() if isinstance(new_goal, torch.Tensor) else new_goal
+                    # Ensure it's 1D or flatten it
+                    if len(state_np.shape) > 1:
+                        state_np = state_np.flatten()
+
+                    self.continuity_service.add_anchor(
+                        agent_id="system",
+                        vector=state_np,
+                        metadata={
+                            "type": "intervention",
+                            "trigger": "clash",
+                            "entropy": float(entropy_value),
+                            "source": "director_search"
+                        }
+                    )
+                    logger.info("Anchored new goal state in Continuity Field.")
+                except Exception as e:
+                    logger.warning(f"Failed to anchor state: {e}")
+        else:
             logger.debug(f"No clash detected (entropy={entropy_value:.3f})")
             return None
 
-        logger.info(
-            f"Clash detected! Entropy={entropy_value:.3f} > "
-            f"threshold={self.monitor.get_threshold():.3f}"
-        )
-
-        # --- ADAPTIVE BETA LOGIC ---
-        # Store original beta to reset it after search
-        original_beta = self.manifold.beta
-        search_result = None
 
         try:
             # Step 3: Compute adaptive beta based on confusion (entropy)
