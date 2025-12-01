@@ -32,6 +32,11 @@ The root source directory.
 *   **`slap_pipeline.py`**: **Reasoning Pipeline** - Implements the Semantic Logic Auto Progressor (SLAP), generating 8-stage reasoning plans (Conceptualization to Formalization) via LLM.
 *   **`smart_planner.py`**: **Objective Management** - Generates and validates SMART (Specific, Measurable, Achievable, Relevant, Time-bound) objectives for tasks.
 *   **`omcd_controller.py`**: **Resource Optimization** - Optimizes cognitive resource allocation using MDP, balancing confidence benefits against effort costs.
+*   **`governance/`**: **Meta-System Governance** - Enforces the Triadic Kernel axioms and validates actions against the Meta-Graph.
+    *   `__init__.py`: Facade for the module, exposing `MetaSystemVerifier`.
+    *   `ontology.py`: Manages the Ontological Graph structure and bootstrapping.
+    *   `verification.py`: Implements `ConstitutionalGuard` for action verification and intrinsic motivation metrics.
+    *   `amendment.py`: Manages constitutional amendments and semantic validation.
 
 ### `src/director` (Metacognition & Control)
 *   **`director_core.py`**: **Director Loop** - The central loop for Phase 1 MVP. Monitors entropy (confusion) from the Processor, detects clashes, computes adaptive beta for exploration, and triggers Manifold search for alternative goal framings.

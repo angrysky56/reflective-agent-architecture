@@ -5,7 +5,11 @@
     "role": "Orchestrator",
     "description": "Standard COMPASS reasoning capabilities.",
     "system_prompt": "You are COMPASS, an advanced cognitive architecture. Solve the user's task using your available tools and reasoning modules.",
-    "tools": [],
+    "tools": [
+      "amend_constitution",
+      "verify_agency_coherence",
+      "verify_diamond_alignment"
+    ],
     "knowledge_paths": []
   },
   {

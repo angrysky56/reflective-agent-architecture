@@ -226,6 +226,21 @@ class CognitiveWorkspace:
         """Cleanup connections"""
         self.neo4j_driver.close()
 
+    def read_query(self, query: str, params: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+        """
+        Execute a read-only Cypher query.
+        """
+        with self.neo4j_driver.session() as session:
+            result = session.run(query, params or {})
+            return [dict(record) for record in result]
+
+    def write_query(self, query: str, params: dict[str, Any] | None = None) -> None:
+        """
+        Execute a write Cypher query.
+        """
+        with self.neo4j_driver.session() as session:
+            session.run(query, params or {})
+
     def _initialize_gen3_schema(self):
         """
         Initialize Gen 3 architecture enhancements in Neo4j.

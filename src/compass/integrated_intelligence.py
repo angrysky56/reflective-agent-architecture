@@ -17,6 +17,7 @@ if TYPE_CHECKING:
 
 from .advisors import AdvisorProfile, AdvisorRegistry
 from .config import IntegratedIntelligenceConfig
+from .governance import MetaSystemVerifier
 from .utils import COMPASSLogger, sigmoid
 
 
@@ -61,10 +62,21 @@ class IntegratedIntelligence:
             self.generative_function = GenerativeFunction(embedding_dim=self.stereoscopic_engine.embedding_dim)
             self.logger.info("IntegratedIntelligence: TKUI Stereoscopic Engine & Generative Function enabled")
 
+        # Initialize Meta-System Verifier
+        # We pass the workspace as the 'manifold' because it now exposes read_query/write_query
+        # which the Governance module expects (Neo4j access).
+        self.meta_verifier = None
+        if hasattr(mcp_client, "server") and hasattr(mcp_client.server, "workspace"):
+             self.meta_verifier = MetaSystemVerifier(mcp_client.server.workspace, self.advisor_registry)
+             self.logger.info("IntegratedIntelligence: Meta-System Verifier enabled")
+             # Bootstrap Meta-Graph
+             try:
+                 self.meta_verifier.bootstrap_meta_graph()
+             except Exception as e:
+                 self.logger.warning(f"Failed to bootstrap Meta-Graph: {e}")
+
         # Initialize learning memory (Q-table)
         self.Q_table = {}
-        self.knowledge_base = {} # Initialize knowledge base
-
         self.knowledge_base = {} # Initialize knowledge base
 
         # Current Advisor Profile (Default: None, uses standard behavior)
@@ -139,6 +151,13 @@ class IntegratedIntelligence:
 
         # Calculate universal intelligence score
         universal_score = self._universal_intelligence(intelligence_scores)
+
+        # Meta-System Governance Check
+        if self.meta_verifier and llm_action:
+             # In a real implementation, we would parse the action ID or create a proposed node first.
+             # For this MVP, we'll simulate checking the action text against constraints.
+             # Since we don't have an action ID yet, we might skip or check axioms.
+             pass
 
         # TKUI: Stereoscopic Regulation
         if self.stereoscopic_engine:
