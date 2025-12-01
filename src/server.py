@@ -2604,6 +2604,42 @@ RAA_TOOLS = [
             "required": ["belief", "evidence"]
         },
     ),
+    Tool(
+        name="create_advisor",
+        description="Create and register a new advisor with a specific persona and toolset.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "id": {"type": "string", "description": "Unique identifier for the advisor (e.g., 'socrates')"},
+                "name": {"type": "string", "description": "Display name of the advisor"},
+                "role": {"type": "string", "description": "Role description (e.g., 'Philosopher')"},
+                "description": {"type": "string", "description": "Detailed description of the advisor's purpose"},
+                "system_prompt": {"type": "string", "description": "The system prompt that defines the advisor's behavior"},
+                "tools": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "List of tool names available to this advisor"
+                }
+            },
+            "required": ["id", "name", "role", "description", "system_prompt"]
+        },
+    ),
+    Tool(
+        name="delete_advisor",
+        description="Delete an existing advisor by ID.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "id": {"type": "string", "description": "Unique ID of the advisor to delete"}
+            },
+            "required": ["id"]
+        },
+    ),
+    Tool(
+        name="list_advisors",
+        description="List all registered advisors and their capabilities.",
+        inputSchema={"type": "object", "properties": {}, "required": []},
+    ),
 ]
 
 
@@ -2757,6 +2793,16 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
                     "description": arguments.get("description"),
                 },
             )
+
+            # Advisor Learning: Associate new tool with current advisor
+            director = ctx.get_director()
+            if director and director.compass and director.compass.integrated_intelligence.current_advisor:
+                advisor = director.compass.integrated_intelligence.current_advisor
+                tool_name = arguments["tool_name"]
+                if tool_name not in advisor.tools:
+                    advisor.tools.append(tool_name)
+                    director.compass.advisor_registry.save_advisors()
+                    result["advisor_learning"] = f"Tool '{tool_name}' added to advisor '{advisor.name}'"
         elif name == "resolve_meta_paradox":
             # Metabolic Cost: Paradox Resolution is System 3 (10.0)
             if ctx.ledger:
@@ -2770,6 +2816,43 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
             result = workspace.resolve_meta_paradox(
                 conflict=arguments["conflict"]
             )
+        elif name == "create_advisor":
+            director = ctx.get_director()
+            if not director or not director.compass:
+                return [TextContent(type="text", text="Error: COMPASS framework not initialized")]
+
+            result = director.compass.integrated_intelligence.create_advisor(
+                id=arguments["id"],
+                name=arguments["name"],
+                role=arguments["role"],
+                description=arguments["description"],
+                system_prompt=arguments["system_prompt"],
+                tools=arguments.get("tools", [])
+            )
+            return [TextContent(type="text", text=result)]
+        elif name == "delete_advisor":
+            director = ctx.get_director()
+            if not director or not director.compass:
+                return [TextContent(type="text", text="Error: COMPASS framework not initialized")]
+
+            result = director.compass.integrated_intelligence.delete_advisor(
+                id=arguments["id"]
+            )
+            return [TextContent(type="text", text=result)]
+        elif name == "list_advisors":
+            director = ctx.get_director()
+            if not director or not director.compass:
+                return [TextContent(type="text", text="Error: COMPASS framework not initialized")]
+
+            advisors = director.compass.advisor_registry.advisors
+            result_lines = ["Available Advisors:"]
+            for advisor in advisors.values():
+                result_lines.append(f"- {advisor.name} ({advisor.id}): {advisor.role}")
+                result_lines.append(f"  Description: {advisor.description}")
+                result_lines.append(f"  Tools: {', '.join(advisor.tools)}")
+                result_lines.append("")
+
+            return [TextContent(type="text", text="\n".join(result_lines))]
         elif name == "recall_work":
             results = bridge.history.search_history(
                 query=arguments.get("query"),

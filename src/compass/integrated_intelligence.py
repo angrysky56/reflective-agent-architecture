@@ -15,6 +15,7 @@ from src.cognition.generative_function import GenerativeFunction
 if TYPE_CHECKING:
     from src.cognition.stereoscopic_engine import StereoscopicEngine
 
+from .advisors import AdvisorProfile, AdvisorRegistry
 from .config import IntegratedIntelligenceConfig
 from .utils import COMPASSLogger, sigmoid
 
@@ -32,7 +33,7 @@ class IntegratedIntelligence:
     - Neural activation
     """
 
-    def __init__(self, config: IntegratedIntelligenceConfig, logger: Optional[COMPASSLogger] = None, llm_provider: Optional[Any] = None, mcp_client: Optional[Any] = None, stereoscopic_engine: Optional["StereoscopicEngine"] = None):
+    def __init__(self, config: IntegratedIntelligenceConfig, logger: Optional[COMPASSLogger] = None, llm_provider: Optional[Any] = None, mcp_client: Optional[Any] = None, stereoscopic_engine: Optional["StereoscopicEngine"] = None, advisor_registry: Optional[AdvisorRegistry] = None):
         """
         Initialize Integrated Intelligence.
 
@@ -42,11 +43,13 @@ class IntegratedIntelligence:
             llm_provider: Optional LLM provider instance
             mcp_client: Optional MCP client instance
             stereoscopic_engine: Optional StereoscopicEngine instance for TKUI validation
+            advisor_registry: Optional AdvisorRegistry instance
         """
         self.config = config
         self.logger = logger or COMPASSLogger("IntegratedIntelligence")
         self.llm_provider = llm_provider
         self.mcp_client = mcp_client
+        self.advisor_registry = advisor_registry
 
         # TKUI Components
         self.stereoscopic_engine = stereoscopic_engine
@@ -62,7 +65,22 @@ class IntegratedIntelligence:
         self.Q_table = {}
         self.knowledge_base = {} # Initialize knowledge base
 
+        self.knowledge_base = {} # Initialize knowledge base
+
+        # Current Advisor Profile (Default: None, uses standard behavior)
+        self.current_advisor: Optional[AdvisorProfile] = None
+
         self.logger.info("Integrated Intelligence initialized")
+
+    def configure_advisor(self, profile: AdvisorProfile):
+        """
+        Configure Integrated Intelligence to embody a specific Advisor.
+
+        Args:
+            profile: The AdvisorProfile to adopt.
+        """
+        self.current_advisor = profile
+        self.logger.info(f"IntegratedIntelligence configured as Advisor: {profile.name} ({profile.role})")
 
     async def make_decision(self, task: str, reasoning_plan: Dict, modules: List[int], resources: Dict, context: Dict) -> Dict[str, Any]:
         """
@@ -252,11 +270,23 @@ class IntegratedIntelligence:
                     self.logger.error(f"Failed to fetch tools: {e}", exc_info=True)
 
 
+            # 1.5 Add Internal Tools (e.g., create_advisor)
+            if self.advisor_registry:
+                tools.append(self._get_create_advisor_tool_schema())
+                tools.append(self._get_delete_advisor_tool_schema())
+
+
+
             # 2. Construct prompt
             self.logger.info("Constructing LLM prompt")
             from .system_prompts import COMPASS_CORE_PROMPT
 
-            system_prompt = COMPASS_CORE_PROMPT
+            # Use Advisor's system prompt if configured, else default
+            if self.current_advisor:
+                system_prompt = self.current_advisor.system_prompt
+                self.logger.info(f"Using Advisor System Prompt: {self.current_advisor.name}")
+            else:
+                system_prompt = COMPASS_CORE_PROMPT
 
             if tools:
                 system_prompt += "\n\n**Tool Usage**:\nYou have access to tools. If the plan requires external actions (reading files, searching, etc.), USE THE TOOLS. Do not ask for permission if the tool is available."
@@ -314,7 +344,19 @@ class IntegratedIntelligence:
             self.logger.info(f"IntegratedIntelligence: Calling LLM with {len(tools) if tools else 0} tools")
 
             # We need to handle both text chunks and tool call chunks
-            tools_to_use = tools if (tools and self.config.enable_tools) else None
+            # Filter tools based on Advisor profile if active
+            tools_to_use = tools
+            if self.current_advisor and self.current_advisor.tools:
+                # Only allow tools listed in the advisor's profile
+                # Note: If profile.tools is empty, we might want to allow ALL or NONE.
+                # For now, if list is present, we filter. If empty/None, we allow all (or default).
+                # Let's assume if tools are specified, we restrict.
+                allowed_names = set(self.current_advisor.tools)
+                tools_to_use = [t for t in tools if t['function']['name'] in allowed_names]
+                self.logger.info(f"Advisor restricted tools to: {[t['function']['name'] for t in tools_to_use]}")
+
+            tools_to_use = tools_to_use if (tools_to_use and self.config.enable_tools) else None
+
             async for chunk in self.llm_provider.chat_completion(messages, stream=False, temperature=0.3, max_tokens=4000, tools=tools_to_use):
                 try:
                     # Check if chunk is a tool call JSON
@@ -393,6 +435,20 @@ class IntegratedIntelligence:
                         error_msg = f"Error executing tool {name}: {str(e)}"
                         self.logger.error(error_msg)
                         results.append(error_msg)
+
+                # Handle Internal Tools
+                for tool_call in tool_calls:
+                    name = tool_call["function"]["name"]
+                    if name == "create_advisor":
+                        import json
+                        args = json.loads(tool_call["function"]["arguments"])
+                        result = self.create_advisor(**args)
+                        results.append(f"Tool 'create_advisor' output: {result}")
+                    elif name == "delete_advisor":
+                        import json
+                        args = json.loads(tool_call["function"]["arguments"])
+                        result = self.delete_advisor(**args)
+                        results.append(f"Tool 'delete_advisor' output: {result}")
 
                 # Return tool results as the action
                 return 1.0, "\\n\\n".join(results)
@@ -483,3 +539,81 @@ class IntegratedIntelligence:
         self.Q_table.clear()
         self.knowledge_base.clear()
         self.logger.debug("Integrated Intelligence reset")
+
+    def _get_create_advisor_tool_schema(self) -> Dict:
+        """Get the schema for the create_advisor tool."""
+        return {
+            "type": "function",
+            "function": {
+                "name": "create_advisor",
+                "description": "Create and register a new specialized Advisor. Use this when the user needs a specific persona (e.g., 'Socrates', 'Python Expert') that doesn't exist yet.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "id": {"type": "string", "description": "Unique ID for the advisor (e.g., 'socrates')"},
+                        "name": {"type": "string", "description": "Display name (e.g., 'Socrates')"},
+                        "role": {"type": "string", "description": "Role description (e.g., 'Philosopher')"},
+                        "description": {"type": "string", "description": "Brief description of capabilities"},
+                        "system_prompt": {"type": "string", "description": "The system prompt that defines the advisor's behavior"},
+                        "tools": {"type": "array", "items": {"type": "string"}, "description": "List of tool names this advisor should have access to"}
+                    },
+                    "required": ["id", "name", "role", "description", "system_prompt"]
+                }
+            }
+        }
+
+    def _get_delete_advisor_tool_schema(self) -> Dict:
+        """Get the schema for the delete_advisor tool."""
+        return {
+            "type": "function",
+            "function": {
+                "name": "delete_advisor",
+                "description": "Delete an existing advisor by ID.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "id": {"type": "string", "description": "Unique ID of the advisor to delete"}
+                    },
+                    "required": ["id"]
+                }
+            }
+        }
+
+    def create_advisor(self, id: str, name: str, role: str, description: str, system_prompt: str, tools: List[str] = None) -> str:
+        """
+        Create and register a new advisor.
+        """
+        if not self.advisor_registry:
+            return "Error: Advisor Registry not available."
+
+        try:
+            profile = AdvisorProfile(
+                id=id,
+                name=name,
+                role=role,
+                description=description,
+                system_prompt=system_prompt,
+                tools=tools or []
+            )
+            self.advisor_registry.register_advisor(profile)
+            return f"Successfully created advisor: {name} ({role})"
+        except Exception as e:
+            self.logger.error(f"Failed to create advisor: {e}")
+            return f"Error creating advisor: {str(e)}"
+
+    def delete_advisor(self, id: str) -> str:
+        """
+        Delete an advisor.
+        """
+        if not self.advisor_registry:
+            return "Error: Advisor Registry not available."
+
+        try:
+            success = self.advisor_registry.remove_advisor(id)
+            if success:
+                return f"Successfully deleted advisor: {id}"
+            else:
+                return f"Error: Advisor {id} not found."
+        except Exception as e:
+            self.logger.error(f"Failed to delete advisor: {e}")
+            return f"Error deleting advisor: {str(e)}"

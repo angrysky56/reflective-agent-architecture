@@ -85,14 +85,21 @@ RAA synthesizes three active research frontiers:
 - **Integration**: Provides principled escalation criteria for System 3 (heavy compute)
 - **Source**: Based on ["Sheaf Cohomology of Linear Predictive Coding Networks" (Seely, 2025)](https://arxiv.org/abs/2511.11092)
 
-### 9. System 3 (Antifragile Agent Factory) - DESIGNED
-- **Concept**: A "Topological Immune System" that spawns specialized agents as antibodies against structural obstructions
-- **Function**: Translates mathematical diagnostics into agent archetypes:
-  - **Tension Loops** $\rightarrow$ Spawn **Debater Agents** (Behavioral Plasticity)
-  - **H1 Holes** $\rightarrow$ Spawn **Explorer Agents** (Architectural Plasticity)
-- **Lifecycle**: Asynchronous, ephemeral, and self-dissolving (retires when obstruction clears)
+### 9. System 3 (Antifragile Agent Factory) - IMPLEMENTED
+- **Concept**: A "Topological Immune System" that dynamically spawns specialized agents to resolve structural obstructions.
+- **Mechanism**:
+  - **Dynamic Persona Generation**: Uses LLMs to generate a specialized system prompt based on the specific obstruction context (e.g., "You are a Debater agent needed to resolve a tension loop...").
+  - **Escalation Trigger**: Automatically triggered by the Director when entropy or topological complexity exceeds critical thresholds.
+- **Lifecycle**: Asynchronous, ephemeral, and self-dissolving.
 
-### 10. Orthogonal Dimensions Framework (Crystallized Insight)
+### 10. Native Advisor System (Specialized Embodiment) - IMPLEMENTED
+- **Concept**: Allows the core system to "embody" specialized personas for prolonged tasks.
+- **Components**:
+  - **Advisor Registry**: Manages persistent profiles (e.g., "Deep Researcher", "Senior Engineer").
+  - **Auto-Selection**: The Executive Controller analyzes task intent and automatically selects the most appropriate advisor.
+  - **Dynamic Configuration**: Reconfigures the Integrated Intelligence (System Prompt + Tools) to match the selected advisor.
+
+### 11. Orthogonal Dimensions Framework (Crystallized Insight)
 - **Discovery**: "Understanding" (Causal) and "Compression" (Statistical) are **orthogonal dimensions**, not a linear spectrum.
 - **Tool**: `orthogonal_dimensions_analyzer`
 - **Mechanism**:
@@ -102,21 +109,21 @@ RAA synthesizes three active research frontiers:
 - **Implication**: Explains why systems can have high compression without understanding (Overfitting/Stochastic Parrots) or high understanding with low compression (Verbose Explanations).
 - **Control**: Use `set_intentionality(mode="optimization"|"adaptation")` to manually switch the agent's cognitive mode (Beta control).
 
-### 11. Stereoscopic Engine (Dual-Layer Dynamics) - NEW
+### 12. Stereoscopic Engine (Dual-Layer Dynamics) - NEW
 - **Function**: Orchestrates the interaction between the "Generative Function" (LLM/System 2) and the "Continuity Field" (System 1).
 - **Mechanism**:
     - **Parallax Check**: Compares the proposed intervention (Generative) with the historical identity (Continuity).
     - **Plasticity Gating**: Allows or rejects interventions based on the "Unconditioned Condition" (Code Length).
 - **Goal**: Ensures that new intelligence doesn't destabilize the agent's core identity.
 
-### 12. Plasticity Gate (Uncertainty-Based Filtering) - NEW
+### 13. Plasticity Gate (Uncertainty-Based Filtering) - NEW
 - **Function**: A dynamic filter that controls the learning rate and intervention acceptance.
 - **Logic**:
     - **High Uncertainty (Confusion)**: Gate OPENS (High Plasticity). The system is willing to learn and change.
     - **Low Uncertainty (Confidence)**: Gate CLOSES (Low Plasticity). The system relies on established patterns.
 - **Metric**: Uses "Code Length" (Compression) as a proxy for uncertainty.
 
-### 13. Continuity Field (Causal Identity) - NEW
+### 14. Continuity Field (Causal Identity) - NEW
 - **Function**: Maintains the agent's "Causal Identity" over time.
 - **Structure**: A topological field that maps causal signatures (invariants) to the Manifold.
 - **Role**: Acts as the "immune system" against catastrophic forgetting and identity drift.

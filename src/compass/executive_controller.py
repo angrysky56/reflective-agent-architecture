@@ -8,6 +8,7 @@ to manage goals, strategies, and continuous evaluation.
 
 from typing import Any, Dict, List, Optional
 
+from .advisors import AdvisorProfile, AdvisorRegistry
 from .config import ExecutiveControllerConfig, SelfDiscoverConfig, oMCDConfig
 from .omcd_controller import oMCDController
 from .self_discover_engine import SelfDiscoverEngine
@@ -20,7 +21,7 @@ class ExecutiveController:
     Acts as the central "brain" of the agent.
     """
 
-    def __init__(self, config: ExecutiveControllerConfig, omcd_config: oMCDConfig, self_discover_config: SelfDiscoverConfig, logger: Optional[COMPASSLogger] = None):
+    def __init__(self, config: ExecutiveControllerConfig, omcd_config: oMCDConfig, self_discover_config: SelfDiscoverConfig, advisor_registry: AdvisorRegistry, logger: Optional[COMPASSLogger] = None):
         """
         Initialize Executive Controller.
 
@@ -28,9 +29,12 @@ class ExecutiveController:
             config: Executive Controller configuration
             omcd_config: Configuration for oMCD
             self_discover_config: Configuration for Self-Discover
+            advisor_registry: Shared Advisor Registry
             logger: Optional logger
         """
         self.config = config
+        self.omcd_config = omcd_config
+        self.self_discover_config = self_discover_config
         self.logger = logger or COMPASSLogger("ExecutiveController")
 
         # Sub-controllers
@@ -42,7 +46,30 @@ class ExecutiveController:
         self.context: Dict[str, Any] = {}
         self.iteration_count: int = 0
 
+        # Shared Advisor Registry
+        self.advisor_registry = advisor_registry
+
         self.logger.info("Executive Controller initialized")
+
+    def select_advisor(self, task: str, shape_analysis: Dict) -> AdvisorProfile:
+        """
+        Select the most appropriate Advisor for the task.
+
+        Args:
+            task: The raw task description.
+            shape_analysis: The output from SHAPE processing (intent, concepts).
+
+        Returns:
+            Selected AdvisorProfile.
+        """
+        intent = shape_analysis.get("intent", "general")
+        concepts = shape_analysis.get("concepts", [])
+
+        # Use registry heuristic to pick advisor
+        advisor = self.advisor_registry.select_best_advisor(intent, concepts)
+
+        self.logger.info(f"Selected Advisor: {advisor.name} for intent '{intent}'")
+        return advisor
 
     def coordinate_iteration(self, task: str, current_state: Dict, context: Optional[Dict] = None) -> Dict[str, Any]:
         """

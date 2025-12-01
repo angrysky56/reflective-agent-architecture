@@ -119,5 +119,9 @@ class ExternalMCPManager:
             raise RuntimeError(f"Session for server '{server_name}' is not active")
 
         logger.info(f"Calling external tool '{name}' on server '{server_name}'")
-        result = await session.call_tool(name, arguments)
-        return result
+        try:
+            result = await session.call_tool(name, arguments)
+            return result
+        except Exception as e:
+            logger.error(f"Error calling tool '{name}' on server '{server_name}': {e}")
+            raise RuntimeError(f"External tool call failed: {e}") from e

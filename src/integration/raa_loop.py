@@ -13,6 +13,7 @@ import torch
 
 from ..director import Director, DirectorConfig
 from ..manifold import HopfieldConfig, Manifold
+from ..manifold.pattern_curriculum import initialize_manifold_patterns
 from ..pointer import Pointer, PointerConfig
 from ..processor import Processor, ProcessorConfig
 
@@ -366,4 +367,11 @@ def create_default_raa(
         device=device,
     )
 
-    return ReflectiveAgentArchitecture(config)
+    raa = ReflectiveAgentArchitecture(config)
+
+    # Cold Start Prevention: Initialize Manifold with prototype patterns if empty
+    if raa.manifold.num_patterns == 0:
+        logger.info("Manifold is empty. Initializing with prototype patterns (Cold Start Prevention).")
+        initialize_manifold_patterns(raa.manifold, strategy="prototype", num_patterns=100)
+
+    return raa

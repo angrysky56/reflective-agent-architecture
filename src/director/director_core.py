@@ -154,6 +154,15 @@ class DirectorMVP:
         _llm_provider = llm_provider if llm_provider is not None else RAALLMProvider()
         self.compass = COMPASS(llm_provider=_llm_provider, mcp_client=self.mcp_client)
 
+        # 6. Agent Factory (Dynamic Escalation)
+        # Initialize with the same LLM provider and MCP client executor
+        # Import here to avoid circular dependency
+        from src.integration.agent_factory import AgentFactory
+        self.agent_factory = AgentFactory(
+            llm_provider=_llm_provider,
+            tool_executor=self.mcp_client.call_tool if self.mcp_client else None
+        )
+
         # Cognitive State
         self.latest_cognitive_state: tuple[str, float] = ("Unknown", 0.0)
         self.latest_diagnostics: dict[str, Any] = {}
@@ -291,6 +300,24 @@ class DirectorMVP:
                 logger.warning("No running event loop. Skipping async COMPASS trigger.")
             except Exception as e:
                 logger.error(f"Failed to trigger COMPASS: {e}")
+
+        # --- Dynamic Agent Escalation ---
+        # If entropy is extremely high (e.g. > 2.5) or Sheaf Diagnostics recommend escalation
+        # we spawn a specialized agent.
+        if entropy_value > 2.5:
+            logger.warning(f"Critical Entropy ({entropy_value:.2f}). Triggering Dynamic Agent Escalation.")
+            import asyncio
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(self._escalate_to_agent(
+                    signal_type="High Entropy",
+                    context=f"Entropy: {entropy_value:.2f}. Processor is confused. Context: {str(context)[:200]}"
+                ))
+            except RuntimeError:
+                logger.warning("No running event loop. Skipping agent escalation.")
+            except Exception as e:
+                logger.error(f"Failed to trigger agent escalation: {e}")
+        # --------------------------------
 
         # ------------------------------------------
 
@@ -558,6 +585,29 @@ class DirectorMVP:
         """Reset Director state."""
         self.monitor.reset()
         self.search_episodes.clear()
+
+    async def _escalate_to_agent(self, signal_type: str, context: str) -> None:
+        """
+        Async helper to spawn and execute a specialized agent.
+        """
+        try:
+            logger.info(f"Escalating to specialized agent for {signal_type}...")
+
+            # 1. Spawn Agent (Generates Persona)
+            tool_name = await self.agent_factory.spawn_agent(signal_type, context)
+
+            # 2. Execute Agent
+            query = f"The system is stuck with {signal_type}. Please analyze the context and provide a new goal or framing to resolve the obstruction.\nContext: {context}"
+
+            result = await self.agent_factory.execute_agent(tool_name, {"query": query})
+
+            logger.info(f"Specialized Agent {tool_name} Result:\n{result}")
+
+            # TODO: Parse result to update goal automatically?
+            # For now, we just log it as a high-level intervention.
+
+        except Exception as e:
+            logger.error(f"Agent escalation failed: {e}")
 
     def __repr__(self) -> str:
         stats = self.get_statistics()

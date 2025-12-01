@@ -13,6 +13,7 @@ This is the main orchestrator that coordinates all subsystems:
 
 from typing import Any, Dict, List, Optional
 
+from .advisors import AdvisorRegistry
 from .config import COMPASSConfig, get_config
 from .constraint_governor import ConstraintGovernor
 from .executive_controller import ExecutiveController
@@ -62,13 +63,17 @@ class COMPASS:
         self.slap_pipeline = SLAPPipeline(self.config.slap, self.logger, llm_provider=self.llm_provider)
         self.omcd_controller = oMCDController(self.config.omcd, self.logger)
         self.self_discover_engine = SelfDiscoverEngine(self.config.self_discover, self.logger, llm_provider=self.llm_provider)
-        self.integrated_intelligence = IntegratedIntelligence(self.config.intelligence, self.logger, llm_provider=self.llm_provider, mcp_client=self.mcp_client)
+
+        # Initialize Shared Advisor Registry
+        self.advisor_registry = AdvisorRegistry()
+
+        self.integrated_intelligence = IntegratedIntelligence(self.config.intelligence, self.logger, llm_provider=self.llm_provider, mcp_client=self.mcp_client, advisor_registry=self.advisor_registry)
 
         # New: Constraint Governor
         self.constraint_governor = ConstraintGovernor(self.config.cgra.governor, self.logger)
 
         # New: Executive Controller
-        self.executive_controller = ExecutiveController(self.config.cgra.executive, self.config.omcd, self.config.self_discover, self.logger)
+        self.executive_controller = ExecutiveController(self.config.cgra.executive, self.config.omcd, self.config.self_discover, self.advisor_registry, self.logger)
 
         # Helper components
         self.representation_selector = RepresentationSelector(self.config.cgra.workspace, self.logger)
@@ -102,6 +107,14 @@ class COMPASS:
             if not self.constraint_governor.validate_step({"input": task_text}, {"phase": "input_validation"}):
                 self.logger.warning("Input validation failed constraints")
                 # Continue but note violation
+
+            # 3. Advisor Selection (Phase 2.5)
+            # Executive Controller selects the best Advisor based on SHAPE analysis
+            self.logger.info("Phase 2.5: Advisor Selection")
+            advisor_profile = self.executive_controller.select_advisor(task_text, shape_result)
+
+            # Configure Integrated Intelligence to embody this Advisor
+            self.integrated_intelligence.configure_advisor(advisor_profile)
 
             # 3. SMART Objectives
             self.logger.info("Phase 3: SMART Objectives")
