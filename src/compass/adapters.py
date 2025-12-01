@@ -37,13 +37,11 @@ class RAALLMProvider:
 
         try:
             # Use Ollama's AsyncClient for proper async support
-            from ollama import AsyncClient
+            from ollama import AsyncClient, ResponseError
+            from tenacity import before_sleep_log, retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
             logger.info(f"RAALLMProvider: Creating AsyncClient for model {self.model_name}")
             client = AsyncClient()
-
-
-
 
             # If tools are provided, we should pass them (Ollama supports tools)
             options = {
@@ -52,14 +50,32 @@ class RAALLMProvider:
             }
 
             logger.info(f"RAALLMProvider: Calling client.chat with {len(ollama_messages)} messages, stream=True, tools={'provided' if tools else 'None'}")
-            # Call Ollama with async client
-            response = await client.chat(
-                model=self.model_name,
-                messages=ollama_messages,
-                options=options,
-                tools=tools if tools else None,
-                stream=True  # We stream to yield chunks
+
+            # Define retry strategy for 429 errors
+            # Wait 2^x * 1 second between retries, up to 10 seconds max wait, for 5 attempts
+            @retry(
+                retry=retry_if_exception_type(ResponseError),
+                wait=wait_exponential(multiplier=1, min=2, max=10),
+                stop=stop_after_attempt(5),
+                before_sleep=before_sleep_log(logger, logging.WARNING)
             )
+            async def chat_with_retry():
+                return await client.chat(
+                    model=self.model_name,
+                    messages=ollama_messages,
+                    options=options,
+                    tools=tools if tools else None,
+                    stream=True
+                )
+
+            # Call Ollama with async client and retry logic
+            try:
+                response = await chat_with_retry()
+            except ResponseError as e:
+                if e.status_code == 429:
+                    yield f"Error: Rate limit exceeded (429) after retries. Please try again later."
+                    return
+                raise e
 
             logger.info("RAALLMProvider: Successfully received response generator")
 
