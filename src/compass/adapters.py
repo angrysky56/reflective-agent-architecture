@@ -165,6 +165,26 @@ class RAALLMProvider:
                 traceback.print_exc(file=f)
             yield f"Error: {str(e)}"
 
+    def _llm_generate(self, system_prompt: str, user_prompt: str) -> str:
+        """
+        Synchronous generation helper for simple text tasks.
+        Uses ollama.chat directly.
+        """
+        import ollama
+        try:
+            response = ollama.chat(
+                model=self.model_name,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                options={"temperature": 0.7}
+            )
+            return response["message"]["content"]
+        except Exception as e:
+            logger.error(f"RAALLMProvider generate error: {e}")
+            return f"Error generating text: {e}"
+
 # Mock MCP Client for now, or implement if needed
 class RAAMCPClient:
     """

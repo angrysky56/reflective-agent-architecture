@@ -146,6 +146,9 @@ class IntegratedIntelligenceConfig:
     # Tool usage
     enable_tools: bool = True  # Enable MCP tools for research and information gathering
 
+    # LLM Configuration
+    llm_model: str = field(default_factory=lambda: __import__("os").getenv("COMPASS_MODEL", "kimi-k2-thinking:cloud"))
+
 
 @dataclass
 class ConstraintGovernorConfig:

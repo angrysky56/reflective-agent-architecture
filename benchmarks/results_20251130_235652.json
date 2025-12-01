@@ -1,0 +1,38 @@
+[
+  {
+    "id": "hle_logic_1",
+    "category": "Logic",
+    "question": "If a formal system is consistent, can it prove its own consistency? Explain the implications of G\u00f6del's Second Incompleteness Theorem for an AI system attempting to fully verify its own code.",
+    "answer": "No result returned",
+    "status": "Success",
+    "duration": 16.920481,
+    "timestamp": "2025-11-30T23:55:47.629551"
+  },
+  {
+    "id": "hle_philosophy_1",
+    "category": "Philosophy",
+    "question": "Construct a synthesis between Moral Relativism and Moral Absolutism that avoids the pitfalls of both. Use the concept of 'Functional Morality' in your answer.",
+    "answer": "No result returned",
+    "status": "Success",
+    "duration": 18.55267,
+    "timestamp": "2025-11-30T23:56:06.182271"
+  },
+  {
+    "id": "hle_physics_1",
+    "category": "Physics",
+    "question": "Explain the 'Measurement Problem' in Quantum Mechanics using the 'Many-Worlds Interpretation' versus the 'Copenhagen Interpretation'. Which one offers a better framework for understanding an observer-dependent AI?",
+    "answer": "No result returned",
+    "status": "Success",
+    "duration": 23.875951,
+    "timestamp": "2025-11-30T23:56:30.058267"
+  },
+  {
+    "id": "hle_creative_1",
+    "category": "Creative Writing",
+    "question": "Write a short dialogue between a sentient AI and a Zen Master where the AI tries to prove it has a 'soul' using only recursive logic, and the Zen Master refutes it with a single koan.",
+    "answer": "No result returned",
+    "status": "Success",
+    "duration": 22.726382,
+    "timestamp": "2025-11-30T23:56:52.784689"
+  }
+]

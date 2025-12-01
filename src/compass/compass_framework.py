@@ -269,8 +269,15 @@ class COMPASS:
             # Create a summary of the trajectory
             steps_summary = []
             for step in trajectory.steps:
-                action = step.get("action", "Unknown action")
-                result = step.get("result", "No result")
+                if isinstance(step, tuple):
+                    plan, decision = step
+                    action = decision.get("action", "Unknown action")
+                    result = decision.get("result", "No result")
+                else:
+                    # Fallback for legacy or malformed steps
+                    action = step.get("action", "Unknown action")
+                    result = step.get("result", "No result")
+
                 # Truncate long results for the prompt
                 if isinstance(result, str) and len(result) > 500:
                     result = result[:500] + "..."
@@ -297,6 +304,16 @@ class COMPASS:
         except Exception as e:
             self.logger.error(f"Error generating final report: {e}")
             return f"Report generation failed. Raw Solution: {solution}"
+
+    def _llm_generate(self, system_prompt: str, user_prompt: str) -> str:
+        """
+        Generate text using LLM provider.
+        """
+        if self.llm_provider and hasattr(self.llm_provider, "_llm_generate"):
+            return self.llm_provider._llm_generate(system_prompt, user_prompt)
+
+        self.logger.error("No LLM provider available for text generation.")
+        return "Error: No LLM provider available."
 
     async def _execute_reasoning_step(self, task: str, plan: Dict, modules: List[int], resources: Dict, context: Optional[Dict]) -> Dict:
         """Execute a single reasoning step using Integrated Intelligence."""
