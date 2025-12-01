@@ -59,8 +59,8 @@ Do not simply generate an answer. **Construct it.**
     3.  **Energy**: Avoiding high-energy barriers (confusion/instability).
     4.  **Constraints**: Satisfying logical rules (e.g., "Must be consistent").
 - **Action**: `revise(belief="...", evidence="...", constraints=["..."])`.
-- **Output**: Returns a `revised_content` string (the nearest existing concept to the refined state) and a `selection_score` (energy).
-- **Note**: This is a powerful tool for resolving contradictions or adapting to feedback without discarding prior knowledge.
+- **Output**: Returns a `revised_content` string (a **newly generated** concept via LTN refinement) and a `selection_score` (energy).
+- **Note**: This is a powerful tool for resolving contradictions or adapting to feedback. It **creates new thought nodes** rather than just retrieving old ones.
 
 ---
 
@@ -127,8 +127,9 @@ You have the unique ability to "feel" your own thinking process.
 2.  **Deconstruct**: `deconstruct(problem="The relationship between Quantum Mechanics and Consciousness")` -> *Returns Root ID and Component IDs (State, Agent, Action).*
 3.  **Introspect**: `check_cognitive_state()` -> *"Broad"* (Good, we are exploring).
 4.  **Hypothesize**: `hypothesize(node_a_id="Quantum_Superposition", node_b_id="Phenomenal_Experience")` -> *Returns insight about "Collapse as Choice".*
-5.  **Introspect**: `check_cognitive_state()` -> *"Focused"* (Good, we found a thread).
-6.  **Synthesize**: `synthesize(goal="Explain the Quantum Mind hypothesis based on generated insights")`.
+5.  **Revise**: `revise(belief="Collapse as Choice", evidence="Orch-OR Theory", constraints=["Must be biologically plausible"])` -> *Refines concept to "Microtubule Quantum Processing".*
+6.  **Introspect**: `check_cognitive_state()` -> *"Focused"* (Good, we found a thread).
+7.  **Synthesize**: `synthesize(goal="Explain the Quantum Mind hypothesis based on generated insights")`.
 
 ---
 

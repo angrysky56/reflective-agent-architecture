@@ -62,6 +62,7 @@ class HybridSearchConfig:
     # Strategy selection
     enable_ltn_fallback: bool = True      # Use LTN when k-NN fails
     enable_waypoint_storage: bool = True  # Store LTN waypoints in Manifold
+    force_ltn: bool = False               # Skip k-NN and force LTN refinement
 
     # Validation
     require_sheaf_validation: bool = True  # Validate with Sheaf cohomology
@@ -148,7 +149,8 @@ class HybridSearchStrategy:
         current_state: torch.Tensor,
         evidence: Optional[torch.Tensor] = None,
         constraints: Optional[list[str]] = None,
-        context: Optional[dict] = None
+        context: Optional[dict] = None,
+        force_ltn: bool = False
     ) -> Optional[HybridSearchResult]:
         """
         Execute hybrid search with automatic strategy selection.
@@ -158,6 +160,7 @@ class HybridSearchStrategy:
             evidence: Optional target evidence embedding [D]
             constraints: Optional natural language constraints
             context: Optional context dict for logging
+            force_ltn: If True, skip k-NN and force LTN refinement
 
         Returns:
             HybridSearchResult if successful, None if all strategies failed
@@ -181,9 +184,18 @@ class HybridSearchStrategy:
             logger.info("=== Hybrid Search Started ===")
             logger.info(f"Evidence provided: {evidence is not None}")
             logger.info(f"Constraints: {len(constraints)}")
+            if force_ltn or self.config.force_ltn:
+                logger.info("Mode: Forced LTN (Skipping k-NN)")
 
         # === Stage 1: Try RAA k-NN Search ===
-        knn_result = self._try_knn_search(current_state, result)
+        # Skip if forced LTN
+        should_skip_knn = force_ltn or self.config.force_ltn
+
+        knn_result = None
+        if not should_skip_knn:
+            knn_result = self._try_knn_search(current_state, result)
+        else:
+            result.knn_failed_reason = "Skipped (Forced LTN)"
 
         if knn_result is not None:
             self.search_stats["knn_success"] += 1

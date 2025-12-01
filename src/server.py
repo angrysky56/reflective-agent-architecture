@@ -3189,7 +3189,8 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
                 current_state=belief_emb,
                 evidence=evidence_emb,
                 constraints=constraints,
-                context={"operation": "revise_tool"}
+                context={"operation": "revise_tool"},
+                force_ltn=True  # Force LTN refinement for revision
             )
 
             if result:
