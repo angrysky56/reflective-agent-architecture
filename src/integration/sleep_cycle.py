@@ -156,14 +156,46 @@ class SleepCycle:
                     content = result["content"]
 
                     # Generate a tool name (simple heuristic for now)
-                    tool_name = f"tool_{node_id[:8]}"
+                    # Use LLM to generate a descriptive name
+                    if self.workspace:
+                        try:
+                            prompt = (
+                                f"Suggest a short, descriptive snake_case name (max 3 words) and a brief description "
+                                f"for a cognitive tool derived from this thought: '{content}'. "
+                                f"Format: Name: <name> | Description: <desc>"
+                            )
+                            llm_response = self.workspace._llm_generate(
+                                system_prompt="You are a naming assistant for AI cognitive tools.",
+                                user_prompt=prompt
+                            )
+                            logger.info(f"Tool naming LLM response: {llm_response}")
+
+                            if "|" in llm_response:
+                                name_part, desc_part = llm_response.split("|", 1)
+                                tool_name = name_part.replace("Name:", "").strip()
+                                description = desc_part.replace("Description:", "").strip()
+                            else:
+                                logger.warning("LLM response did not match format 'Name: ... | Description: ...'")
+                                # Fallback: use numeric part of ID
+                                suffix = node_id.split("_")[-1]
+                                tool_name = f"tool_{suffix}"
+                                description = f"Crystallized from synthesis: {content[:50]}..."
+                        except Exception as e:
+                            logger.warning(f"Failed to generate tool name: {e}")
+                            suffix = node_id.split("_")[-1]
+                            tool_name = f"tool_{suffix}"
+                            description = f"Crystallized from synthesis: {content[:50]}..."
+                    else:
+                        suffix = node_id.split("_")[-1]
+                        tool_name = f"tool_{suffix}"
+                        description = f"Crystallized from synthesis: {content[:50]}..."
 
                     # Compress it
                     logger.info(f"Crystallizing node {node_id} into {tool_name}")
                     tool_result = self.workspace.compress_to_tool(
                         node_ids=[node_id],
                         tool_name=tool_name,
-                        description=f"Crystallized from synthesis: {content[:50]}..."
+                        description=description
                     )
 
                     return {

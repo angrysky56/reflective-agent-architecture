@@ -64,6 +64,10 @@ class DirectorConfig:
     # Hybrid Search
     hybrid_search_config: Optional[HybridSearchConfig] = None
 
+    # Adaptive Temperature
+    adaptive_temp_min: float = 0.2
+    adaptive_temp_max: float = 0.8
+
 
 class DirectorMVP:
     """
@@ -468,6 +472,37 @@ class DirectorMVP:
     def get_known_states(self) -> Dict[int, str]:
         """List all known cognitive states."""
         return self.matrix_monitor.state_labels.copy()
+
+    def get_adaptive_temperature(self) -> float:
+        """
+        Calculate adaptive temperature based on cognitive energy.
+
+        Logic:
+        - Low Energy (Stable) -> Low Temperature (Exploitation)
+        - High Energy (Unstable) -> High Temperature (Exploration)
+        """
+        _, energy = self.latest_cognitive_state
+
+        # Map Energy (-5.0 to 0.0) to (min_temp, max_temp)
+        # Energy is typically -5 (very stable) to 0 (very unstable)
+        # We want a sigmoid-like mapping or linear clamping
+
+        # Clamp energy to expected range
+        clamped_energy = max(-5.0, min(0.0, float(energy)))
+
+        # Normalize to 0.0 (stable) - 1.0 (unstable)
+        # -5 -> 0.0
+        # 0 -> 1.0
+        normalized_instability = (clamped_energy + 5.0) / 5.0
+
+        # Map to temp range
+        min_t = self.config.adaptive_temp_min
+        max_t = self.config.adaptive_temp_max
+
+        temperature = min_t + (max_t - min_t) * normalized_instability
+
+        logger.debug(f"Adaptive Temperature: {temperature:.2f} (Energy: {energy:.2f})")
+        return temperature
 
     def visualize_last_thought(self) -> str:
         """Get ASCII visualization of the last thought."""

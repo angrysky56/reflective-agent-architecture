@@ -33,21 +33,28 @@ import time
 from collections.abc import Sequence
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional
 
 import chromadb
 import numpy as np
 import ollama
 import torch
 from chromadb.config import Settings
+from dotenv import load_dotenv
 from mcp.server import Server
 from mcp.types import TextContent, Tool
+
+# Load environment variables from .env file
+load_dotenv()
+
 from neo4j import GraphDatabase
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sentence_transformers import SentenceTransformer
 
 from src.cognition.meta_validator import MetaValidator
+from src.compass.compass_framework import COMPASS
+from src.compass.executive_controller import ExecutiveController
 from src.compass.orthogonal_dimensions import OrthogonalDimensionsAnalyzer
 
 # RAA imports
@@ -1711,6 +1718,11 @@ class RAAServerContext:
             llm_provider=llm_provider
         )
 
+        # Wire Adaptive Temperature Control
+        # Allow LLM provider to query Director for energy-based temperature
+        llm_provider.set_dynamic_temperature_fn(director.get_adaptive_temperature)
+        logger.info("Wired Adaptive Temperature Control (Director -> LLMProvider)")
+
         # Initialize Substrate Layer
         # Start with 1000.0 Joules
         initial_energy = EnergyToken(Decimal("1000.0"), "joules")
@@ -2132,6 +2144,8 @@ Output JSON:
             meta_prompt = (
                 f"You are a reflective agent. Based on your recent history:\n{history_summary}\n"
                 f"And your current state: {state} (Energy: {energy:.2f})\n"
+                "Note: 'Energy' refers to Hopfield Network Energy. Lower (more negative) values indicate stability and convergence. "
+                "Higher values (closer to 0 or positive) indicate instability, confusion, or active exploration.\n"
                 "Provide a brief, first-person meta-commentary on your current thought process."
             )
             meta_commentary = self.workspace._llm_generate(
@@ -2879,6 +2893,8 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
             meta_prompt = (
                 f"You are a reflective agent. Based on your recent history:\n{history_summary}\n"
                 f"And your current state: {state} (Energy: {energy:.2f})\n"
+                "Note: 'Energy' refers to Hopfield Network Energy. Lower (more negative) values indicate stability and convergence. "
+                "Higher values (closer to 0 or positive) indicate instability, confusion, or active exploration.\n"
                 "Provide a brief, first-person meta-commentary on your current thought process. "
                 "Are you stuck? Are you making progress? What should you do next?"
             )
