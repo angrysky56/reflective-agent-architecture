@@ -189,14 +189,23 @@ class RAALLMProvider:
 class RAAMCPClient:
     """
     Adapter for RAA's tool system to look like an MCP client.
+    Wraps the RAAServer instance to expose get_available_tools and call_tool.
     """
-    def __init__(self, workspace):
-        self.workspace = workspace
+    def __init__(self, server: Any):
+        self.server = server
+
+    def get_available_tools(self) -> List[Any]:
+        """Get available tools from the server."""
+        if hasattr(self.server, "get_available_tools"):
+            return self.server.get_available_tools()
+        logger.warning(f"RAAMCPClient: Server {type(self.server)} has no get_available_tools")
+        return []
 
     async def call_tool(self, name: str, arguments: Dict[str, Any]) -> Any:
-        """Execute a tool on the workspace."""
-        # This is a placeholder. RAA tools are methods on workspace or bridge.
-        # We might need to map tool names to methods.
-        logger.warning(f"Tool execution not fully implemented in adapter: {name}")
-        return f"Tool {name} executed (mock)"
+        """Execute a tool on the server."""
+        if hasattr(self.server, "call_tool"):
+            return await self.server.call_tool(name, arguments)
+
+        logger.error(f"RAAMCPClient: Server {type(self.server)} has no call_tool")
+        raise NotImplementedError(f"Server does not support call_tool: {type(self.server)}")
 

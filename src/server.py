@@ -1709,11 +1709,15 @@ class RAAServerContext:
         from src.compass.adapters import RAALLMProvider
         llm_provider = RAALLMProvider(model_name=self.workspace.config.compass_model)
 
+        # Create MCP Client Adapter
+        from src.compass.adapters import RAAMCPClient
+        mcp_client_adapter = RAAMCPClient(self)
+
         director = Director(
             manifold,
             director_cfg,
             embedding_fn=lambda text: torch.tensor(self.workspace._embed_text(text), device=device),
-            mcp_client=self,
+            mcp_client=mcp_client_adapter,
             continuity_service=self.workspace.continuity_service,
             llm_provider=llm_provider
         )
