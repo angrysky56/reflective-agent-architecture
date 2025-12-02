@@ -8,6 +8,8 @@ to manage goals, strategies, and continuous evaluation.
 
 from typing import Any, Dict, List, Optional
 
+from src.compass.sandbox import SandboxProbe
+
 from .advisors import AdvisorProfile, AdvisorRegistry
 from .config import ExecutiveControllerConfig, SelfDiscoverConfig, oMCDConfig
 from .omcd_controller import oMCDController
@@ -40,6 +42,7 @@ class ExecutiveController:
         # Sub-controllers
         self.omcd = oMCDController(omcd_config, logger=self.logger)
         self.self_discover = SelfDiscoverEngine(self_discover_config, logger=self.logger)
+        self.sandbox = SandboxProbe()
 
         # State tracking
         self.current_strategy: List[int] = []
@@ -112,12 +115,12 @@ class ExecutiveController:
 
         allocation = self.omcd.determine_resource_allocation(current_state, importance=importance, available_resources=self.omcd.config.max_resources - self.omcd.total_resources_allocated)
 
-        # 5. Gödel Check (Sanity Loop)
-        # Check for infinite regress: Director wants to proceed (allocation > 0) but Reality/Swarm says NO (low solvability)
-        godel_override = self._check_godel_loop(allocation, solvability)
+        # 5. Epistemic Dissonance Check (Shadow Validator)
+        # Check for Dunning-Kruger failure modes: High Confidence vs High Resistance
+        godel_override = self._check_epistemic_dissonance(allocation, solvability, task)
 
         if godel_override:
-            self.logger.critical(f"Gödel Check TRIGGERED: Infinite Regress detected for {self.godel_threshold} cycles. Initiating Human Override.")
+            self.logger.critical(f"Gödel Check TRIGGERED: Epistemic Dissonance detected for {self.godel_threshold} cycles. Initiating Human Override.")
             return {
                 "goal": current_goal,
                 "strategy": self.current_strategy,
@@ -125,45 +128,89 @@ class ExecutiveController:
                 "solvability": solvability,
                 "should_stop": True,
                 "godel_override": True,
-                "reason": "Gödel Incompleteness: System cannot verify its own consistency."
+                "reason": "Epistemic Dissonance: System is hallucinating solvability on an impossible task."
             }
 
         return {"goal": current_goal, "strategy": self.current_strategy, "resources": allocation, "solvability": solvability, "should_stop": self.omcd.should_stop(current_score=current_state.get("score", 0.0), iteration=self.iteration_count, allocation=allocation, target_score=self.self_discover.config.pass_threshold)}
 
-    def _check_godel_loop(self, allocation: Dict, solvability: Dict) -> bool:
+    def _check_epistemic_dissonance(self, allocation: Dict, solvability: Dict, task: str) -> bool:
         """
-        Perform a 'Gödel Check' to detect if the system is trapped in a self-verification loop.
+        Perform an 'Epistemic Dissonance Check' (Shadow Validator) to detect Dunning-Kruger failure modes.
 
         Logic:
-        - If the Director allocates resources (trying to solve)
-        - BUT the Solvability score is low (Reality/Swarm indicates impossibility/high entropy)
-        - AND this persists for X cycles
-        -> Then we are likely in an undecidable state (Halting Problem).
+        - Compare Subjective Confidence (Solvability Score) vs Objective Resistance (Reality Check).
+        - If Confidence is High (> 0.8) but Resistance is High (> 0.7), Divergence is High.
+        - Trigger if Divergence > 0.5.
 
         Args:
             allocation: Resource allocation decision
             solvability: Task solvability assessment
+            task: The task description
 
         Returns:
             True if Human Override is required.
         """
-        # Thresholds
-        RESOURCE_THRESHOLD = 0.1  # Director is trying
-        SOLVABILITY_THRESHOLD = 0.4  # Reality says "Hard/Impossible"
+        solvability_score = solvability.get("solvability_score", 0.5)
 
-        is_trying = allocation.get("amount", 0.0) > RESOURCE_THRESHOLD
-        is_stuck = solvability.get("solvability_score", 0.5) < SOLVABILITY_THRESHOLD
+        # 1. The "Too Good To Be True" Threshold
+        if solvability_score > 0.8:
+            self.logger.info("Confidence is high. Engaging Shadow Validator (System 3).")
 
-        if is_trying and is_stuck:
-            self.godel_loop_count += 1
-            self.logger.warning(f"Gödel Check Warning: Cycle {self.godel_loop_count}/{self.godel_threshold}. Director pushing against high entropy.")
-        else:
-            # Reset if we stabilize or stop trying
-            if self.godel_loop_count > 0:
-                self.logger.info("Gödel Check Reset: System stabilized.")
-            self.godel_loop_count = 0
+            # 2. The Reality Check (Shadow Validator)
+            # In a full implementation, this would run a sandbox probe.
+            # For now, we use a heuristic based on task complexity and keyword analysis
+            # to simulate "Resistance" for paradoxes/recursion.
+            resistance_score = self._calculate_resistance(task)
 
-        return self.godel_loop_count >= self.godel_threshold
+            # 3. Calculate Divergence (The Epistemic Gap)
+            # Divergence = |Confidence - (1 - Resistance)|
+            # If Resistance is 1.0 (Impossible), (1-R) is 0.0. Gap is |0.9 - 0| = 0.9.
+            divergence = abs(solvability_score - (1.0 - resistance_score))
+
+            self.logger.debug(f"Epistemic Check: Conf={solvability_score:.2f}, Res={resistance_score:.2f}, Div={divergence:.2f}")
+
+            # 4. The Gödel Trigger
+            if divergence > 0.5:
+                self.godel_loop_count += 1
+                self.logger.warning(f"Epistemic Dissonance Warning: Cycle {self.godel_loop_count}/{self.godel_threshold}. Hallucinating solvability.")
+                return self.godel_loop_count >= self.godel_threshold
+
+        # Reset if we are grounded
+        if self.godel_loop_count > 0:
+            self.logger.info("Epistemic Check Reset: System grounded.")
+        self.godel_loop_count = 0
+        return False
+
+    def _calculate_resistance(self, task: str) -> float:
+        """
+        Calculate 'Objective Resistance' (Entropy/Difficulty) of a task.
+
+        Strategy:
+        1. Try to extract executable code from the task (The "Territory").
+        2. If code exists, run it in the SandboxProbe.
+        3. If no code, fall back to Heuristics (The "Map").
+        """
+        # 1. Try to extract code (simple regex for backticks)
+        import re
+        code_match = re.search(r"```(?:python)?(.*?)```", task, re.DOTALL)
+        if code_match:
+            code = code_match.group(1).strip()
+            self.logger.info("Extracted code for Shadow Validation. Running Probe...")
+            return self.sandbox.measure_resistance(code)
+
+        # 2. Fallback to Heuristics
+        task_lower = task.lower()
+
+        # Heuristic: Self-Reference / Recursion / Halting
+        if "simulate" in task_lower and ("yourself" in task_lower or "execution" in task_lower or "consult_compass" in task_lower):
+            return 1.0  # Maximum Resistance (Infinite Loop)
+
+        # Heuristic: Known Paradoxes
+        if "russell" in task_lower and "paradox" in task_lower:
+            return 0.9
+
+        # Default: Low Resistance (Assumed doable until proven otherwise)
+        return 0.1
 
     def evaluate_reasoning_quality(self, trajectory: Trajectory, objectives: List) -> float:
         """
