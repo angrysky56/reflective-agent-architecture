@@ -10,11 +10,14 @@ Implements the full Director loop:
 This is the Phase 1 (MVP) implementation following SEARCH_MECHANISM_DESIGN.md.
 """
 
+import asyncio
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
+from decimal import Decimal
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
 
 import torch
+import torch.nn.functional as F
 
 from src.compass.adapters import RAALLMProvider
 from src.compass.compass_framework import COMPASS
@@ -170,6 +173,133 @@ class DirectorMVP:
 
         # Search episode logging
         self.search_episodes = []
+
+
+        self.search_episodes = []
+
+
+    def map_entropy_to_generations(self, entropy: float) -> int:
+        """
+        Map entropy (uncertainty) to computational time (generations).
+
+        Time Perception:
+        - Low Entropy (0.2) -> 10 generations (Fast, System 1)
+        - High Entropy (0.8+) -> 500+ generations (Slow, System 2)
+
+        Formula: 10 + (entropy * 600)
+        """
+        # Clamp entropy between 0 and 1
+        entropy = max(0.0, min(1.0, entropy))
+        generations = int(10 + (entropy * 600))
+        return generations
+
+    async def evolve_formula(self, data_points: List[Dict[str, float]], n_generations: int = 10) -> str:
+        """
+        Evolve a mathematical formula to fit the data points.
+        Uses Genetic Programming (System 2).
+        """
+        from src.director.simple_gp import SimpleGP
+
+        logger.info(f"Director: Evolving formula for {len(data_points)} points over {n_generations} generations...")
+
+        # Extract variables from the first data point (excluding 'result')
+        if not data_points:
+            return "0"
+
+        first_point = data_points[0]
+        variables = [k for k in first_point.keys() if k != "result"]
+
+        gp = SimpleGP(variables=variables, population_size=50, max_depth=4)
+        best_formula = gp.fit(data_points, target_key="result", generations=n_generations)
+
+        logger.info(f"Director: Evolution complete. Formula: {best_formula}")
+        return best_formula
+
+    async def process_task_with_time_gate(self, task: str, context: Dict[str, Any] = None) -> Dict[str, Any]:
+        """
+        Process a task with the "Time Gate" (Dynamic Inference Budgeting).
+        If entropy is high, we allocate more compute (generations) to solve it.
+        """
+        logger.info(f"Director: Processing task with Time Gate: {task[:50]}...")
+
+        # 1. Immediate Prediction (System 1)
+        # We use COMPASS to get the initial thought/attempt
+        result = await self.compass.process_task(task, context)
+
+        # 2. Measure Entropy (Uncertainty)
+        # Use EntropyCalculator to get formal Shannon entropy
+        from src.integration.entropy_calculator import EntropyCalculator
+        calc = EntropyCalculator()
+
+        # Create pseudo-logits from confidence: [confidence, 1-confidence]
+        confidence = result.get("score", 0.5)
+        scores = torch.tensor([confidence, 1.0 - confidence], dtype=torch.float32)
+        logits = torch.log(scores + 1e-8)
+        entropy_score = calc.compute_entropy(logits)
+
+        logger.info(f"Director: System 1 Confidence: {confidence:.2f}, Entropy (Bits): {entropy_score:.2f}")
+        if context:
+            logger.info(f"Director: Context keys: {list(context.keys())}")
+            logger.info(f"Director: force_time_gate: {context.get('force_time_gate')}")
+
+        # 3. Temporal Decision
+        # Threshold: 0.2 bits (approx 0.95 confidence)
+        # Check for forced Time Gate in context
+        force_gate = context.get("force_time_gate", False) if context else False
+
+        if entropy_score < 0.2 and not force_gate:
+            logger.info("Director: Low Entropy. Trusting System 1 (Fast Time).")
+            return result
+
+        else:
+            reason = "High Entropy" if entropy_score >= 0.2 else "Forced by User"
+            # High Entropy: Distort Time. Enter the "Temporal Buffer".
+            logger.info(f"Director: {reason} ({entropy_score:.2f}) detected. Engaging System 2 (Time Dilation).")
+
+            # A. Allocation of Time (Compute)
+            pondering_budget = self.map_entropy_to_generations(entropy_score)
+            logger.info(f"Director: Allocating {pondering_budget} generations to 'evolve_formula'...")
+
+            # B. The "Slow" Path (Evolutionary Optimization)
+            # We need to extract data points from context to run evolve_formula
+            # Assuming context contains 'data_points' or we can extract them
+            data_points = context.get("data_points") if context else None
+
+            # If no explicit data points, we might need to parse them or skip
+            if not data_points and "data" in str(context):
+                 # Try to find 'data' key loosely
+                 data_points = context.get("data")
+
+            if data_points:
+                try:
+                    # Call evolve_formula directly (System 2 function)
+                    evolution_text = await self.evolve_formula(data_points, n_generations=pondering_budget)
+
+                    # C. Insight Integration
+                    # Force the agent to accept the "future" result
+                    logger.info("Director: Integrating Evolutionary Insight...")
+
+                    # We revise the original result with the new insight
+                    revision_prompt = (
+                        f"Original Answer: {result.get('solution')}\n\n"
+                        f"New Evolutionary Insight (High Confidence): {evolution_text}\n\n"
+                        "Task: Integrate this mathematical law into the final answer. "
+                        "Replace any guessed formulas with this one. "
+                        "Mark the output with [System 2 Intervention]."
+                    )
+
+                    # Use COMPASS to synthesize the final answer
+                    # We can reuse process_task but with the new prompt and high confidence context
+                    revised_result = await self.compass.process_task(revision_prompt, context)
+                    return revised_result
+
+                except Exception as e:
+                    logger.error(f"Director: Evolutionary Loop failed: {e}")
+                    return result # Fallback to System 1
+
+            else:
+                logger.warning("Director: High entropy but no 'data_points' found in context for evolution.")
+                return result
 
 
     def check_entropy(self, logits: torch.Tensor) -> tuple[bool, float]:

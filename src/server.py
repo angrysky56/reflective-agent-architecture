@@ -3443,8 +3443,8 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
             task = arguments["task"]
             context = arguments.get("context", {})
 
-            # Run COMPASS process_task
-            result = await director.compass.process_task(task, context)
+            # Run COMPASS process_task with Time Gate (Dynamic Inference Budgeting)
+            result = await director.process_task_with_time_gate(task, context)
 
             # Return the clean Final Report if available, otherwise fallback to solution
             final_report = result.get("final_report", result.get("solution", str(result)))

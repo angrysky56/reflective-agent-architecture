@@ -85,6 +85,9 @@ class RAAMCPClient:
     def __init__(self, server: Any):
         self.server = server
 
+    def __repr__(self) -> str:
+        return f"<RAAMCPClient server={type(self.server)}>"
+
     def get_available_tools(self) -> List[Any]:
         """Get available tools from the server."""
         if hasattr(self.server, "get_available_tools"):
@@ -98,5 +101,6 @@ class RAAMCPClient:
             return await self.server.call_tool(name, arguments)
 
         logger.error(f"RAAMCPClient: Server {type(self.server)} has no call_tool")
+        raise AttributeError(f"Server {type(self.server)} has no call_tool")
         raise NotImplementedError(f"Server does not support call_tool: {type(self.server)}")
 
