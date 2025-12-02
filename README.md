@@ -122,7 +122,16 @@ RAA synthesizes three active research frontiers:
 - **Tool**: `revise`
 - **Mechanism**: Hybrid search combining Logic Tensor Networks (LTN) truth values and Hopfield energy minimization to refine beliefs against evidence and constraints.
 
-#### 7. Stereoscopic Engine (Dual-Layer Dynamics)
+#### 7. Evolutionary Optimization (Genetic Programming + Local Refinement)
+- **Tool**: `evolve_formula`
+- **Function**: Discovers symbolic mathematical formulas from data using Genetic Programming with optional hybrid local optimization.
+- **Mechanism**:
+  - **Population-Based Search**: Evolves expression trees with mutation and crossover across generations.
+  - **Rich Primitives**: Mathematical operations (sin, cos, tanh, abs, hypot) for complex pattern discovery.
+  - **Hybrid Mode**: Combines GP's structural search with Nelder-Mead local constant refinement for precise solutions.
+- **Applications**: Harmonic function recovery, symbolic regression, reverse-engineering physical laws.
+
+#### 8. Stereoscopic Engine (Dual-Layer Dynamics)
 - **Function**: Orchestrates interaction between the "Generative Function" (LLM) and the "Continuity Field" (System 1).
 - **Plasticity Gate**: A dynamic filter that controls learning rate based on uncertainty (Code Length). High uncertainty opens the gate (high plasticity); low uncertainty closes it.
 
@@ -134,9 +143,14 @@ RAA synthesizes three active research frontiers:
 2.  **Tripartite Manifold** retrieves from each domain (vmPFC, amPFC, dmPFC).
 3.  **Precuneus** fuses streams using Energy Gating (silencing high-energy confusion).
 4.  **Director** monitors entropy of the fused state → Detects "clash".
-5.  **If Clash**: Director suppresses current goal (adaptive beta) & searches Manifold.
+5.  **If Clash**: Director suppresses current goal- **Plasticity Gate**: A dynamic filter that controls learning rate based on uncertainty (Code Length). High uncertainty opens the gate (high plasticity); low uncertainty closes it.
 6.  **Pointer** updates with new goal.
 7.  **Processor** resumes with new framing → Success.
+
+#### 8. Epistemic Dissonance Trigger (Shadow Validator)
+- **Mechanism**: A negative feedback loop that detects "Dunning-Kruger Failure Modes" (High Confidence vs. High Resistance).
+- **Shadow Validator**: A `SandboxProbe` that empirically tests the agent's plans by executing code snippets in a secure process.
+- **Trigger**: Activates when Divergence ($\Delta = |C_s - (1 - R_o)|$) exceeds 0.5, forcing the agent to abandon "Delusional" linear models and adapt to higher-order complexity (e.g., Fourier Analysis).
 
 ---
 

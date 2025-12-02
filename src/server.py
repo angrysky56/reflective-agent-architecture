@@ -47,13 +47,6 @@ from mcp.types import TextContent, Tool
 
 # Load environment variables from .env file
 load_dotenv()
-
-import math
-import operator
-import random
-
-import numpy as np
-from deap import algorithms, base, creator, gp, tools
 from neo4j import GraphDatabase
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -66,6 +59,7 @@ from src.compass.orthogonal_dimensions import OrthogonalDimensionsAnalyzer
 
 # RAA imports
 from src.director import Director, DirectorConfig
+from src.director.simple_gp import SimpleGP
 from src.embeddings.base_embedding_provider import BaseEmbeddingProvider
 from src.embeddings.embedding_factory import EmbeddingFactory
 from src.integration.agent_factory import AgentFactory
@@ -88,92 +82,27 @@ from src.substrate import (
 )
 
 
-def evolve_formula_logic(data_points, n_generations=10):
+def evolve_formula_logic(data_points, n_generations=10, hybrid=False):
     """
     Uses Genetic Programming to evolve a symbolic formula that fits the data.
     data_points: List of dictionaries [{'x': 1, 'y': 2, 'result': 3}, ...]
+    hybrid: If True, uses Evolutionary Optimization (local refinement of constants).
     """
-    print("DEBUG: EVOLVE FORMULA LOGIC CALLED")
-    # 1. Define the Primitives (The "Instruction Set" from Fatmi's letter)
-    pset = gp.PrimitiveSet("MAIN", 3) # x, y, z
-    pset.renameArguments(ARG0='x', ARG1='y', ARG2='z')
-    pset.addPrimitive(operator.add, 2)
-    pset.addPrimitive(operator.sub, 2)
-    pset.addPrimitive(operator.mul, 2)
-    pset.addPrimitive(math.sin, 1)
-    pset.addPrimitive(math.cos, 1)
-    pset.addPrimitive(math.tanh, 1)
-    pset.addPrimitive(abs, 1)
-    pset.addPrimitive(math.hypot, 2)
+    print(f"DEBUG: EVOLVE FORMULA LOGIC CALLED (Hybrid={hybrid})")
 
-    # Fix pickling issue by using functools.partial instead of lambda
-    import functools
-    pset.addEphemeralConstant("rand101", functools.partial(random.randint, -5, 5))
+    # 1. Prepare Data
+    # SimpleGP expects list of dicts. We need to ensure target key is consistent.
+    # The input schema has 'result' as the target.
 
-    # 2. Define Fitness (Minimize Error / Entropy)
-    if not hasattr(creator, "FitnessMin"):
-        creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
-    if not hasattr(creator, "Individual"):
-        creator.create("Individual", gp.PrimitiveTree, fitness=creator.FitnessMin)
+    # 2. Initialize SimpleGP
+    # We support x, y, z variables as per schema
+    gp = SimpleGP(variables=['x', 'y', 'z'], population_size=100, max_depth=5)
 
-    toolbox = base.Toolbox()
-    toolbox.register("expr", gp.genHalfAndHalf, pset=pset, min_=1, max_=2)
-    toolbox.register("individual", tools.initIterate, creator.Individual, toolbox.expr)
-    toolbox.register("population", tools.initRepeat, list, toolbox.individual)
-    toolbox.register("compile", gp.compile, pset=pset)
+    # 3. Evolve
+    # SimpleGP.evolve returns (best_formula_str, best_error_float)
+    best_formula, best_error = gp.evolve(data_points, target_key='result', generations=n_generations, hybrid=hybrid)
 
-    # import sys
-    def evalSymbReg(individual):
-        # Transform the tree into a callable function
-        func = toolbox.compile(expr=individual)
-        sqerrors = []
-        for point in data_points:
-            try:
-                # Calculate prediction
-                result = func(point['x'], point['y'], point['z'])
-
-                # Check for invalid results (NaN, Inf, Complex)
-                if isinstance(result, complex) or math.isnan(result) or math.isinf(result):
-                    # sys.stderr.write(f"DEBUG: Invalid result for {individual}: {result}\n")
-                    sqerrors.append(1000.0)
-                    continue
-
-                # Calculate squared error vs truth
-                sqerrors.append((result - point['result'])**2)
-            except (ValueError, OverflowError, ZeroDivisionError, TypeError) as e:
-                # sys.stderr.write(f"DEBUG: Error evaluating {individual}: {e}\n")
-                sqerrors.append(1000.0) # Penalty for domain errors
-            except Exception as e:
-                # sys.stderr.write(f"DEBUG: Unexpected error evaluating {individual}: {e}\n")
-                sqerrors.append(1000.0) # Catch-all penalty
-
-        avg_error = math.fsum(sqerrors) / len(data_points)
-        # # Log to file to bypass any capture
-        # try:
-        #     with open("/tmp/evolve_debug.log", "a") as f:
-        #         if avg_error >= 1000.0:
-        #             f.write(f"FAIL: {individual} -> {avg_error}\n")
-        # except:
-        #     pass
-
-        return avg_error,
-
-    toolbox.register("evaluate", evalSymbReg)
-    toolbox.register("select", tools.selTournament, tournsize=3)
-    toolbox.register("mate", gp.cxOnePoint)
-    toolbox.register("mutate", gp.mutUniform, expr=toolbox.expr, pset=pset)
-
-    # 3. The Evolutionary Loop (The "Hive Mind" solving the Bandit)
-    pop = toolbox.population(n=300)
-    hof = tools.HallOfFame(1)
-
-    # Run the "generations" (Evolutionary Pipeline)
-    algorithms.eaSimple(pop, toolbox, 0.5, 0.1, n_generations, halloffame=hof, verbose=False)
-
-    best_formula = str(hof[0])
-    best_error = hof[0].fitness.values[0]
-
-    return f"Evolved Formula: {best_formula} | MSE: {best_error:.4f}"
+    return f"Evolved Formula: {best_formula} | MSE: {best_error:.4f} | Mode: {'Hybrid' if hybrid else 'Standard'}"
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -718,7 +647,7 @@ class CognitiveWorkspace:
             + "\n\nPattern:"
         )
 
-        return self._llm_generate(system_prompt, user_prompt, max_tokens=1000)
+        return self._llm_generate(system_prompt, user_prompt, max_tokens=16000)
 
     # ========================================================================
     # Gen 3 Architecture: Utility-Guided Exploration
@@ -851,7 +780,7 @@ class CognitiveWorkspace:
                 result = list(embedding)
             return result  # type: ignore[return-value]
 
-    def _llm_generate(self, system_prompt: str, user_prompt: str, max_tokens: int = 8000) -> str:
+    def _llm_generate(self, system_prompt: str, user_prompt: str, max_tokens: int = 16000) -> str:
         """
         Generate text using the configured LLM provider.
         """
@@ -1059,7 +988,7 @@ class CognitiveWorkspace:
             f"Decompose this problem into 2-50 logical sub-components:\n\n{text}\n\nComponents:"
         )
 
-        llm_output = self._llm_generate(system_prompt, user_prompt, max_tokens=2000)
+        llm_output = self._llm_generate(system_prompt, user_prompt, max_tokens=16000)
 
         # Parse numbered list into components
         components = []
@@ -1319,7 +1248,7 @@ class CognitiveWorkspace:
             f"Novel Connection:"
         )
 
-        return self._llm_generate(system_prompt, user_prompt, max_tokens=1000)
+        return self._llm_generate(system_prompt, user_prompt, max_tokens=16000)
 
     def _cosine_similarity(self, vec1: list[float], vec2: list[float]) -> float:
         """Calculate cosine similarity"""
@@ -1360,12 +1289,12 @@ class CognitiveWorkspace:
         )
 
         user_prompt = (
-            f"Content:\n{content[:2000]}\n\n"
+            f"Content:\n{content[:4000]}\n\n"
             f"Rule: {rule}\n\n"
             f"Does the content satisfy this rule?"
         )
 
-        llm_output = self._llm_generate(system_prompt, user_prompt, max_tokens=10)
+        llm_output = self._llm_generate(system_prompt, user_prompt, max_tokens=16000)
 
         # Parse LLM response (look for YES/NO)
         try:
@@ -1531,7 +1460,7 @@ class CognitiveWorkspace:
             "\n\nSynthesis:"
         )
 
-        return self._llm_generate(system_prompt, user_prompt, max_tokens=4000)
+        return self._llm_generate(system_prompt, user_prompt, max_tokens=16000)
 
     # ========================================================================
     # Cognitive Primitive 4: Constrain
@@ -2109,7 +2038,11 @@ Output JSON:
                     operation_name="evolve_formula"
                 ))
 
-            return evolve_formula_logic(arguments["data_points"], arguments.get("n_generations", 10))
+            return evolve_formula_logic(
+                arguments["data_points"],
+                arguments.get("n_generations", 10),
+                arguments.get("hybrid", False)
+            )
 
         elif name == "constrain":
             return bridge.execute_monitored_operation(
@@ -2492,6 +2425,11 @@ RAA_TOOLS = [
                     "type": "integer",
                     "description": "Number of evolutionary generations (default 10)",
                     "default": 10,
+                },
+                "hybrid": {
+                    "type": "boolean",
+                    "description": "If true, enables Evolutionary Optimization (local refinement of constants). Slower but more precise.",
+                    "default": False,
                 },
             },
             "required": ["data_points"],
@@ -2944,6 +2882,24 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
                     "rules": arguments["rules"],
                 },
             )
+
+        elif name == "evolve_formula":
+            # Metabolic Cost: Evolution is expensive (10.0)
+            if ctx.ledger:
+                from decimal import Decimal
+
+                from src.substrate import EnergyToken, MeasurementCost
+                ctx.ledger.record_transaction(MeasurementCost(
+                    energy=EnergyToken(Decimal("10.0"), "joules"),
+                    operation_name="evolve_formula"
+                ))
+
+            result = evolve_formula_logic(
+                arguments["data_points"],
+                arguments.get("n_generations", 10),
+                arguments.get("hybrid", False)
+            )
+
         elif name == "set_goal":
             goal_id = workspace.set_goal(
                 goal_description=arguments["goal_description"],

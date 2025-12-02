@@ -131,12 +131,15 @@ Perform the SLAP analysis and output valid JSON in this format:
         messages = [Message(role="system", content=system_prompt), Message(role="user", content=user_prompt)]
 
         try:
+            # Define tools_to_use for the LLM call (assuming no specific tools are needed for this SLAP plan generation)
+            tools_to_use = []
+
             # Call LLM
             response_content = ""
             self.logger.info("SLAP: About to call llm_provider.chat_completion")
 
             try:
-                async for chunk in self.llm_provider.chat_completion(messages, stream=False, temperature=0.4, max_tokens=4000):
+                async for chunk in self.llm_provider.chat_completion(messages, stream=False, temperature=0.3, max_tokens=16000, tools=tools_to_use):
                     response_content += chunk
                 self.logger.info(f"SLAP: LLM call completed, response length: {len(response_content)}")
             except Exception as iteration_error:

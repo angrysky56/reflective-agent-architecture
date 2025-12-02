@@ -25,7 +25,7 @@ class OpenAIProvider(BaseLLMProvider):
              else:
                  logger.warning("OpenAI API key not found. Please set OPENAI_API_KEY.")
 
-    def generate(self, system_prompt: str, user_prompt: str, max_tokens: int = 1000) -> str:
+    def generate(self, system_prompt: str, user_prompt: str, max_tokens: int = 16000) -> str:
         try:
             client = OpenAI(api_key=self.api_key, base_url=self.base_url)
             response = client.chat.completions.create(
@@ -47,7 +47,7 @@ class OpenAIProvider(BaseLLMProvider):
         messages: List[Message],
         stream: bool = False,
         temperature: float = 0.7,
-        max_tokens: int = 2000,
+        max_tokens: int = 16000,
         tools: Optional[List[Dict]] = None
     ) -> AsyncGenerator[str, None]:
 

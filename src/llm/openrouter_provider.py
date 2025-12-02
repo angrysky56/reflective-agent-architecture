@@ -23,7 +23,7 @@ class OpenRouterProvider(BaseLLMProvider):
         if not self.api_key:
             logger.warning("OpenRouter API key not found. Please set OPENROUTER_API_KEY.")
 
-    def generate(self, system_prompt: str, user_prompt: str, max_tokens: int = 1000) -> str:
+    def generate(self, system_prompt: str, user_prompt: str, max_tokens: int = 16000) -> str:
         try:
             extra_headers = {}
             if self.site_url:
@@ -56,7 +56,7 @@ class OpenRouterProvider(BaseLLMProvider):
         messages: List[Message],
         stream: bool = False,
         temperature: float = 0.7,
-        max_tokens: int = 2000,
+        max_tokens: int = 16000,
         tools: Optional[List[Dict]] = None
     ) -> AsyncGenerator[str, None]:
 

@@ -17,7 +17,7 @@ class AnthropicProvider(BaseLLMProvider):
         if not self.api_key:
             logger.warning("Anthropic API key not found. Please set ANTHROPIC_API_KEY.")
 
-    def generate(self, system_prompt: str, user_prompt: str, max_tokens: int = 1000) -> str:
+    def generate(self, system_prompt: str, user_prompt: str, max_tokens: int = 16000) -> str:
         try:
             client = Anthropic(api_key=self.api_key)
             response = client.messages.create(
@@ -39,7 +39,7 @@ class AnthropicProvider(BaseLLMProvider):
         messages: List[Message],
         stream: bool = False,
         temperature: float = 0.7,
-        max_tokens: int = 2000,
+        max_tokens: int = 16000,
         tools: Optional[List[Dict]] = None
     ) -> AsyncGenerator[str, None]:
 

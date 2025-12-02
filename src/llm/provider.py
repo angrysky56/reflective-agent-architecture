@@ -12,7 +12,7 @@ class BaseLLMProvider(ABC):
     """Abstract base class for LLM providers."""
 
     @abstractmethod
-    def generate(self, system_prompt: str, user_prompt: str, max_tokens: int = 1000) -> str:
+    def generate(self, system_prompt: str, user_prompt: str, max_tokens: int = 16000) -> str:
         """Synchronous generation for simple text tasks."""
         pass
 
@@ -22,7 +22,7 @@ class BaseLLMProvider(ABC):
         messages: List[Message],
         stream: bool = False,
         temperature: float = 0.7,
-        max_tokens: int = 2000,
+        max_tokens: int = 16000,
         tools: Optional[List[Dict]] = None
     ) -> AsyncGenerator[str, None]:
         """Async chat completion with streaming support."""

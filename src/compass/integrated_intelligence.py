@@ -376,7 +376,7 @@ class IntegratedIntelligence:
 
             tools_to_use = tools_to_use if (tools_to_use and self.config.enable_tools) else None
 
-            async for chunk in self.llm_provider.chat_completion(messages, stream=False, temperature=0.3, max_tokens=4000, tools=tools_to_use):
+            async for chunk in self.llm_provider.chat_completion(messages, stream=False, temperature=0.3, max_tokens=16000, tools=tools_to_use):
                 try:
                     # Check if chunk is a tool call JSON
                     if chunk.strip().startswith('{"tool_calls":'):

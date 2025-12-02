@@ -1,13 +1,26 @@
 import math
 import operator
 import random
-from typing import Any, Callable, Dict, List, Union
+from typing import Any, Callable, Dict, List, Tuple
+
+from scipy.optimize import minimize
 
 
 # AST Nodes
 class Node:
     def evaluate(self, context: Dict[str, float]) -> float:
         raise NotImplementedError
+
+    def extract_constants(self) -> List['Constant']:
+        """Return a list of all Constant nodes in the subtree."""
+        return []
+
+    def update_constants(self, values: List[float]) -> int:
+        """
+        Update constants in the subtree with new values.
+        Returns the number of constants consumed.
+        """
+        return 0
 
     def __str__(self) -> str:
         raise NotImplementedError
@@ -18,6 +31,15 @@ class Constant(Node):
 
     def evaluate(self, context: Dict[str, float]) -> float:
         return self.value
+
+    def extract_constants(self) -> List['Constant']:
+        return [self]
+
+    def update_constants(self, values: List[float]) -> int:
+        if len(values) > 0:
+            self.value = values[0]
+            return 1
+        return 0
 
     def __str__(self) -> str:
         return f"{self.value:.2f}"
@@ -47,7 +69,17 @@ class BinaryOp(Node):
         except OverflowError:
             return 1e6 # Cap overflow
 
+    def extract_constants(self) -> List['Constant']:
+        return self.left.extract_constants() + self.right.extract_constants()
+
+    def update_constants(self, values: List[float]) -> int:
+        consumed_left = self.left.update_constants(values)
+        consumed_right = self.right.update_constants(values[consumed_left:])
+        return consumed_left + consumed_right
+
     def __str__(self) -> str:
+        if self.op == math.hypot:
+            return f"hypot({self.left}, {self.right})"
         return f"({self.left} {self.symbol} {self.right})"
 
 class UnaryOp(Node):
@@ -64,6 +96,12 @@ class UnaryOp(Node):
         except OverflowError:
             return 1e6
 
+    def extract_constants(self) -> List['Constant']:
+        return self.child.extract_constants()
+
+    def update_constants(self, values: List[float]) -> int:
+        return self.child.update_constants(values)
+
     def __str__(self) -> str:
         return f"{self.symbol}({self.child})"
 
@@ -72,7 +110,14 @@ OPS = [
     (operator.add, "+"),
     (operator.sub, "-"),
     (operator.mul, "*"),
-    # (operator.truediv, "/"), # Division is dangerous for stability
+    (math.hypot, "hypot"),
+]
+
+UNARY_OPS = [
+    (math.sin, "sin"),
+    (math.cos, "cos"),
+    (math.tanh, "tanh"),
+    (abs, "abs"),
 ]
 
 # Simple GP
@@ -92,14 +137,30 @@ class SimpleGP:
                 return Constant(random.uniform(-10, 10))
         else:
             # Operator
-            op, symbol = random.choice(OPS)
-            left = self.generate_random_tree(depth + 1)
-            right = self.generate_random_tree(depth + 1)
-            return BinaryOp(left, right, op, symbol)
+            if random.random() < 0.7: # 70% chance for binary op
+                op, symbol = random.choice(OPS)
+                left = self.generate_random_tree(depth + 1)
+                right = self.generate_random_tree(depth + 1)
+                return BinaryOp(left, right, op, symbol)
+            else: # 30% chance for unary op
+                op, symbol = random.choice(UNARY_OPS)
+                child = self.generate_random_tree(depth + 1)
+                return UnaryOp(child, op, symbol)
 
-    def fit(self, data: List[Dict[str, float]], target_key: str, generations: int = 10) -> str:
-        # Initialize population
-        self.population = [self.generate_random_tree() for _ in range(self.population_size)]
+    def evolve(self, data: List[Dict[str, float]], target_key: str, generations: int = 10, hybrid: bool = False) -> Tuple[str, float]:
+        """
+        Evolve a formula to fit the data.
+
+        Args:
+            data: List of data points (dicts).
+            target_key: Key in dict for the target value.
+            generations: Number of generations to evolve.
+            hybrid: If True, use local refinement (Evolutionary Optimization).
+
+        Returns:
+            Tuple[str, float]: (Best formula string, Best MSE)
+        """
+        self.population = [self.generate_random_tree(depth=random.randint(2, self.max_depth)) for _ in range(self.population_size)]
 
         best_program = None
         best_error = float('inf')
@@ -108,6 +169,11 @@ class SimpleGP:
             # Evaluate fitness
             scored_population = []
             for program in self.population:
+
+                # Hybrid Optimization Step
+                if hybrid:
+                    self.refine_individual(program, data, target_key)
+
                 error = 0.0
                 for row in data:
                     try:
@@ -137,7 +203,38 @@ class SimpleGP:
 
             self.population = new_population
 
-        return str(best_program) if best_program else "0"
+        return (str(best_program) if best_program else "0", best_error)
+
+    def refine_individual(self, program: Node, data: List[Dict[str, float]], target_key: str):
+        """
+        Locally refine the constants of a program using gradient-free optimization (Nelder-Mead).
+        This implements the 'Neural Pipeline' part of Evolutionary Optimization.
+        """
+        constants = program.extract_constants()
+        if not constants:
+            return
+
+        initial_values = [c.value for c in constants]
+
+        def objective(values):
+            # Temporarily update constants
+            program.update_constants(values)
+            error = 0.0
+            for row in data:
+                try:
+                    pred = program.evaluate(row)
+                    target = row[target_key]
+                    error += (pred - target) ** 2
+                except Exception:
+                    error += 1e9
+            return error / len(data)
+
+        # Run optimization
+        # We use Nelder-Mead as it's robust and doesn't require gradients of the AST
+        result = minimize(objective, initial_values, method='Nelder-Mead', tol=1e-3, options={'maxiter': 10})
+
+        # Apply best found constants
+        program.update_constants(result.x)
 
     def tournament_select(self, scored_population: List[Any]) -> Node:
         candidates = random.sample(scored_population, k=3)

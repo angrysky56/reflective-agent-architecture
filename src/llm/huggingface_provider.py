@@ -17,7 +17,7 @@ class HuggingFaceProvider(BaseLLMProvider):
         if not self.api_key:
             logger.warning("Hugging Face token not found. Please set HF_TOKEN.")
 
-    def generate(self, system_prompt: str, user_prompt: str, max_tokens: int = 1000) -> str:
+    def generate(self, system_prompt: str, user_prompt: str, max_tokens: int = 16000) -> str:
         try:
             client = InferenceClient(token=self.api_key)
             # HF Inference API format can vary. Using chat completion style if supported, else text generation.
@@ -42,7 +42,7 @@ class HuggingFaceProvider(BaseLLMProvider):
         messages: List[Message],
         stream: bool = False,
         temperature: float = 0.7,
-        max_tokens: int = 2000,
+        max_tokens: int = 16000,
         tools: Optional[List[Dict]] = None
     ) -> AsyncGenerator[str, None]:
 

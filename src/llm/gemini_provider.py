@@ -21,7 +21,7 @@ class GeminiProvider(BaseLLMProvider):
         else:
             genai.configure(api_key=self.api_key)
 
-    def generate(self, system_prompt: str, user_prompt: str, max_tokens: int = 1000) -> str:
+    def generate(self, system_prompt: str, user_prompt: str, max_tokens: int = 16000) -> str:
         try:
             model = genai.GenerativeModel(self.model_name)
             # Gemini doesn't have a strict "system" role in the same way, but we can prepend it.
@@ -46,7 +46,7 @@ class GeminiProvider(BaseLLMProvider):
         messages: List[Message],
         stream: bool = False,
         temperature: float = 0.7,
-        max_tokens: int = 2000,
+        max_tokens: int = 16000,
         tools: Optional[List[Dict]] = None
     ) -> AsyncGenerator[str, None]:
 
