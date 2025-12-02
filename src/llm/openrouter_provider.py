@@ -2,7 +2,14 @@ import logging
 import os
 from typing import AsyncGenerator, Dict, List, Optional
 
-from openai import AsyncOpenAI, OpenAI
+from openai import APIConnectionError, APITimeoutError, AsyncOpenAI, OpenAI, RateLimitError
+from tenacity import (
+    before_sleep_log,
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 from src.llm.provider import BaseLLMProvider, Message
 
@@ -23,6 +30,12 @@ class OpenRouterProvider(BaseLLMProvider):
         if not self.api_key:
             logger.warning("OpenRouter API key not found. Please set OPENROUTER_API_KEY.")
 
+    @retry(
+        retry=retry_if_exception_type((RateLimitError, APIConnectionError, APITimeoutError)),
+        wait=wait_exponential(multiplier=1, min=4, max=60),
+        stop=stop_after_attempt(5),
+        before_sleep=before_sleep_log(logger, logging.WARNING),
+    )
     def generate(self, system_prompt: str, user_prompt: str, max_tokens: int = 16000) -> str:
         try:
             extra_headers = {}
@@ -47,10 +60,18 @@ class OpenRouterProvider(BaseLLMProvider):
                 temperature=0.7
             )
             return response.choices[0].message.content
+        except (RateLimitError, APIConnectionError, APITimeoutError):
+            raise  # Re-raise for tenacity to handle
         except Exception as e:
             logger.error(f"OpenRouter generate error: {e}")
             return f"Error generating text: {e}"
 
+    @retry(
+        retry=retry_if_exception_type((RateLimitError, APIConnectionError, APITimeoutError)),
+        wait=wait_exponential(multiplier=1, min=4, max=60),
+        stop=stop_after_attempt(5),
+        before_sleep=before_sleep_log(logger, logging.WARNING),
+    )
     async def chat_completion(
         self,
         messages: List[Message],
@@ -97,5 +118,7 @@ class OpenRouterProvider(BaseLLMProvider):
                     # For now, we'll use the same simplified approach as OpenAI provider
                     pass
 
+        except (RateLimitError, APIConnectionError, APITimeoutError):
+            raise  # Re-raise for tenacity to handle
         except Exception as e:
             yield f"Error: {str(e)}"

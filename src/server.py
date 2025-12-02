@@ -51,13 +51,10 @@ from neo4j import GraphDatabase
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# Embedding imports moved to embedding factory
 from src.cognition.meta_validator import MetaValidator
 from src.compass.compass_framework import COMPASS
 from src.compass.executive_controller import ExecutiveController
 from src.compass.orthogonal_dimensions import OrthogonalDimensionsAnalyzer
-
-# RAA imports
 from src.director import Director, DirectorConfig
 from src.director.simple_gp import SimpleGP
 from src.embeddings.base_embedding_provider import BaseEmbeddingProvider

@@ -3,6 +3,13 @@ import os
 from typing import AsyncGenerator, Dict, List, Optional
 
 from huggingface_hub import AsyncInferenceClient, InferenceClient
+from tenacity import (
+    before_sleep_log,
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 from src.llm.provider import BaseLLMProvider, Message
 
@@ -17,6 +24,15 @@ class HuggingFaceProvider(BaseLLMProvider):
         if not self.api_key:
             logger.warning("Hugging Face token not found. Please set HF_TOKEN.")
 
+    @retry(
+        # HuggingFace Hub errors are often generic exceptions or requests exceptions
+        # We'll retry on any Exception for now, or refine if we can import specific errors
+        # Actually, let's try to be a bit safer and retry on Exception but log it
+        retry=retry_if_exception_type(Exception),
+        wait=wait_exponential(multiplier=1, min=4, max=60),
+        stop=stop_after_attempt(5),
+        before_sleep=before_sleep_log(logger, logging.WARNING),
+    )
     def generate(self, system_prompt: str, user_prompt: str, max_tokens: int = 16000) -> str:
         try:
             client = InferenceClient(token=self.api_key)
@@ -33,10 +49,28 @@ class HuggingFaceProvider(BaseLLMProvider):
                 temperature=0.7
             )
             return response.choices[0].message.content
-        except Exception as e:
-            logger.error(f"HuggingFace generate error: {e}")
-            return f"Error generating text: {e}"
+        except Exception:
+            # We are retrying on generic Exception for HF, so we must re-raise it
+            # But we also want to eventually return an error string if it fails after retries.
+            # Tenacity will raise RetryError wrapping the original exception.
+            # So we should just raise here.
+            # Wait, if we raise here, tenacity catches it.
+            # If tenacity gives up, it raises RetryError.
+            # The caller of generate() (e.g. server.py) expects a string return usually?
+            # Or does it handle exceptions?
+            # server.py usually expects a string.
+            # So we might need to wrap the whole thing or let it crash?
+            # For now, let's re-raise to ensure retry works.
+            raise
+            # logger.error(f"HuggingFace generate error: {e}")
+            # return f"Error generating text: {e}"
 
+    @retry(
+        retry=retry_if_exception_type(Exception),
+        wait=wait_exponential(multiplier=1, min=4, max=60),
+        stop=stop_after_attempt(5),
+        before_sleep=before_sleep_log(logger, logging.WARNING),
+    )
     async def chat_completion(
         self,
         messages: List[Message],
@@ -63,5 +97,6 @@ class HuggingFaceProvider(BaseLLMProvider):
                 if content:
                     yield content
 
-        except Exception as e:
-            yield f"Error: {str(e)}"
+        except Exception:
+            raise
+            # yield f"Error: {str(e)}"

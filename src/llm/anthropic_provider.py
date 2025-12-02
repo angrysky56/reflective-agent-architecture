@@ -2,7 +2,14 @@ import logging
 import os
 from typing import AsyncGenerator, Dict, List, Optional
 
-from anthropic import Anthropic, AsyncAnthropic
+from anthropic import Anthropic, APIConnectionError, APITimeoutError, AsyncAnthropic, RateLimitError
+from tenacity import (
+    before_sleep_log,
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 from src.llm.provider import BaseLLMProvider, Message
 
@@ -17,6 +24,12 @@ class AnthropicProvider(BaseLLMProvider):
         if not self.api_key:
             logger.warning("Anthropic API key not found. Please set ANTHROPIC_API_KEY.")
 
+    @retry(
+        retry=retry_if_exception_type((RateLimitError, APIConnectionError, APITimeoutError)),
+        wait=wait_exponential(multiplier=1, min=4, max=60),
+        stop=stop_after_attempt(5),
+        before_sleep=before_sleep_log(logger, logging.WARNING),
+    )
     def generate(self, system_prompt: str, user_prompt: str, max_tokens: int = 16000) -> str:
         try:
             client = Anthropic(api_key=self.api_key)
@@ -30,10 +43,18 @@ class AnthropicProvider(BaseLLMProvider):
                 temperature=0.7
             )
             return response.content[0].text
+        except (RateLimitError, APIConnectionError, APITimeoutError):
+            raise  # Re-raise for tenacity to handle
         except Exception as e:
             logger.error(f"Anthropic generate error: {e}")
             return f"Error generating text: {e}"
 
+    @retry(
+        retry=retry_if_exception_type((RateLimitError, APIConnectionError, APITimeoutError)),
+        wait=wait_exponential(multiplier=1, min=4, max=60),
+        stop=stop_after_attempt(5),
+        before_sleep=before_sleep_log(logger, logging.WARNING),
+    )
     async def chat_completion(
         self,
         messages: List[Message],
@@ -65,5 +86,7 @@ class AnthropicProvider(BaseLLMProvider):
             ) as stream:
                 async for text in stream.text_stream:
                     yield text
+        except (RateLimitError, APIConnectionError, APITimeoutError):
+            raise  # Re-raise for tenacity to handle
         except Exception as e:
             yield f"Error: {str(e)}"

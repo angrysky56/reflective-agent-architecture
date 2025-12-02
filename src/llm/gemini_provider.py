@@ -4,7 +4,15 @@ import os
 from typing import AsyncGenerator, Dict, List, Optional
 
 import google.generativeai as genai
+from google.api_core.exceptions import ResourceExhausted, ServiceUnavailable
 from google.generativeai.types import HarmBlockThreshold, HarmCategory
+from tenacity import (
+    before_sleep_log,
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 from src.llm.provider import BaseLLMProvider, Message
 
@@ -21,6 +29,12 @@ class GeminiProvider(BaseLLMProvider):
         else:
             genai.configure(api_key=self.api_key)
 
+    @retry(
+        retry=retry_if_exception_type((ResourceExhausted, ServiceUnavailable)),
+        wait=wait_exponential(multiplier=1, min=4, max=60),
+        stop=stop_after_attempt(5),
+        before_sleep=before_sleep_log(logger, logging.WARNING),
+    )
     def generate(self, system_prompt: str, user_prompt: str, max_tokens: int = 16000) -> str:
         try:
             model = genai.GenerativeModel(self.model_name)
@@ -37,10 +51,18 @@ class GeminiProvider(BaseLLMProvider):
                 )
             )
             return response.text
+        except (ResourceExhausted, ServiceUnavailable):
+            raise  # Re-raise for tenacity to handle
         except Exception as e:
             logger.error(f"Gemini generate error: {e}")
             return f"Error generating text: {e}"
 
+    @retry(
+        retry=retry_if_exception_type((ResourceExhausted, ServiceUnavailable)),
+        wait=wait_exponential(multiplier=1, min=4, max=60),
+        stop=stop_after_attempt(5),
+        before_sleep=before_sleep_log(logger, logging.WARNING),
+    )
     async def chat_completion(
         self,
         messages: List[Message],
@@ -81,5 +103,7 @@ class GeminiProvider(BaseLLMProvider):
                 if chunk.text:
                     yield chunk.text
 
+        except (ResourceExhausted, ServiceUnavailable):
+            raise  # Re-raise for tenacity to handle
         except Exception as e:
             yield f"Error: {str(e)}"
