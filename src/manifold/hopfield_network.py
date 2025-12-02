@@ -59,7 +59,7 @@ class ModernHopfieldNetwork(nn.Module):
 
         # Storage for memory patterns (updated dynamically)
         # Shape: (num_patterns, embedding_dim)
-        self.register_buffer("patterns", torch.empty(0, config.embedding_dim))
+        self.register_buffer("patterns", torch.empty(0, config.embedding_dim, device=config.device))
         self.num_patterns = 0
 
         # Metadata storage (parallel list)

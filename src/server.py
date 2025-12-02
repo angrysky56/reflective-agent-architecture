@@ -30,14 +30,15 @@ import json
 import logging
 import re
 import time
+import traceback
 from collections.abc import Sequence
+from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import chromadb
 import numpy as np
-import ollama
 import torch
 from chromadb.config import Settings
 from dotenv import load_dotenv
@@ -65,6 +66,8 @@ from src.integration.continuity_service import ContinuityService
 from src.integration.cwd_raa_bridge import BridgeConfig, CWDRAABridge
 from src.integration.precuneus import PrecuneusIntegrator
 from src.integration.sleep_cycle import SleepCycle
+from src.llm.factory import LLMFactory
+from src.llm.provider import BaseLLMProvider
 from src.manifold import HopfieldConfig, Manifold
 from src.persistence.work_history import WorkHistory
 from src.pointer.goal_controller import GoalController, PointerConfig
@@ -114,11 +117,14 @@ class CWDConfig(BaseSettings):
     neo4j_user: str = Field(default="neo4j")
     neo4j_password: str = Field(...)  # Required from environment - no default
     chroma_path: str = Field(default="./chroma_data")
-    embedding_model: str = Field(default="BAAI/bge-large-en-v1.5")
+    # LLM Settings
+    llm_provider: str = "ollama"
+    llm_model: str = Field(default="qwen2.5:32b", description="LLM model name")
+    compass_model: str = Field(default="kimi-k2-thinking:cloud", description="Model for COMPASS reasoning")
+    embedding_model: str = Field(
+        default="dunzhang/stella_en_400M_v5", description="Embedding model name"
+    )
     confidence_threshold: float = Field(default=0.7)  # Lower to .3 for asymmetric embeddings
-    llm_base_url: str = Field(default="http://localhost:11434")
-    llm_model: str = Field(default="kimi-k2-thinking:cloud")
-    compass_model: str = Field(default="kimi-k2-thinking:cloud")  # Can be different from llm_model
 
 
 class CognitiveWorkspace:
@@ -142,7 +148,13 @@ class CognitiveWorkspace:
             Settings(persist_directory=config.chroma_path, anonymized_telemetry=False)
         )
 
+        # Initialize LLM Provider
+        self.llm_provider: BaseLLMProvider = LLMFactory.create_provider(
+            self.config.llm_provider, self.config.llm_model
+        )
+
         # Initialize embedding model
+        logger.info(f"Loading embedding model: {self.config.embedding_model}")
         # For Qwen embeddings, optimize with flash_attention_2 if GPU available
         is_qwen = "qwen" in config.embedding_model.lower()
         has_gpu = torch.cuda.is_available()
@@ -765,114 +777,13 @@ class CognitiveWorkspace:
 
     def _llm_generate(self, system_prompt: str, user_prompt: str, max_tokens: int = 8000) -> str:
         """
-        Generate text using local Ollama LLM.
-
-        This is intentionally simple - the LLM only handles bridge text generation.
-        Heavy lifting (reasoning, similarity, path-finding) happens in vector/graph operations.
-
-        Framework context: The LLM is part of a cognitive workspace that combines:
-        - Neo4j for structural reasoning (graph operations)
-        - Chroma for latent space operations (vector similarity)
-        - This LLM for generating human-readable bridge text
-
-        The LLM's role is to produce concise, clear outputs - not to do the reasoning itself.
+        Generate text using the configured LLM provider.
         """
         try:
-            # Fast-path: avoid implicit model pull by verifying availability first
-            try:
-                _ = ollama.show(model=self.config.llm_model)
-            except Exception as avail_err:
-                logger.warning(f"LLM model '{self.config.llm_model}' not available: {avail_err}")
-                raise RuntimeError("LLM model unavailable")
-            # Enhanced system prompt with framework context
-            enhanced_system = f"""You are a text generation component in a cognitive reasoning system.
-
-Your role: Generate concise, clear text outputs. The system handles reasoning via graph and vector operations.
-
-Framework: Cognitive Workspace Database (System 2 Reasoning)
-- Neo4j: Structural/graph reasoning
-- Chroma: Vector similarity in latent space
-- Your task: Bridge text generation only
-
-{system_prompt}
-
-CRITICAL: Output your final answer directly. You may think internally, but end with clear, concise output."""
-
-            # Retry loop for robustness
-            max_retries = 3
-            for attempt in range(max_retries):
-                try:
-                    response = ollama.chat(
-                        model=self.config.llm_model,
-                        messages=[
-                            {"role": "system", "content": enhanced_system},
-                            {"role": "user", "content": user_prompt},
-                        ],
-                        options={"num_predict": max_tokens, "temperature": 1.0},
-                    )
-                    content = response["message"]["content"].strip()
-                    logger.info(f"Raw LLM output (attempt {attempt+1}): {content[:500]}...")
-
-                    if content:
-                        break
-                    else:
-                        logger.warning(f"Empty output from LLM (attempt {attempt+1})")
-                        time.sleep(1) # Brief pause before retry
-                except Exception as e:
-                    logger.error(f"LLM generation error (attempt {attempt+1}): {e}")
-                    if attempt == max_retries - 1:
-                        raise
-
-            # Strip reasoning artifacts that models add
-            # Remove <think>...</think> blocks, but be careful not to delete everything
-            if "<think>" in content:
-                # Try to extract content after </think>
-                parts = re.split(r"</think>", content, flags=re.IGNORECASE)
-                if len(parts) > 1 and parts[-1].strip():
-                    content = parts[-1].strip()
-                else:
-                    # If everything is inside <think> or no closing tag, just strip the tags
-                    content = re.sub(r"</?think>", "", content, flags=re.IGNORECASE)
-
-            # Remove common reasoning prefixes (case-insensitive, at start of content)
-            reasoning_patterns = [
-                r"^(?:Okay|Alright|Let me|Hmm|So|Well|First|Now)\s*[,:]?\s*",
-                r"^(?:The user|I need to|I should|Looking at)\s+.*?\.\s*",
-            ]
-
-            for pattern in reasoning_patterns:
-                # Only replace if it leaves something behind
-                if re.match(pattern, content, flags=re.IGNORECASE):
-                    new_content = re.sub(pattern, "", content, count=1, flags=re.IGNORECASE).strip()
-                    if new_content:
-                        content = new_content
-
-            # Extract actual content after reasoning markers
-            # Look for explicit markers like "OUTPUT:"
-            output_markers = [
-                r"(?:OUTPUT|ANSWER|RESULT|FINAL):\s*(.+)",  # Explicit markers
-            ]
-
-            for marker_pattern in output_markers:
-                match = re.search(marker_pattern, content, re.DOTALL | re.IGNORECASE)
-                if match and len(match.group(1).strip()) > 20:
-                    content = match.group(1).strip()
-                    break
-
-            # Clean up multiple spaces and newlines
-            content = re.sub(r"\n\s*\n\s*\n+", "\n\n", content)  # Max 2 newlines
-            content = re.sub(r"[ \t]+", " ", content)  # Normalize spaces
-            content = content.strip()
-
-            if not content and response["message"]["content"].strip():
-                # If stripping removed everything, revert to raw content (safety net)
-                logger.warning("Stripping removed all content, reverting to raw output")
-                content = response["message"]["content"].strip()
-
-            return content if content else "[No output generated]"
+            return self.llm_provider.generate(system_prompt, user_prompt, max_tokens=max_tokens)
         except Exception as e:
             logger.error(f"LLM generation error: {e}", exc_info=True)
-            return f"[LLM unavailable: {user_prompt[:50]}...]"
+            return f"[LLM unavailable: {str(e)[:100]}...]"
 
     def _create_thought_node(
         self,
@@ -1884,7 +1795,7 @@ class RAAServerContext:
         )
 
         # Initialize Precuneus Integrator
-        self.precuneus = PrecuneusIntegrator(dim=embedding_dim)
+        self.precuneus = PrecuneusIntegrator(dim=embedding_dim).to(device)
 
         self.raa_context = {
             "embedding_dim": embedding_dim,
@@ -3247,16 +3158,10 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
             prompt = analyzer.construct_analysis_prompt(concept_a, concept_b, context)
 
             # Call LLM
-            response = ollama.chat(
-                model=ctx.workspace.config.llm_model,
-                messages=[
-                    {"role": "system", "content": analyzer.SYSTEM_PROMPT},
-                    {"role": "user", "content": prompt}
-                ],
-                options={"temperature": 1.0} # Analysis benefits from some creativity
+            analysis_text = ctx.workspace._llm_generate(
+                system_prompt=analyzer.SYSTEM_PROMPT,
+                user_prompt=prompt
             )
-
-            analysis_text = response['message']['content']
 
             # Combine results
             result = {
