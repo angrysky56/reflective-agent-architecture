@@ -46,6 +46,10 @@ class ExecutiveController:
         self.context: Dict[str, Any] = {}
         self.iteration_count: int = 0
 
+        # Gödel Check State
+        self.godel_loop_count: int = 0
+        self.godel_threshold: int = 3  # Cycles of disagreement before override
+
         # Shared Advisor Registry
         self.advisor_registry = advisor_registry
 
@@ -108,7 +112,58 @@ class ExecutiveController:
 
         allocation = self.omcd.determine_resource_allocation(current_state, importance=importance, available_resources=self.omcd.config.max_resources - self.omcd.total_resources_allocated)
 
+        # 5. Gödel Check (Sanity Loop)
+        # Check for infinite regress: Director wants to proceed (allocation > 0) but Reality/Swarm says NO (low solvability)
+        godel_override = self._check_godel_loop(allocation, solvability)
+
+        if godel_override:
+            self.logger.critical(f"Gödel Check TRIGGERED: Infinite Regress detected for {self.godel_threshold} cycles. Initiating Human Override.")
+            return {
+                "goal": current_goal,
+                "strategy": self.current_strategy,
+                "resources": allocation,
+                "solvability": solvability,
+                "should_stop": True,
+                "godel_override": True,
+                "reason": "Gödel Incompleteness: System cannot verify its own consistency."
+            }
+
         return {"goal": current_goal, "strategy": self.current_strategy, "resources": allocation, "solvability": solvability, "should_stop": self.omcd.should_stop(current_score=current_state.get("score", 0.0), iteration=self.iteration_count, allocation=allocation, target_score=self.self_discover.config.pass_threshold)}
+
+    def _check_godel_loop(self, allocation: Dict, solvability: Dict) -> bool:
+        """
+        Perform a 'Gödel Check' to detect if the system is trapped in a self-verification loop.
+
+        Logic:
+        - If the Director allocates resources (trying to solve)
+        - BUT the Solvability score is low (Reality/Swarm indicates impossibility/high entropy)
+        - AND this persists for X cycles
+        -> Then we are likely in an undecidable state (Halting Problem).
+
+        Args:
+            allocation: Resource allocation decision
+            solvability: Task solvability assessment
+
+        Returns:
+            True if Human Override is required.
+        """
+        # Thresholds
+        RESOURCE_THRESHOLD = 0.1  # Director is trying
+        SOLVABILITY_THRESHOLD = 0.4  # Reality says "Hard/Impossible"
+
+        is_trying = allocation.get("amount", 0.0) > RESOURCE_THRESHOLD
+        is_stuck = solvability.get("solvability_score", 0.5) < SOLVABILITY_THRESHOLD
+
+        if is_trying and is_stuck:
+            self.godel_loop_count += 1
+            self.logger.warning(f"Gödel Check Warning: Cycle {self.godel_loop_count}/{self.godel_threshold}. Director pushing against high entropy.")
+        else:
+            # Reset if we stabilize or stop trying
+            if self.godel_loop_count > 0:
+                self.logger.info("Gödel Check Reset: System stabilized.")
+            self.godel_loop_count = 0
+
+        return self.godel_loop_count >= self.godel_threshold
 
     def evaluate_reasoning_quality(self, trajectory: Trajectory, objectives: List) -> float:
         """
