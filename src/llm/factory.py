@@ -7,6 +7,7 @@ from src.llm.gemini_provider import GeminiProvider
 from src.llm.huggingface_provider import HuggingFaceProvider
 from src.llm.ollama_provider import OllamaProvider
 from src.llm.openai_provider import OpenAIProvider
+from src.llm.openrouter_provider import OpenRouterProvider
 from src.llm.provider import BaseLLMProvider
 
 logger = logging.getLogger(__name__)
@@ -25,6 +26,8 @@ class LLMFactory:
             return OllamaProvider(model_name)
         elif provider_name == "openai" or provider_name == "lm_studio":
             return OpenAIProvider(model_name)
+        elif provider_name == "openrouter":
+            return OpenRouterProvider(model_name)
         elif provider_name == "anthropic":
             return AnthropicProvider(model_name)
         elif provider_name == "gemini":

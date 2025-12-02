@@ -38,6 +38,7 @@ try:
     from src.llm.huggingface_provider import HuggingFaceProvider
     from src.llm.ollama_provider import OllamaProvider
     from src.llm.openai_provider import OpenAIProvider
+    from src.llm.openrouter_provider import OpenRouterProvider
     from src.llm.provider import BaseLLMProvider
 except ImportError as e:
     print(f"ImportError during setup: {e}")
@@ -48,7 +49,7 @@ except ImportError as e:
 class TestLLMFactory(unittest.TestCase):
     def setUp(self):
         # Reset environment variables
-        keys_to_remove = ["LLM_PROVIDER", "LLM_MODEL", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GEMINI_API_KEY", "HF_TOKEN"]
+        keys_to_remove = ["LLM_PROVIDER", "LLM_MODEL", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "ANTHROPIC_API_KEY", "GEMINI_API_KEY", "HF_TOKEN"]
         for key in keys_to_remove:
             if key in os.environ:
                 del os.environ[key]
@@ -92,6 +93,12 @@ class TestLLMFactory(unittest.TestCase):
         # LM Studio uses OpenAIProvider
         provider = LLMFactory.create_provider()
         self.assertIsInstance(provider, OpenAIProvider)
+
+    def test_openrouter_provider(self):
+        os.environ["LLM_PROVIDER"] = "openrouter"
+        os.environ["OPENROUTER_API_KEY"] = "test_key"
+        provider = LLMFactory.create_provider()
+        self.assertIsInstance(provider, OpenRouterProvider)
 
 if __name__ == "__main__":
     unittest.main()

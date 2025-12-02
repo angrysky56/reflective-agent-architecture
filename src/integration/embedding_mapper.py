@@ -111,6 +111,10 @@ class EmbeddingMapper:
                 device=self.device,
             )
 
+            # Ensure we have a tensor (some providers like Ollama return numpy/list)
+            if not isinstance(embedding, torch.Tensor):
+                embedding = torch.tensor(embedding, device=self.device)
+
         # Ensure correct dimension
         if embedding.shape[0] != self.embedding_dim:
             # Resize if needed (should match if model chosen correctly)

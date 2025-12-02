@@ -48,11 +48,17 @@ from mcp.types import TextContent, Tool
 # Load environment variables from .env file
 load_dotenv()
 
+import math
+import operator
+import random
+
+import numpy as np
+from deap import algorithms, base, creator, gp, tools
 from neo4j import GraphDatabase
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from sentence_transformers import SentenceTransformer
 
+# Embedding imports moved to embedding factory
 from src.cognition.meta_validator import MetaValidator
 from src.compass.compass_framework import COMPASS
 from src.compass.executive_controller import ExecutiveController
@@ -60,6 +66,8 @@ from src.compass.orthogonal_dimensions import OrthogonalDimensionsAnalyzer
 
 # RAA imports
 from src.director import Director, DirectorConfig
+from src.embeddings.base_embedding_provider import BaseEmbeddingProvider
+from src.embeddings.embedding_factory import EmbeddingFactory
 from src.integration.agent_factory import AgentFactory
 from src.integration.continuity_field import ContinuityField
 from src.integration.continuity_service import ContinuityService
@@ -78,6 +86,94 @@ from src.substrate import (
     OperationCostProfile,
     SubstrateAwareDirector,
 )
+
+
+def evolve_formula_logic(data_points, n_generations=10):
+    """
+    Uses Genetic Programming to evolve a symbolic formula that fits the data.
+    data_points: List of dictionaries [{'x': 1, 'y': 2, 'result': 3}, ...]
+    """
+    print("DEBUG: EVOLVE FORMULA LOGIC CALLED")
+    # 1. Define the Primitives (The "Instruction Set" from Fatmi's letter)
+    pset = gp.PrimitiveSet("MAIN", 3) # x, y, z
+    pset.renameArguments(ARG0='x', ARG1='y', ARG2='z')
+    pset.addPrimitive(operator.add, 2)
+    pset.addPrimitive(operator.sub, 2)
+    pset.addPrimitive(operator.mul, 2)
+    pset.addPrimitive(math.sin, 1)
+    pset.addPrimitive(math.cos, 1)
+    pset.addPrimitive(math.tanh, 1)
+    pset.addPrimitive(abs, 1)
+    pset.addPrimitive(math.hypot, 2)
+
+    # Fix pickling issue by using functools.partial instead of lambda
+    import functools
+    pset.addEphemeralConstant("rand101", functools.partial(random.randint, -5, 5))
+
+    # 2. Define Fitness (Minimize Error / Entropy)
+    if not hasattr(creator, "FitnessMin"):
+        creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
+    if not hasattr(creator, "Individual"):
+        creator.create("Individual", gp.PrimitiveTree, fitness=creator.FitnessMin)
+
+    toolbox = base.Toolbox()
+    toolbox.register("expr", gp.genHalfAndHalf, pset=pset, min_=1, max_=2)
+    toolbox.register("individual", tools.initIterate, creator.Individual, toolbox.expr)
+    toolbox.register("population", tools.initRepeat, list, toolbox.individual)
+    toolbox.register("compile", gp.compile, pset=pset)
+
+    # import sys
+    def evalSymbReg(individual):
+        # Transform the tree into a callable function
+        func = toolbox.compile(expr=individual)
+        sqerrors = []
+        for point in data_points:
+            try:
+                # Calculate prediction
+                result = func(point['x'], point['y'], point['z'])
+
+                # Check for invalid results (NaN, Inf, Complex)
+                if isinstance(result, complex) or math.isnan(result) or math.isinf(result):
+                    # sys.stderr.write(f"DEBUG: Invalid result for {individual}: {result}\n")
+                    sqerrors.append(1000.0)
+                    continue
+
+                # Calculate squared error vs truth
+                sqerrors.append((result - point['result'])**2)
+            except (ValueError, OverflowError, ZeroDivisionError, TypeError) as e:
+                # sys.stderr.write(f"DEBUG: Error evaluating {individual}: {e}\n")
+                sqerrors.append(1000.0) # Penalty for domain errors
+            except Exception as e:
+                # sys.stderr.write(f"DEBUG: Unexpected error evaluating {individual}: {e}\n")
+                sqerrors.append(1000.0) # Catch-all penalty
+
+        avg_error = math.fsum(sqerrors) / len(data_points)
+        # # Log to file to bypass any capture
+        # try:
+        #     with open("/tmp/evolve_debug.log", "a") as f:
+        #         if avg_error >= 1000.0:
+        #             f.write(f"FAIL: {individual} -> {avg_error}\n")
+        # except:
+        #     pass
+
+        return avg_error,
+
+    toolbox.register("evaluate", evalSymbReg)
+    toolbox.register("select", tools.selTournament, tournsize=3)
+    toolbox.register("mate", gp.cxOnePoint)
+    toolbox.register("mutate", gp.mutUniform, expr=toolbox.expr, pset=pset)
+
+    # 3. The Evolutionary Loop (The "Hive Mind" solving the Bandit)
+    pop = toolbox.population(n=300)
+    hof = tools.HallOfFame(1)
+
+    # Run the "generations" (Evolutionary Pipeline)
+    algorithms.eaSimple(pop, toolbox, 0.5, 0.1, n_generations, halloffame=hof, verbose=False)
+
+    best_formula = str(hof[0])
+    best_error = hof[0].fitness.values[0]
+
+    return f"Evolved Formula: {best_formula} | MSE: {best_error:.4f}"
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -118,11 +214,14 @@ class CWDConfig(BaseSettings):
     neo4j_password: str = Field(...)  # Required from environment - no default
     chroma_path: str = Field(default="./chroma_data")
     # LLM Settings
-    llm_provider: str = "ollama"
-    llm_model: str = Field(default="qwen2.5:32b", description="LLM model name")
-    compass_model: str = Field(default="kimi-k2-thinking:cloud", description="Model for COMPASS reasoning")
+    llm_provider: str = "openrouter"
+    llm_model: str = Field(default="google/gemini-2.0-flash-exp:free", description="LLM model name")
+    compass_model: str = Field(default="anthropic/claude-3.5-sonnet:beta", description="Model for COMPASS reasoning")
+
+    # Embedding Settings
+    embedding_provider: str = Field(default="sentence-transformers", description="Embedding provider (sentence-transformers, ollama, lm_studio)")
     embedding_model: str = Field(
-        default="dunzhang/stella_en_400M_v5", description="Embedding model name"
+        default="BAAI/bge-large-en-v1.5", description="Embedding model name"
     )
     confidence_threshold: float = Field(default=0.7)  # Lower to .3 for asymmetric embeddings
 
@@ -153,39 +252,16 @@ class CognitiveWorkspace:
             self.config.llm_provider, self.config.llm_model
         )
 
-        # Initialize embedding model
-        logger.info(f"Loading embedding model: {self.config.embedding_model}")
-        # For Qwen embeddings, optimize with flash_attention_2 if GPU available
-        is_qwen = "qwen" in config.embedding_model.lower()
-        has_gpu = torch.cuda.is_available()
+        # Initialize embedding provider using factory
+        logger.info(f"Loading embedding provider: {self.config.embedding_provider}")
+        logger.info(f"Embedding model: {self.config.embedding_model}")
 
         try:
-            if is_qwen and has_gpu:
-                try:
-                    # Try flash_attention_2 for GPU acceleration (requires flash-attn package)
-                    self.embedding_model = SentenceTransformer(
-                        config.embedding_model,
-                        model_kwargs={"attn_implementation": "flash_attention_2", "device_map": "auto"},
-                        tokenizer_kwargs={"padding_side": "left"},
-                    )
-                    logger.info("Initialized Qwen embedding model with flash_attention_2 (GPU)")
-                except Exception as e:
-                    # Fallback to standard (works on CPU and GPU without flash-attn)
-                    logger.info(f"flash_attention_2 not available, using standard attention: {e}")
-                    self.embedding_model = SentenceTransformer(
-                        config.embedding_model, tokenizer_kwargs={"padding_side": "left"}
-                    )
-                    logger.info("Initialized standard embedding model (Qwen, GPU fallback)")
-            elif is_qwen:
-                # CPU mode - just use left padding for Qwen
-                self.embedding_model = SentenceTransformer(
-                    config.embedding_model, tokenizer_kwargs={"padding_side": "left"}
-                )
-                logger.info("Initialized Qwen embedding model (CPU)")
-            else:
-                # Standard models (all-MiniLM, etc.)
-                self.embedding_model = SentenceTransformer(config.embedding_model)
-                logger.info("Initialized standard embedding model")
+            # Create embedding provider via factory (handles all optimizations)
+            self.embedding_model: BaseEmbeddingProvider = EmbeddingFactory.create(
+                provider_name=config.embedding_provider,
+                model_name=config.embedding_model
+            )
 
             # Initialize Continuity Field (Identity Manifold)
             embedding_dim = self.embedding_model.get_sentence_embedding_dimension()
@@ -201,7 +277,7 @@ class CognitiveWorkspace:
             logger.info(f"DEBUG: Server ContinuityField anchors: {len(self.continuity_field.anchors)}")
 
         except Exception as e:
-            logger.error(f"Failed to initialize embedding model: {e}")
+            logger.error(f"Failed to initialize embedding provider: {e}")
             raise
 
         # Create Chroma collection
@@ -2022,6 +2098,19 @@ Output JSON:
                 result["critique"] = critique
             return result
 
+        elif name == "evolve_formula":
+            # Metabolic Cost: Evolution is expensive (10.0)
+            if self.workspace.ctx.ledger:
+                from decimal import Decimal
+
+                from src.substrate import EnergyToken, MeasurementCost
+                self.workspace.ctx.ledger.record_transaction(MeasurementCost(
+                    energy=EnergyToken(Decimal("10.0"), "joules"),
+                    operation_name="evolve_formula"
+                ))
+
+            return evolve_formula_logic(arguments["data_points"], arguments.get("n_generations", 10))
+
         elif name == "constrain":
             return bridge.execute_monitored_operation(
                 operation="constrain",
@@ -2377,6 +2466,35 @@ RAA_TOOLS = [
                 "goal": {"type": "string", "description": "Optional goal to guide synthesis"},
             },
             "required": ["node_ids"],
+        },
+    ),
+    Tool(
+        name="evolve_formula",
+        description="Uses Genetic Programming (Symbolic Regression) to evolve a mathematical formula that fits a given dataset. Use this when the Director detects high entropy/complexity and simple patterns (like linear regression) fail. It discovers the 'hidden instruction set' of the data.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "data_points": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "x": {"type": "number"},
+                            "y": {"type": "number"},
+                            "z": {"type": "number"},
+                            "result": {"type": "number"},
+                        },
+                        "required": ["x", "y", "z", "result"],
+                    },
+                    "description": "List of data points to fit",
+                },
+                "n_generations": {
+                    "type": "integer",
+                    "description": "Number of evolutionary generations (default 10)",
+                    "default": 10,
+                },
+            },
+            "required": ["data_points"],
         },
     ),
     Tool(
