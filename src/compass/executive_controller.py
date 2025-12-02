@@ -198,7 +198,41 @@ class ExecutiveController:
             self.logger.info("Extracted code for Shadow Validation. Running Probe...")
             return self.sandbox.measure_resistance(code)
 
-        # 2. Fallback to Heuristics
+        # 2. Try to extract data sequence (Regression Probe)
+        # Look for list of numbers: [1.0, 2.0, 3.0...]
+        data_match = re.search(r"\[([\d\.,\s-]+)\]", task)
+        if data_match:
+            try:
+                data_str = data_match.group(1)
+                # Validate it's a list of numbers
+                data = [float(x.strip()) for x in data_str.split(',') if x.strip()]
+                if len(data) > 3:
+                    self.logger.info(f"Extracted data sequence (n={len(data)}) for Shadow Validation. Running Regression Probe...")
+
+                    # Generate a Regression Probe Script
+                    # This script tries to fit a linear model. If it fails (High Error), Resistance is High.
+                    probe_code = f"""
+import numpy as np
+data = {data}
+x = np.arange(len(data))
+y = np.array(data)
+# Try Linear Fit
+coeffs = np.polyfit(x, y, 1)
+p = np.poly1d(coeffs)
+y_pred = p(x)
+# Calculate R^2
+ss_res = np.sum((y - y_pred)**2)
+ss_tot = np.sum((y - np.mean(y))**2)
+r2 = 1 - (ss_res / (ss_tot + 1e-9))
+print(f"R2: {{r2}}")
+if r2 < 0.5:
+    raise Exception("Data is non-linear (High Resistance)")
+"""
+                    return self.sandbox.measure_resistance(probe_code)
+            except Exception:
+                pass # Not a valid sequence
+
+        # 3. Fallback to Heuristics
         task_lower = task.lower()
 
         # Heuristic: Self-Reference / Recursion / Halting
