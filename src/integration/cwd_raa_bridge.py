@@ -337,9 +337,54 @@ class CWDRAABridge:
         Returns:
             Number of tools synchronized
         """
-        # TODO: Implement after CWD integration is available
-        logger.warning("sync_tools_to_manifold not yet implemented")
-        return 0
+        if not self.cwd_server or not hasattr(self.cwd_server, "workspace") or not self.cwd_server.workspace:
+            logger.warning("Cannot sync tools: No workspace available in CWD server")
+            return 0
+
+        tool_library = getattr(self.cwd_server.workspace, "tool_library", {})
+        if not tool_library:
+            return 0
+
+        count = 0
+        for tool_id, tool_data in tool_library.items():
+            # Skip if already synced (optimization)
+            if tool_id in self.tool_to_pattern_idx:
+                continue
+
+            embedding = tool_data.get("embedding")
+            if not embedding:
+                continue
+
+            try:
+                # Convert list to tensor
+                pattern = torch.tensor(embedding, device=self.config.device)
+
+                # Store in Manifold
+                metadata = {
+                    "id": tool_id,
+                    "name": tool_data.get("name", "unknown"),
+                    "type": "tool",
+                    "source": "sync"
+                }
+
+                # Check if store_pattern accepts metadata (it should)
+                if hasattr(self.manifold, "store_pattern"):
+                    self.manifold.store_pattern(pattern, metadata=metadata)
+
+                    # Update local mapping
+                    # Assuming the new pattern is at the end
+                    idx = self.manifold.num_patterns - 1
+                    self.tool_to_pattern_idx[tool_id] = idx
+                    self.pattern_idx_to_tool[idx] = tool_id
+
+                    count += 1
+            except Exception as e:
+                logger.warning(f"Failed to sync tool {tool_id}: {e}")
+
+        if count > 0:
+            logger.info(f"Synchronized {count} tools to Manifold")
+
+        return count
 
     def _execute_cwd_operation(
         self,

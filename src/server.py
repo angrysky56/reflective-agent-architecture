@@ -241,6 +241,70 @@ class CognitiveWorkspace:
         with self.neo4j_driver.session() as session:
             session.run(query, params or {})
 
+    def _validate_identifier(self, identifier: str) -> str:
+        """
+        Validate that an identifier (label/type) is safe for Cypher injection.
+        Allows alphanumeric and underscores.
+        """
+        if not re.match(r"^[a-zA-Z0-9_]+$", identifier):
+            raise ValueError(f"Invalid identifier: {identifier}")
+        return identifier
+
+    def search_nodes(self, label: str, property_filters: dict[str, Any] | None = None, limit: int = 10) -> list[dict[str, Any]]:
+        """
+        Search for nodes with a specific label and optional property filters.
+        Uses validated f-strings for label to ensure compatibility.
+        """
+        safe_label = self._validate_identifier(label)
+
+        # Build property filter string dynamically
+        where_clause = ""
+        if property_filters:
+            conditions = [f"n.{k} = ${k}" for k in property_filters.keys()]
+            where_clause = "WHERE " + " AND ".join(conditions)
+
+        query = f"""
+        MATCH (n:{safe_label})
+        {where_clause}
+        RETURN n
+        LIMIT $limit
+        """
+
+        params = property_filters or {}
+        params["limit"] = limit
+
+        return self.read_query(query, params)
+
+    def traverse_relationships(self, start_id: str, rel_type: str | None = None, direction: str = "OUTGOING", limit: int = 10) -> list[dict[str, Any]]:
+        """
+        Traverse relationships dynamically.
+        If rel_type is None, traverses all relationship types.
+        """
+        if rel_type:
+            safe_rel_type = self._validate_identifier(rel_type)
+            type_constraint = f":{safe_rel_type}"
+        else:
+            type_constraint = ""
+
+        if direction == "OUTGOING":
+            pattern = f"(n)-[r{type_constraint}]->(m)"
+        elif direction == "INCOMING":
+            pattern = f"(n)<-[r{type_constraint}]-(m)"
+        else:
+            pattern = f"(n)-[r{type_constraint}]-(m)"
+
+        query = f"""
+        MATCH (n) WHERE n.id = $start_id
+        MATCH {pattern}
+        RETURN m, type(r) as rel_type, properties(r) as rel_props
+        LIMIT $limit
+        """
+        params = {
+            "start_id": start_id,
+            "limit": limit
+        }
+        return self.read_query(query, params)
+
     def _initialize_gen3_schema(self):
         """
         Initialize Gen 3 architecture enhancements in Neo4j.
@@ -1166,8 +1230,8 @@ CRITICAL: Output your final answer directly. You may think internally, but end w
                 MATCH (a:ThoughtNode {id: $id_a})
                 MATCH (b:ThoughtNode {id: $id_b})
                 MATCH (h:ThoughtNode {id: $hyp_id})
-                CREATE (h)-[:CONNECTS {similarity: $similarity, quality: $quality}]->(a)
-                CREATE (h)-[:CONNECTS {similarity: $similarity, quality: $quality}]->(b)
+                CREATE (h)-[:HYPOTHESIZES_CONNECTION_TO {similarity: $similarity, quality: $quality}]->(a)
+                CREATE (h)-[:HYPOTHESIZES_CONNECTION_TO {similarity: $similarity, quality: $quality}]->(b)
                 """,
                 id_a=node_a_id,
                 id_b=node_b_id,
@@ -1927,7 +1991,17 @@ Output JSON:
 
         response = self.workspace._llm_generate(system_prompt, user_prompt)
         clean_response = response.replace("```json", "").replace("```", "").strip()
-        fragments = json.loads(clean_response)
+
+        try:
+            fragments = json.loads(clean_response)
+        except json.JSONDecodeError:
+            logger.error(f"Failed to parse deconstruction JSON: {clean_response}")
+            # Fallback to a simple split if JSON fails
+            fragments = {
+                "state_fragment": "Unknown Context",
+                "agent_fragment": "Unknown Agent",
+                "action_fragment": problem
+            }
 
         # 2. Embed Fragments
         mapper = bridge.embedding_mapper
@@ -2659,6 +2733,48 @@ RAA_TOOLS = [
         description="List all registered advisors and their capabilities.",
         inputSchema={"type": "object", "properties": {}, "required": []},
     ),
+    Tool(
+        name="inspect_graph",
+        description="Inspect the graph using dynamic queries. Search for nodes by label or traverse relationships.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "mode": {
+                    "type": "string",
+                    "enum": ["nodes", "relationships"],
+                    "description": "Operation mode: 'nodes' to search nodes, 'relationships' to traverse."
+                },
+                "label": {
+                    "type": "string",
+                    "description": "Node label to search for (required for mode='nodes')."
+                },
+                "filters": {
+                    "type": "object",
+                    "description": "Property filters for node search (e.g., {'name': 'Value'})."
+                },
+                "start_id": {
+                    "type": "string",
+                    "description": "Starting node ID for traversal (required for mode='relationships')."
+                },
+                "rel_type": {
+                    "type": "string",
+                    "description": "Relationship type to traverse (required for mode='relationships')."
+                },
+                "direction": {
+                    "type": "string",
+                    "enum": ["OUTGOING", "INCOMING", "BOTH"],
+                    "default": "OUTGOING",
+                    "description": "Traversal direction."
+                },
+                "limit": {
+                    "type": "integer",
+                    "default": 10,
+                    "description": "Max results to return."
+                }
+            },
+            "required": ["mode"]
+        },
+    ),
 ]
 
 
@@ -2683,38 +2799,45 @@ async def list_tools() -> list[Tool]:
 @server.call_tool()
 async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextContent]:
     """Handle tool calls"""
-    # Ensure context is initialized
-    ctx = get_raa_context()
+    try:
+        logger.info(f"Received tool call: {name}")
 
-    # Ensure external MCP is initialized
-    if ctx.external_mcp and not ctx.external_mcp.is_initialized:
-        await ctx.external_mcp.initialize()
+        # Ensure context is initialized
+        ctx = get_raa_context()
 
-    workspace = ctx.workspace
-    bridge = ctx.get_bridge()
-    agent_factory = ctx.get_agent_factory()
+        # Ensure external MCP is initialized
+        if ctx.external_mcp and not ctx.external_mcp.is_initialized:
+            logger.info("Initializing external MCP connections...")
+            await ctx.external_mcp.initialize()
 
-    if not workspace:
-        raise RuntimeError("Workspace not initialized")
+        workspace = ctx.workspace
+        bridge = ctx.get_bridge()
+        agent_factory = ctx.get_agent_factory()
 
-    # Check for dynamic agent call first
-    if name in agent_factory.active_agents:
-        response = await agent_factory.execute_agent(name, arguments)
-        return [TextContent(type="text", text=response)]
+        if not workspace:
+            raise RuntimeError("Workspace not initialized")
 
-    # Check external tools
-    if ctx.external_mcp and name in ctx.external_mcp.tools_map:
-        result = await ctx.external_mcp.call_tool(name, arguments)
-        # Result is likely CallToolResult, convert to TextContent
-        content = []
-        if hasattr(result, "content"):
-            for item in result.content:
-                if item.type == "text":
-                    content.append(TextContent(type="text", text=item.text))
-                elif item.type == "image":
-                    # Handle image if needed, or skip
-                    pass
-        return content if content else [TextContent(type="text", text=str(result))]
+        # Check for dynamic agent call first
+        if name in agent_factory.active_agents:
+            response = await agent_factory.execute_agent(name, arguments)
+            return [TextContent(type="text", text=response)]
+
+        # Check external tools
+        if ctx.external_mcp and name in ctx.external_mcp.tools_map:
+            result = await ctx.external_mcp.call_tool(name, arguments)
+            # Result is likely CallToolResult, convert to TextContent
+            content = []
+            if hasattr(result, "content"):
+                for item in result.content:
+                    if item.type == "text":
+                        content.append(TextContent(type="text", text=item.text))
+                    elif item.type == "image":
+                        # Handle image if needed, or skip
+                        pass
+            return content if content else [TextContent(type="text", text=str(result))]
+    except Exception as e:
+        logger.error(f"Critical error in call_tool setup: {e}", exc_info=True)
+        return [TextContent(type="text", text=f"Critical Server Error: {str(e)}")]
 
     try:
         if name == "deconstruct":
@@ -3254,6 +3377,28 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
                     "status": "failure",
                     "message": "Revision failed. Could not find valid stable state."
                 }
+
+        elif name == "inspect_graph":
+            mode = arguments["mode"]
+            limit = arguments.get("limit", 10)
+
+            if mode == "nodes":
+                label = arguments.get("label")
+                if not label:
+                    return [TextContent(type="text", text="Error: 'label' is required for node search.")]
+                filters = arguments.get("filters", {})
+                results = workspace.search_nodes(label, filters, limit)
+            elif mode == "relationships":
+                start_id = arguments.get("start_id")
+                rel_type = arguments.get("rel_type") # Optional now
+                if not start_id:
+                    return [TextContent(type="text", text="Error: 'start_id' is required for traversal.")]
+                direction = arguments.get("direction", "OUTGOING")
+                results = workspace.traverse_relationships(start_id, rel_type, direction, limit)
+            else:
+                return [TextContent(type="text", text=f"Unknown mode: {mode}")]
+
+            return [TextContent(type="text", text=json.dumps(results, indent=2, default=str))]
 
             return [TextContent(type="text", text=json.dumps(response, indent=2))]
 
