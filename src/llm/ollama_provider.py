@@ -16,7 +16,7 @@ class OllamaProvider(BaseLLMProvider):
     def __init__(self, model_name: str):
         self.model_name = model_name
 
-    def generate(self, system_prompt: str, user_prompt: str, max_tokens: int = 16000) -> str:
+    def generate(self, system_prompt: str, user_prompt: str, max_tokens: int = 16000, tools: Optional[List[Dict]] = None) -> str:
         try:
             response = ollama.chat(
                 model=self.model_name,

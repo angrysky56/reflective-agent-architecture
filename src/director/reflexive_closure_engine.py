@@ -8,7 +8,7 @@ and Adaptation (Criterion).
 
 import logging
 import random
-from typing import Optional
+from typing import Any, Optional
 
 from .adaptive_criterion import AdaptiveCriterion
 from .intervention_tracker import InterventionTracker
@@ -44,21 +44,49 @@ class ReflexiveClosureEngine:
 
         self._interventions_since_analysis = 0
 
-    def get_threshold(self, cognitive_state: str = "Neutral") -> float:
+    def get_parameter(self, name: str, cognitive_state: str = "Neutral") -> Any:
         """
-        Get the current threshold to use, potentially exploring.
+        Get the current value for a parameter, potentially exploring.
+
+        Args:
+            name: Parameter name (e.g., 'entropy_threshold', 'search_k')
+            cognitive_state: Current cognitive state
+
+        Returns:
+            The parameter value (possibly perturbed for exploration)
         """
-        base_threshold = self.criterion.get_threshold(cognitive_state)
+        base_value = self.criterion.get_parameter(name, cognitive_state)
+
+        if base_value is None:
+            return None
 
         # Epsilon-greedy exploration
         if random.random() < self.exploration_rate:
-            # Perturb threshold by +/- 20%
-            perturbation = random.uniform(0.8, 1.2)
-            explored_threshold = base_threshold * perturbation
-            logger.info(f"Reflexive Exploration: Perturbing threshold {base_threshold:.2f} -> {explored_threshold:.2f}")
-            return explored_threshold
+            if isinstance(base_value, float):
+                # Perturb float by +/- 20%
+                perturbation = random.uniform(0.8, 1.2)
+                explored_value = base_value * perturbation
+                logger.info(f"Reflexive Exploration ({name}): {base_value:.2f} -> {explored_value:.2f}")
+                return explored_value
 
-        return base_threshold
+            elif isinstance(base_value, int):
+                # Perturb int by +/- 1 step (or more for larger values)
+                step = max(1, int(base_value * 0.2))
+                delta = random.choice([-step, step])
+                explored_value = max(1, base_value + delta) # Assuming positive ints usually
+                logger.info(f"Reflexive Exploration ({name}): {base_value} -> {explored_value}")
+                return explored_value
+
+            # Categorical/String exploration not yet implemented
+
+        return base_value
+
+    def get_threshold(self, cognitive_state: str = "Neutral") -> float:
+        """
+        Legacy wrapper for entropy threshold.
+        """
+        val = self.get_parameter("entropy_threshold", cognitive_state)
+        return float(val) if val is not None else 2.0
 
     def record_intervention_start(self, **kwargs) -> str:
         """Proxy to tracker.start_intervention."""

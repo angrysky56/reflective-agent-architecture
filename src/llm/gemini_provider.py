@@ -35,7 +35,7 @@ class GeminiProvider(BaseLLMProvider):
         stop=stop_after_attempt(5),
         before_sleep=before_sleep_log(logger, logging.WARNING),
     )
-    def generate(self, system_prompt: str, user_prompt: str, max_tokens: int = 16000) -> str:
+    def generate(self, system_prompt: str, user_prompt: str, max_tokens: int = 16000, tools: Optional[List[Dict]] = None) -> str:
         try:
             model = genai.GenerativeModel(self.model_name)
             # Gemini doesn't have a strict "system" role in the same way, but we can prepend it.

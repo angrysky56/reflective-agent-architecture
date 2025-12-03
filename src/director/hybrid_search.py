@@ -150,7 +150,9 @@ class HybridSearchStrategy:
         evidence: Optional[torch.Tensor] = None,
         constraints: Optional[list[str]] = None,
         context: Optional[dict] = None,
-        force_ltn: bool = False
+        force_ltn: bool = False,
+        k: Optional[int] = None,
+        metric: Optional[str] = None
     ) -> Optional[HybridSearchResult]:
         """
         Execute hybrid search with automatic strategy selection.
@@ -161,6 +163,8 @@ class HybridSearchStrategy:
             constraints: Optional natural language constraints
             context: Optional context dict for logging
             force_ltn: If True, skip k-NN and force LTN refinement
+            k: Optional override for number of neighbors
+            metric: Optional override for distance metric
 
         Returns:
             HybridSearchResult if successful, None if all strategies failed
@@ -193,7 +197,7 @@ class HybridSearchStrategy:
 
         knn_result = None
         if not should_skip_knn:
-            knn_result = self._try_knn_search(current_state, result)
+            knn_result = self._try_knn_search(current_state, result, k=k, metric=metric)
         else:
             result.knn_failed_reason = "Skipped (Forced LTN)"
 
@@ -242,7 +246,9 @@ class HybridSearchStrategy:
     def _try_knn_search(
         self,
         current_state: torch.Tensor,
-        result: HybridSearchResult
+        result: HybridSearchResult,
+        k: Optional[int] = None,
+        metric: Optional[str] = None
     ) -> Optional[HybridSearchResult]:
         """
         Attempt RAA energy-aware k-NN search.
@@ -269,8 +275,8 @@ class HybridSearchStrategy:
                 current_state=current_state,
                 memory_patterns=memory,
                 energy_evaluator=self.manifold.energy,
-                k=self.config.knn_k,
-                metric=self.config.knn_metric,
+                k=k if k is not None else self.config.knn_k,
+                metric=metric if metric is not None else self.config.knn_metric,
                 exclude_threshold=self.config.knn_exclude_threshold
             )
         except Exception as e:

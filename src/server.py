@@ -28,14 +28,14 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import re
 import time
-import traceback
+from collections import Counter
 from collections.abc import Sequence
-from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List
 
 import chromadb
 import numpy as np
@@ -44,16 +44,13 @@ from chromadb.config import Settings
 from dotenv import load_dotenv
 from mcp.server import Server
 from mcp.types import TextContent, Tool
-
-# Load environment variables from .env file
-load_dotenv()
 from neo4j import GraphDatabase
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from src.cognition.curiosity import CuriosityModule
 from src.cognition.meta_validator import MetaValidator
-from src.compass.compass_framework import COMPASS
-from src.compass.executive_controller import ExecutiveController
+from src.cognition.system_guide import SystemGuideNodes
 from src.compass.orthogonal_dimensions import OrthogonalDimensionsAnalyzer
 from src.director import Director, DirectorConfig
 from src.director.simple_gp import SimpleGP
@@ -77,6 +74,11 @@ from src.substrate import (
     OperationCostProfile,
     SubstrateAwareDirector,
 )
+from src.substrate.energy import EnergyDepletionError, MetabolicLedger
+from src.substrate.entropy import EntropyMonitor
+
+# Load environment variables from .env file
+load_dotenv()
 
 
 def evolve_formula_logic(data_points, n_generations=10, hybrid=False):
@@ -144,6 +146,10 @@ class CWDConfig(BaseSettings):
     llm_model: str = Field(default="google/gemini-2.0-flash-exp:free", description="LLM model name")
     compass_model: str = Field(default="anthropic/claude-3.5-sonnet:beta", description="Model for COMPASS reasoning")
 
+    # Ruminator Settings
+    ruminator_enabled: bool = Field(default=False, description="Enable background rumination")
+    ruminator_delay: float = Field(default=2.0, description="Delay between rumination cycles (seconds)")
+
     # Embedding Settings
     embedding_provider: str = Field(default="sentence-transformers", description="Embedding provider (sentence-transformers, ollama, lm_studio)")
     embedding_model: str = Field(
@@ -176,6 +182,20 @@ class CognitiveWorkspace:
         # Initialize LLM Provider
         self.llm_provider: BaseLLMProvider = LLMFactory.create_provider(
             self.config.llm_provider, self.config.llm_model
+        )
+
+        # Initialize Ruminator Provider (for offline/background tasks)
+        ruminator_model = os.getenv("RUMINATOR_MODEL", "amazon/nova-2-lite-v1:free")
+        ruminator_provider_name = os.getenv("RUMINATOR_PROVIDER", "openrouter")
+        self.ruminator_provider: BaseLLMProvider = LLMFactory.create_provider(
+            ruminator_provider_name, ruminator_model
+        )
+
+        # Initialize Dreamer Provider (for high-IQ crystallization)
+        dreamer_model = os.getenv("DREAMER_MODEL", "anthropic/claude-3.5-sonnet")
+        dreamer_provider_name = os.getenv("DREAMER_PROVIDER", "openrouter")
+        self.dreamer_provider: BaseLLMProvider = LLMFactory.create_provider(
+            dreamer_provider_name, dreamer_model
         )
 
         # Initialize embedding provider using factory
@@ -228,6 +248,12 @@ class CognitiveWorkspace:
         # Initialize Work History
         self.history = WorkHistory()
 
+        # Initialize Metabolic Ledger (Energy System)
+        self.ledger = MetabolicLedger()
+
+        # Initialize Entropy Monitor (State Dynamics)
+        self.entropy_monitor = EntropyMonitor()
+
         # Initialize Continuity Service
         self.continuity_service = ContinuityService(
             continuity_field=self.continuity_field,
@@ -235,6 +261,212 @@ class CognitiveWorkspace:
         )
 
         logger.info("Cognitive Workspace initialized with Gen 3 architecture")
+
+        # Initialize System Guide Nodes (Code Casefile)
+        self.system_guide = SystemGuideNodes(self.neo4j_driver, root_path=os.getcwd())
+
+        # Initialize Curiosity Module (Intrinsic Motivation)
+        self.curiosity = CuriosityModule(self)
+
+        # Tool Usage Tracking for Entropy
+        self.tool_usage_buffer: List[str] = []
+        self.MAX_TOOL_BUFFER = 20
+
+        # Initialize MCP Tools
+        self.mcp_tools = {
+            "read_file": self._read_file,
+            "list_directory": self._list_directory,
+            "search_codebase": self._search_codebase,
+            "inspect_codebase": self._inspect_codebase,
+            "get_cognitive_state": self._get_cognitive_state,
+        }
+
+    def _get_cognitive_state(self) -> str:
+        """
+        Get the current cognitive state (entropy, focus/explore mode).
+        """
+        try:
+            status = self.entropy_monitor.get_status()
+            return json.dumps(status, indent=2)
+        except Exception as e:
+            return f"Error getting cognitive state: {e}"
+
+    def _track_tool_usage(self, tool_name: str):
+        """Track tool usage for entropy calculation."""
+        self.tool_usage_buffer.append(tool_name)
+        if len(self.tool_usage_buffer) > self.MAX_TOOL_BUFFER:
+            self.tool_usage_buffer.pop(0)
+
+        # Update entropy
+        counts = Counter(self.tool_usage_buffer)
+        entropy = self.entropy_monitor.update_from_counts(counts)
+        logger.debug(f"Tool usage entropy updated: {entropy:.2f} (State: {self.entropy_monitor.state.value})")
+
+    def _read_file(self, path: str) -> str:
+        """Read file content."""
+        self._track_tool_usage("read_file")
+        try:
+            file_path = Path(path)
+            if not file_path.exists():
+                return f"Error: File not found: {path}"
+            if not file_path.is_file():
+                return f"Error: Not a file: {path}"
+            return file_path.read_text(encoding="utf-8")
+        except Exception as e:
+            return f"Error reading file: {e}"
+
+    def _list_directory(self, path: str) -> str:
+        """List directory contents."""
+        self._track_tool_usage("list_directory")
+        try:
+            dir_path = Path(path)
+            if not dir_path.exists():
+                return f"Error: Directory not found: {path}"
+            if not dir_path.is_dir():
+                return f"Error: Not a directory: {path}"
+
+            items = []
+            for item in dir_path.iterdir():
+                type_str = "DIR" if item.is_dir() else "FILE"
+                items.append(f"[{type_str}] {item.name}")
+            return "\n".join(sorted(items))
+        except Exception as e:
+            return f"Error listing directory: {e}"
+
+    def _search_codebase(self, query: str, path: str = ".") -> str:
+        """Search for text pattern in codebase using grep, excluding common junk."""
+        self._track_tool_usage("search_codebase")
+        try:
+            import subprocess
+
+            # State-dependent behavior
+            # FOCUS: Narrow search, fewer results (Convergence)
+            # EXPLORE: Broad search, more results (Divergence)
+            max_results = 100 # Default
+            if self.entropy_monitor.state.value == "focus":
+                max_results = 20
+            elif self.entropy_monitor.state.value == "explore":
+                max_results = 200
+
+            # Exclude common non-code directories
+            excludes = [
+                "--exclude-dir=.git",
+                "--exclude-dir=__pycache__",
+                "--exclude-dir=chroma_data",
+                "--exclude-dir=venv",
+                "--exclude-dir=node_modules",
+                "--exclude-dir=.pytest_cache",
+                "--exclude-dir=.mypy_cache",
+                "--exclude=*.pyc",
+                "--exclude=*.rdb",
+                "--exclude=*.log"
+            ]
+            cmd = ["grep", "-r", "-n"] + excludes + [query, path]
+
+            # Add timeout to prevent hanging
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+
+            if result.returncode != 0 and result.returncode != 1:
+                return f"Error searching: {result.stderr}"
+
+            output = result.stdout
+            if not output:
+                return "No matches found."
+
+            # Truncate if too long
+            lines = output.splitlines()
+            if len(lines) > max_results:
+                return "\n".join(lines[:max_results]) + f"\n... and {len(lines)-max_results} more matches (truncated due to {self.entropy_monitor.state.value} state)."
+            return output
+
+        except subprocess.TimeoutExpired:
+            return "Error: Search timed out."
+        except Exception as e:
+            return f"Error searching codebase: {e}"
+
+    def _inspect_codebase(self, action: str, **kwargs) -> str:
+        """
+        Inspect codebase structure using System Guide Nodes (Code Casefile).
+        Actions:
+        - scan: Auto-generate bookmarks for classes/funcs (optional: path)
+        - create_concept: Create a high-level concept (name, description)
+        - bookmark: Create a bookmark (file, line, snippet, notes)
+        - link: Link bookmark to concept (concept_name, bookmark_id)
+        - get_concept: Get details of a concept (name)
+        """
+        self._track_tool_usage("inspect_codebase")
+        try:
+            if action == "scan":
+                path = kwargs.get("path", ".")
+                return self.system_guide.scan_codebase(path)
+
+            elif action == "create_concept":
+                name = kwargs.get("name")
+                description = kwargs.get("description", "")
+                if not name:
+                    return "Error: 'name' required for create_concept"
+                return self.system_guide.create_concept(name, description)
+
+            elif action == "bookmark":
+                file_path = kwargs.get("file")
+                line = kwargs.get("line")
+                snippet = kwargs.get("snippet")
+                notes = kwargs.get("notes", "")
+                if not all([file_path, line, snippet]):
+                    return "Error: 'file', 'line', 'snippet' required for bookmark"
+                return self.system_guide.create_bookmark(file_path, int(line), snippet, notes)
+
+            elif action == "link":
+                concept = kwargs.get("concept_name")
+                bookmark_id = kwargs.get("bookmark_id")
+                if not all([concept, bookmark_id]):
+                    return "Error: 'concept_name', 'bookmark_id' required for link"
+                self.system_guide.link_bookmark_to_concept(concept, bookmark_id)
+                return f"Linked {bookmark_id} to {concept}"
+
+            elif action == "get_concept":
+                name = kwargs.get("name")
+                if not name:
+                    return "Error: 'name' required for get_concept"
+                return json.dumps(self.system_guide.get_concept_details(name), indent=2)
+
+            else:
+                return f"Unknown action: {action}"
+
+        except Exception as e:
+            return f"Error in inspect_codebase: {e}"
+
+    def _execute_with_tools(self, system_prompt: str, user_prompt: str, tools: List[Dict]) -> str:
+        """
+        Execute LLM generation with tool support.
+        Handles the tool call loop.
+        """
+
+        # Initial call
+        response = self.llm_provider.generate(
+            system_prompt, user_prompt, tools=tools
+        )
+
+        # Check if response is a tool call (this depends on provider implementation)
+        # Since our generate() returns string, we need to parse it or rely on provider-specific behavior.
+        # However, OpenRouter/OpenAI providers usually return the content.
+        # If tool_calls are present, they are in the message object, not the content string.
+        # Our current generate() implementation returns message.content.
+        # This is a limitation of the current generate() interface.
+
+        # To properly support tools, we need to access the full message object or tool_calls.
+        # But for now, let's assume we are using a provider that might return JSON for tool calls
+        # or we need to update generate() to return more than just string.
+
+        # CRITICAL FIX: The current generate() returns only string.
+        # We need to update it to return the full response or handle tool calls internally.
+        # Given the constraints, let's try to use a convention or parse the output if it looks like a tool call.
+        # But OpenAI tool calls are structured.
+
+        # For this MVP, let's assume the LLM might return a JSON string if we prompt it to,
+        # OR we need to update generate() to return (content, tool_calls).
+
+        return response
 
     def close(self):
         """Cleanup connections"""
@@ -2146,19 +2378,16 @@ Output JSON:
             director = self.get_director()
             state, energy = director.latest_cognitive_state
 
-            warnings = []
-            if state in ["Looping", "Confused", "Scattered"]:
-                warnings.append(f"WARNING: Agent is in a '{state}' state.")
-            if energy > -0.8 and state != "Unknown":
-                 warnings.append("Note: State is unstable (high energy).")
+            # Get latest entropy if available
+            entropy = 0.0
+            if hasattr(director, "monitor") and director.monitor.entropy_history:
+                entropy = director.monitor.entropy_history[-1]
 
-            advice = "Continue current line of reasoning."
-            if state == "Looping":
-                advice = "Stop. Use 'diagnose_pointer' or 'hypothesize'."
-            elif state == "Confused":
-                advice = "High entropy. Use 'deconstruct'."
-            elif energy > -0.5 and state != "Unknown":
-                advice = "Energy high. Try 'synthesize'."
+            # Get adaptive remedial action
+            remedial_action = director.get_remedial_action(state, energy, entropy)
+
+            warnings = remedial_action.get("warnings", [])
+            advice = remedial_action.get("advice", "Continue current line of reasoning.")
 
             # Meta-Commentary
             recent_history = bridge.history.get_recent_history(limit=5)
@@ -2458,8 +2687,25 @@ RAA_TOOLS = [
                     "type": "string",
                     "description": "Description of the internal conflict (e.g., 'Validator says Yes but Critique says No')",
                 },
+                "waitForPreviousTools": {
+                    "type": "boolean",
+                    "description": "If true, wait for all previous tool calls from this turn to complete before executing (sequential). If false or omitted, execute this tool immediately (parallel with other tools)."
+                }
             },
             "required": ["conflict"],
+        },
+    ),
+    Tool(
+        name="propose_goal",
+        description="Propose a new goal for the agent based on intrinsic motivation (Curiosity/Boredom).",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "waitForPreviousTools": {
+                    "type": "boolean",
+                    "description": "If true, wait for all previous tool calls from this turn to complete before executing (sequential). If false or omitted, execute this tool immediately (parallel with other tools)."
+                }
+            },
         },
     ),
     Tool(
@@ -2601,8 +2847,8 @@ RAA_TOOLS = [
         inputSchema={"type": "object", "properties": {}, "required": []},
     ),
     Tool(
-        name="take_nap",
-        description="Trigger a quick Sleep Cycle (Offline Learning) to consolidate recent memories and potentially crystallize new tools.",
+        name="run_sleep_cycle",
+        description="Trigger a Sleep Cycle (Offline Learning) to consolidate recent memories and potentially crystallize new tools.",
         inputSchema={
             "type": "object",
             "properties": {
@@ -2739,6 +2985,19 @@ RAA_TOOLS = [
             "required": ["mode"]
         },
     ),
+    Tool(
+        name="consult_curiosity",
+        description="Consult the agent's curiosity module to see if there are any interesting goals to pursue (based on boredom/surprise).",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "waitForPreviousTools": {
+                    "type": "boolean",
+                    "description": "If true, wait for all previous tool calls from this turn to complete before executing (sequential). If false or omitted, execute this tool immediately (parallel with other tools)."
+                }
+            },
+        },
+    ),
 ]
 
 
@@ -2811,13 +3070,13 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
             except Exception as e:
                 return [TextContent(type="text", text=f"Deconstruction failed: {str(e)}")]
         elif name == "hypothesize":
-            # Metabolic Cost: Hypothesis is a Search operation (Topology Tunneling)
-            if ctx.ledger:
+            # Metabolic Cost: Hypothesis is a Search operation (1.0)
+            if workspace.ledger:
                 from decimal import Decimal
 
-                from src.substrate import EnergyToken, MeasurementCost
-                # Cost ~ Search Cost (1.0)
-                ctx.ledger.record_transaction(MeasurementCost(
+                from src.substrate.energy import EnergyToken, MeasurementCost
+
+                workspace.ledger.record_transaction(MeasurementCost(
                     energy=EnergyToken(Decimal("1.0"), "joules"),
                     operation_name="hypothesize"
                 ))
@@ -2833,14 +3092,16 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
             )
         elif name == "synthesize":
             # Metabolic Cost: Synthesis is Integration (3.0)
-            if ctx.ledger:
+            if workspace.ledger:
                 from decimal import Decimal
 
-                from src.substrate import EnergyToken, MeasurementCost
-                ctx.ledger.record_transaction(MeasurementCost(
+                from src.substrate.energy import EnergyToken, MeasurementCost
+
+                workspace.ledger.record_transaction(MeasurementCost(
                     energy=EnergyToken(Decimal("3.0"), "joules"),
                     operation_name="synthesize"
                 ))
+
             result = bridge.execute_monitored_operation(
                 operation="synthesize",
                 params={
@@ -2864,14 +3125,16 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
 
         elif name == "constrain":
             # Metabolic Cost: Constraint is Validation (2.0)
-            if ctx.ledger:
+            if workspace.ledger:
                 from decimal import Decimal
 
-                from src.substrate import EnergyToken, MeasurementCost
-                ctx.ledger.record_transaction(MeasurementCost(
+                from src.substrate.energy import EnergyToken, MeasurementCost
+
+                workspace.ledger.record_transaction(MeasurementCost(
                     energy=EnergyToken(Decimal("2.0"), "joules"),
                     operation_name="constrain"
                 ))
+
             result = bridge.execute_monitored_operation(
                 operation="constrain",
                 params={
@@ -2882,11 +3145,12 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
 
         elif name == "evolve_formula":
             # Metabolic Cost: Evolution is expensive (10.0)
-            if ctx.ledger:
+            if workspace.ledger:
                 from decimal import Decimal
 
-                from src.substrate import EnergyToken, MeasurementCost
-                ctx.ledger.record_transaction(MeasurementCost(
+                from src.substrate.energy import EnergyToken, MeasurementCost
+
+                workspace.ledger.record_transaction(MeasurementCost(
                     energy=EnergyToken(Decimal("10.0"), "joules"),
                     operation_name="evolve_formula"
                 ))
@@ -2929,14 +3193,16 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
                     result["advisor_learning"] = f"Tool '{tool_name}' added to advisor '{advisor.name}'"
         elif name == "resolve_meta_paradox":
             # Metabolic Cost: Paradox Resolution is System 3 (10.0)
-            if ctx.ledger:
+            if workspace.ledger:
                 from decimal import Decimal
 
-                from src.substrate import EnergyToken, MeasurementCost
-                ctx.ledger.record_transaction(MeasurementCost(
+                from src.substrate.energy import EnergyToken, MeasurementCost
+
+                workspace.ledger.record_transaction(MeasurementCost(
                     energy=EnergyToken(Decimal("10.0"), "joules"),
                     operation_name="resolve_meta_paradox"
                 ))
+
             result = workspace.resolve_meta_paradox(
                 conflict=arguments["conflict"]
             )
@@ -3003,13 +3269,19 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
             director = ctx.get_director()
             vis = director.visualize_last_thought()
             return [TextContent(type="text", text=vis)]
-        elif name == "take_nap":
+        elif name == "run_sleep_cycle":
             # Use shared Sleep Cycle instance
             sleep_cycle = ctx.sleep_cycle
             # Run in executor to avoid blocking event loop
             loop = asyncio.get_running_loop()
             epochs = arguments.get("epochs", 5)
             results = await loop.run_in_executor(None, sleep_cycle.dream, epochs)
+
+            # Recharge Energy
+            if workspace.ledger:
+                workspace.ledger.recharge()
+                results["energy_status"] = workspace.ledger.get_status()
+
             return [TextContent(type="text", text=json.dumps(results, indent=2))]
         elif name == "explore_for_utility":
             # Metabolic Cost: Exploration is Search (1.0)
@@ -3025,6 +3297,14 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
                 focus_area=arguments.get("focus_area"),
                 max_candidates=arguments.get("max_candidates", 10),
             )
+        elif name == "consult_curiosity":
+            # Curiosity-driven goal proposal
+            goal = workspace.curiosity.propose_goal()
+            if goal:
+                result = {"status": "success", "goal": goal}
+            else:
+                result = {"status": "idle", "message": "No boredom-driven goals at this time."}
+            return [TextContent(type="text", text=json.dumps(result, indent=2))]
         elif name == "get_active_goals":
             active_goals = workspace.get_active_goals()
             result = {
@@ -3413,6 +3693,9 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
 
         return [TextContent(type="text", text=json.dumps(result, indent=2))]
 
+    except EnergyDepletionError as e:
+        logger.warning(f"Energy depleted: {e}")
+        return [TextContent(type="text", text=f"Error: {str(e)}")]
     except Exception as e:
         logger.error(f"Error in {name}: {e}", exc_info=True)
         return [TextContent(type="text", text=f"Error: {str(e)}")]

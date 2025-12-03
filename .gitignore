@@ -25,6 +25,7 @@ venv/
 htmlcov/
 *.cover
 *.py,cover
+.pytest_cache
 
 # Build
 build/

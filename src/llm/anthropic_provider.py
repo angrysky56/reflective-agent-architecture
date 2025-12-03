@@ -30,7 +30,7 @@ class AnthropicProvider(BaseLLMProvider):
         stop=stop_after_attempt(5),
         before_sleep=before_sleep_log(logger, logging.WARNING),
     )
-    def generate(self, system_prompt: str, user_prompt: str, max_tokens: int = 16000) -> str:
+    def generate(self, system_prompt: str, user_prompt: str, max_tokens: int = 16000, tools: Optional[List[Dict]] = None) -> str:
         try:
             client = Anthropic(api_key=self.api_key)
             response = client.messages.create(

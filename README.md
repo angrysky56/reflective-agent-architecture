@@ -165,6 +165,28 @@ Delegate a complex task to the COMPASS cognitive framework. Use this for tasks r
   - **Reflexive Engine**: Orchestrates the loop, enabling the system to "escape its instruction set" by evolving its own control parameters.
 - **Safety**: Implements a "Constitution" of immutable meta-constraints (e.g., Conservation of Expected Utility) to prevent wireheading during self-modification.
 
+#### 10. Thermodynamics (Energy & Entropy)
+
+- **Energy Token System**:
+  - **Metabolic Ledger**: Tracks "Joules" as a scarce resource.
+  - **Cost Profile**: Every cognitive operation (e.g., `hypothesize`, `deconstruct`) has an energy cost.
+  - **Constraint**: Depleted energy forces a "Sleep Cycle" to recharge, preventing infinite loops.
+- **Entropy Dynamics**:
+  - **Entropy Monitor**: Calculates Shannon entropy of the agent's tool usage and thought patterns.
+  - **Cognitive States**:
+    - **FOCUS**: Low entropy, convergent behavior (narrow search).
+    - **EXPLORE**: High entropy, divergent behavior (broad search).
+  - **Regulation**: High entropy triggers "Focus" mechanisms; low entropy triggers "Explore" mechanisms.
+
+#### 11. Intrinsic Motivation (The Ruminator)
+
+- **Curiosity Drive**:
+  - **Boredom Tracking**: Detects repetitive actions and triggers "Boredom".
+  - **Goal Proposal**: Autonomously proposes new goals based on graph gaps or latent space exploration.
+- **Self-Documentation**:
+  - **Offline Mode**: During "Sleep", the Ruminator scans the codebase (`SystemGuideNodes`) and generates documentation for undocumented components.
+  - **Graph Connectivity**: Proposes connections between "lonely" nodes in the knowledge graph.
+
 ---
 
 ## The "Aha!" Loop

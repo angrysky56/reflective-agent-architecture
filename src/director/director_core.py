@@ -30,6 +30,7 @@ from .entropy_monitor import EntropyMonitor
 from .hybrid_search import HybridSearchConfig, HybridSearchStrategy
 from .ltn_refiner import LTNConfig, LTNRefiner
 from .matrix_monitor import MatrixMonitor, MatrixMonitorConfig
+from .recursive_observer import RecursiveObserver
 from .reflexive_closure_engine import ReflexiveClosureEngine
 from .search_mvp import SearchResult
 from .sheaf_diagnostics import SheafAnalyzer, SheafConfig, SheafDiagnostics
@@ -130,6 +131,10 @@ class DirectorMVP:
                 criterion=None # Will use default which loads from disk
             )
             logger.info("Reflexive Closure Engine initialized.")
+
+        # Initialize Recursive Observer (Meta-Layer)
+        self.observer = RecursiveObserver()
+        logger.info("Recursive Observer initialized.")
 
         # 3. Matrix Monitor (Cognitive Proprioception)
         self.matrix_monitor = MatrixMonitor(
@@ -369,6 +374,8 @@ class DirectorMVP:
         self,
         current_state: torch.Tensor,
         context: Optional[Dict[str, Any]] = None,
+        k: Optional[int] = None,
+        metric: Optional[str] = None,
     ) -> Optional[SearchResult]:
         """
         Search Manifold for alternative goal framing.
@@ -376,6 +383,8 @@ class DirectorMVP:
         Args:
             current_state: Current goal/state embedding
             context: Optional context information for logging
+            k: Optional override for number of neighbors
+            metric: Optional override for distance metric
 
         Returns:
             SearchResult if alternative found, None if search failed
@@ -387,7 +396,9 @@ class DirectorMVP:
                 current_state=current_state,
                 evidence=None, # Director search is usually unsupervised/intrinsic, unless context provides evidence
                 constraints=[],
-                context=context
+                context=context,
+                k=k,
+                metric=metric
             )
 
             # Log search episode
@@ -425,6 +436,13 @@ class DirectorMVP:
         """
         # Step 1: Monitor entropy
         is_clash, entropy_value = self.check_entropy(processor_logits)
+
+        # [META-LAYER] Observe current state
+        self.observer.observe(
+            f"Monitoring entropy: {entropy_value:.3f} (Threshold: {self.monitor.get_threshold():.3f})",
+            level=0,
+            metadata={"entropy": entropy_value, "is_clash": is_clash}
+        )
 
         # Add entropy to context for logging
         if context is None:
@@ -484,6 +502,12 @@ class DirectorMVP:
         # If entropy is extremely high (e.g. > 2.5) or Sheaf Diagnostics recommend escalation
         # we spawn a specialized agent.
         if entropy_value > 2.5:
+            # [META-LAYER] Trigger immediate reflection
+            reflection = self.observer.reflect()
+            if reflection:
+                logger.info(f"Meta-Reflection: {reflection}")
+                self._apply_reflection_action(reflection)
+
             logger.warning(f"Critical Entropy ({entropy_value:.2f}). Triggering Dynamic Agent Escalation.")
             try:
                 loop = asyncio.get_running_loop()
@@ -502,6 +526,13 @@ class DirectorMVP:
         # Step 2: Check if intervention needed and perform search
         new_goal = None
         if is_clash:
+            # [META-LAYER] Observe clash
+            self.observer.observe(
+                f"Clash detected! Entropy {entropy_value:.3f} exceeds threshold.",
+                level=1,
+                metadata={"type": "clash"}
+            )
+
             logger.info(
                 f"Clash detected! Entropy={entropy_value:.3f} > "
                 f"threshold={self.monitor.get_threshold():.3f}"
@@ -545,8 +576,25 @@ class DirectorMVP:
                 context["adaptive_beta"] = adaptive_beta
                 context["original_beta"] = original_beta
 
-                # Step 4: Search for alternative using the adaptive beta
-                search_result = self.search(current_state, context)
+                # --- DYNAMIC PARAMETER RETRIEVAL ---
+                search_k = self.config.search_k
+                search_metric = self.config.search_metric
+
+                if self.reflexive_engine:
+                    # Get dynamic parameters from Reflexive Closure
+                    dyn_k = self.reflexive_engine.get_parameter("search_k", self.latest_cognitive_state[0])
+                    dyn_metric = self.reflexive_engine.get_parameter("search_metric", self.latest_cognitive_state[0])
+
+                    if dyn_k is not None:
+                        search_k = int(dyn_k)
+                    if dyn_metric is not None:
+                        search_metric = str(dyn_metric)
+
+                    logger.debug(f"Using dynamic search params: k={search_k}, metric={search_metric}")
+                # -----------------------------------
+
+                # Step 4: Search for alternative using the adaptive beta and dynamic params
+                search_result = self.search(current_state, context, k=search_k, metric=search_metric)
 
             except Exception as e:
                 logger.error(f"Search with adaptive beta failed: {e}")
@@ -616,51 +664,77 @@ class DirectorMVP:
             return None
 
 
-        try:
-            # Step 3: Compute adaptive beta based on confusion (entropy)
-            # Let compute_adaptive_beta calculate max_entropy internally
-            adaptive_beta = self.manifold.compute_adaptive_beta(
-                entropy=entropy_value, max_entropy=None
-            )
-
-            logger.info(
-                f"Setting adaptive beta: {adaptive_beta:.3f} (original: {original_beta:.3f}, "
-                f"entropy: {entropy_value:.3f})"
-            )
-
-            # Temporarily set the manifold's beta for this search
-            self.manifold.set_beta(adaptive_beta)
-
-            # Add adaptive beta to context for logging
-            context["adaptive_beta"] = adaptive_beta
-            context["original_beta"] = original_beta
-
-            # Step 4: Search for alternative using the adaptive beta
-            search_result = self.search(current_state, context)
-
-        except Exception as e:
-            logger.error(f"Search with adaptive beta failed: {e}")
-            # The 'finally' block will still run to clean up beta
-        finally:
-            # Step 5: CRITICAL - Reset beta to its original value
-            # This ensures the next generation step doesn't use the temporary exploratory beta
-            logger.debug(f"Resetting beta to original value: {original_beta:.3f}")
-            self.manifold.set_beta(original_beta)
-
-        # --- END ADAPTIVE BETA LOGIC ---
-
-        if search_result is None:
-            logger.warning("Search failed to find alternative")
-            return None
-
-        # Step 6: Return new goal
-        new_goal = search_result.best_pattern
-
-        logger.info(
-            f"Search successful. Selected neighbor with score={search_result.selection_score:.3f}"
-        )
-
         return new_goal
+
+    def _apply_reflection_action(self, action: Dict[str, Any]):
+        """
+        Execute a self-modification action triggered by the Recursive Observer.
+        """
+        action_type = action.get("action_type", "NONE")
+        params = action.get("parameters", {})
+
+        logger.info(f"Applying Meta-Action: {action_type} with params {params}")
+
+        if action_type == "SWITCH_STRATEGY":
+            # Example: Force a specific search metric or k
+            if "metric" in params:
+                self.config.search_metric = params["metric"]
+                logger.info(f"Switched search metric to {params['metric']}")
+            if "k" in params:
+                self.config.search_k = int(params["k"])
+                logger.info(f"Switched search k to {params['k']}")
+
+        elif action_type == "ADJUST_THRESHOLD":
+            # Example: Adjust entropy threshold
+            if "multiplier" in params:
+                current = self.monitor.get_threshold()
+                new_threshold = current * float(params["multiplier"])
+                # We can't easily set the threshold directly on the monitor without a setter
+                # But we can add a manual override or adjust the base
+                # For now, let's just log it as a proof of concept
+                logger.info(f"Requested threshold adjustment: {current} -> {new_threshold}")
+
+        elif action_type == "TRIGGER_SLEEP":
+            logger.info("Meta-Layer requested sleep cycle. (Not yet implemented)")
+
+    def get_remedial_action(self, state: str, energy: float, entropy: float) -> Dict[str, Any]:
+        """
+        Determine the best remedial action based on cognitive state.
+
+        This replaces hardcoded logic in server.py with a centralized,
+        potentially adaptive decision.
+        """
+        warnings = []
+        advice = "Continue current line of reasoning."
+
+        # 1. State-based Logic
+        if state == "Looping":
+            warnings.append(f"WARNING: Agent is in a '{state}' state.")
+            advice = "Stop. Use 'diagnose_pointer' or 'hypothesize' to break the loop."
+        elif state == "Confused":
+            warnings.append(f"WARNING: Agent is in a '{state}' state.")
+            advice = "High entropy detected. Use 'deconstruct' to break down the problem."
+        elif state == "Scattered":
+            warnings.append(f"WARNING: Agent is in a '{state}' state.")
+            advice = "Focus required. Use 'synthesize' to merge scattered thoughts or 'take_nap' to consolidate."
+
+        # 2. Energy-based Logic (Stability)
+        if energy > -0.8 and state != "Unknown":
+             warnings.append("Note: State is unstable (high energy).")
+             if state == "Flow":
+                 advice = "Flow state is fragile. Proceed with caution."
+
+        # 3. Entropy-based Logic (Uncertainty)
+        if entropy > 0.8:
+            warnings.append(f"High Entropy ({entropy:.2f}).")
+            if "deconstruct" not in advice:
+                advice += " Consider 'deconstruct' or 'consult_compass'."
+
+        return {
+            "warnings": warnings,
+            "advice": advice,
+            "suggested_tools": [] # Could be populated dynamically
+        }
 
     def diagnose(
         self,

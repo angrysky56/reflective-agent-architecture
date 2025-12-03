@@ -33,7 +33,7 @@ class HuggingFaceProvider(BaseLLMProvider):
         stop=stop_after_attempt(5),
         before_sleep=before_sleep_log(logger, logging.WARNING),
     )
-    def generate(self, system_prompt: str, user_prompt: str, max_tokens: int = 16000) -> str:
+    def generate(self, system_prompt: str, user_prompt: str, max_tokens: int = 16000, tools: Optional[List[Dict]] = None) -> str:
         try:
             client = InferenceClient(token=self.api_key)
             # HF Inference API format can vary. Using chat completion style if supported, else text generation.

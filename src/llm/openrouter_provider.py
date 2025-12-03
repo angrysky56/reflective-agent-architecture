@@ -36,7 +36,7 @@ class OpenRouterProvider(BaseLLMProvider):
         stop=stop_after_attempt(5),
         before_sleep=before_sleep_log(logger, logging.WARNING),
     )
-    def generate(self, system_prompt: str, user_prompt: str, max_tokens: int = 16000) -> str:
+    def generate(self, system_prompt: str, user_prompt: str, max_tokens: int = 16000, tools: Optional[List[Dict]] = None) -> str:
         try:
             extra_headers = {}
             if self.site_url:
@@ -57,7 +57,8 @@ class OpenRouterProvider(BaseLLMProvider):
                     {"role": "user", "content": user_prompt},
                 ],
                 max_tokens=max_tokens,
-                temperature=0.7
+                temperature=0.7,
+                tools=tools if tools else None
             )
             return response.choices[0].message.content
         except (RateLimitError, APIConnectionError, APITimeoutError):
