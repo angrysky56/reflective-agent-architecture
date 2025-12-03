@@ -190,3 +190,4 @@ Delegate a complex task to the COMPASS cognitive framework. Use this for tasks r
 - **[DEVELOPMENT.md](DEVELOPMENT.md)**: Detailed benchmarks, testing instructions, and dev setup.
 - **[RAA_AGENT.md](RAA_AGENT.md)**: Operational protocol for the AI agent.
 - **[docs/](docs/)**: Detailed design documents and theoretical references.
+- **[Comprehensive Theoretical Advancement](docs/theoretical_advancement_analysis.md)**: Synthesis of Recursive Observer, Reflexive Closure, and Diamond Proof.
