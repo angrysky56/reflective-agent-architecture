@@ -1,0 +1,8 @@
+formulas(assumptions).
+all n (CooperativeHub(n) -> HighCentrality(n)).
+all n (HighCentrality(n) -> ContributesToRobustness(n)).
+end_of_list.
+
+formulas(goals).
+all n (CooperativeHub(n) -> ContributesToRobustness(n)).
+end_of_list.

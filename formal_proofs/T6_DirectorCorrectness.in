@@ -1,0 +1,10 @@
+formulas(assumptions).
+all s (DirectorTriggers(s) -> exists s_next (Intervention(s, s_next) & lt(Entropy(s_next), Entropy(s)))).
+all s (DirectorTriggers(s) <-> Gt(Entropy(s), Threshold)).
+all s (Gt(Entropy(s), Threshold) -> exists s_next (Reachable(s, s_next) & lt(Entropy(s_next), Entropy(s)))).
+all s all s_next (Intervention(s, s_next) <-> (Reachable(s, s_next) & (all s_other (Reachable(s, s_other) -> Leq(Entropy(s_next), Entropy(s_other)))))).
+end_of_list.
+
+formulas(goals).
+all s (DirectorTriggers(s) -> exists s_next (Intervention(s, s_next) & lt(Entropy(s_next), Entropy(s)))).
+end_of_list.

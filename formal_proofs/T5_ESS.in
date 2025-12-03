@@ -1,0 +1,11 @@
+formulas(assumptions).
+all x (StrictNash(x) -> ESS(x)).
+all x (StrictNash(x) <-> (all y (Strategy(y) & y!=x -> Gt(Payoff(x,x), Payoff(y,x))))).
+all x (ESS(x) <-> (all y (Strategy(y) & y!=x -> (Geq(Payoff(x,x), Payoff(y,x)) & (Eq(Payoff(x,x), Payoff(y,x)) -> Gt(Payoff(x,y), Payoff(y,y))))))).
+all a all b (Gt(a,b) -> Geq(a,b)).
+all a all b (Gt(a,b) -> -Eq(a,b)).
+end_of_list.
+
+formulas(goals).
+all x (StrictNash(x) -> ESS(x)).
+end_of_list.

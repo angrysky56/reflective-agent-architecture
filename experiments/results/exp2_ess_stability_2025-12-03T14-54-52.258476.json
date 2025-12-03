@@ -1,0 +1,64 @@
+{
+  "metadata": {
+    "experiment_id": "exp2_ess_stability",
+    "timestamp": "2025-12-03T14:54:52.258476",
+    "random_seeds": {
+      "exp1_director": 42,
+      "exp1_random": 43,
+      "exp2_coop": 44,
+      "exp2_defect": 45,
+      "exp3_main": 46,
+      "exp3_shuffle": 47
+    },
+    "config_version": "1.0"
+  },
+  "raw_data": {
+    "w": [
+      0.1,
+      0.3,
+      0.5,
+      0.7,
+      0.9
+    ],
+    "survival_rate": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.98
+    ],
+    "success_count": [
+      0,
+      0,
+      0,
+      0,
+      49
+    ],
+    "fail_count": [
+      50,
+      50,
+      50,
+      50,
+      1
+    ]
+  },
+  "analysis": {
+    "test_name": "Chi-Square Test",
+    "statistic": 243.7810945273632,
+    "p_value": 1.4227428294734022e-51,
+    "w_values": [
+      0.1,
+      0.3,
+      0.5,
+      0.7,
+      0.9
+    ],
+    "survival_rates": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.98
+    ]
+  }
+}

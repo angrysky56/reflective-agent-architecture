@@ -1,0 +1,8 @@
+formulas(assumptions).
+all A all B all m (SharedKnowledge(A,B,m) -> MutualInformation(A,B)).
+all A all B (MutualInformation(A,B) -> CompressionAdvantage(A,B)).
+end_of_list.
+
+formulas(goals).
+all A all B all m (SharedKnowledge(A,B,m) -> CompressionAdvantage(A,B)).
+end_of_list.

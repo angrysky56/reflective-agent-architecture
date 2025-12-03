@@ -1,0 +1,8 @@
+formulas(assumptions).
+all a (Cooperative(a) -> ReducesFreeEnergy(a)).
+all a (ReducesFreeEnergy(a) -> OptimalForStability(a)).
+end_of_list.
+
+formulas(goals).
+all a (Cooperative(a) -> OptimalForStability(a)).
+end_of_list.
