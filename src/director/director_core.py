@@ -323,12 +323,24 @@ class DirectorMVP:
 
         Uses Reflexive Closure (if enabled) to get dynamic threshold.
         """
+        # Get local context threshold (percentile-based)
+        monitor_threshold = self.monitor.get_threshold()
+
         if self.reflexive_engine:
-            # Dynamic threshold from learned criteria
-            threshold = self.reflexive_engine.get_threshold(self.latest_cognitive_state[0])
+            # Get global learned threshold (success-based)
+            reflexive_threshold = self.reflexive_engine.get_threshold(self.latest_cognitive_state[0])
+
+            # Composition: Use the higher of the two.
+            # - If local context is noisy (high monitor_threshold), we wait for even higher entropy.
+            # - If local context is quiet but learned experience says "don't intervene below X", we wait for X.
+            threshold = max(monitor_threshold, reflexive_threshold)
+
+            logger.debug(
+                f"Threshold Composition: Monitor={monitor_threshold:.3f}, "
+                f"Reflexive={reflexive_threshold:.3f} -> Effective={threshold:.3f}"
+            )
         else:
-            # Fallback to percentile-based or static
-            threshold = self.monitor.get_threshold()
+            threshold = monitor_threshold
 
         return entropy > threshold
 

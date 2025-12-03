@@ -64,17 +64,29 @@ def test_reflexive_initialization(mock_director):
     """Test that ReflexiveClosureEngine is initialized."""
     assert mock_director.reflexive_engine is not None
 
-def test_check_entropy_uses_dynamic_threshold(mock_director):
-    """Test that _check_entropy uses the engine's threshold."""
-    # Setup
-    mock_director.reflexive_engine.get_threshold.return_value = 3.0
+def test_threshold_composition(mock_director):
+    """Test that _check_entropy uses the maximum of monitor and reflexive thresholds."""
+    # Case 1: Reflexive > Monitor
+    # Learned experience says "don't intervene below 2.5", even if local context (2.0) is quieter.
+    mock_director.reflexive_engine.get_threshold.return_value = 2.5
+    mock_director.monitor.get_threshold.return_value = 2.0
 
-    # Test with entropy 2.5 (should be False if threshold is 3.0)
-    is_clash = mock_director._check_entropy(entropy=2.5, energy=0.0)
+    # Entropy 2.2 should NOT trigger (2.2 < 2.5)
+    assert not mock_director._check_entropy(entropy=2.2, energy=0.0)
 
-    # Verify
-    mock_director.reflexive_engine.get_threshold.assert_called()
-    assert not is_clash
+    # Entropy 2.6 SHOULD trigger (2.6 > 2.5)
+    assert mock_director._check_entropy(entropy=2.6, energy=0.0)
+
+    # Case 2: Monitor > Reflexive
+    # Local context is very noisy (2.0), so we wait for 2.0 even if learned threshold is lower (1.5).
+    mock_director.reflexive_engine.get_threshold.return_value = 1.5
+    mock_director.monitor.get_threshold.return_value = 2.0
+
+    # Entropy 1.8 should NOT trigger (1.8 < 2.0)
+    assert not mock_director._check_entropy(entropy=1.8, energy=0.0)
+
+    # Entropy 2.1 SHOULD trigger (2.1 > 2.0)
+    assert mock_director._check_entropy(entropy=2.1, energy=0.0)
 
 def test_intervention_recording_flow(mock_director):
     """Test that interventions are recorded during check_and_search."""
