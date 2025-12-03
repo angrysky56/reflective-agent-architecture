@@ -44,6 +44,9 @@ uv sync --extra server
     ```bash
     cp .env.example .env
     ```
+
+## Multiple local and cloud servers can be set including major providers, LM Studio, and Open Router, see .env for details.
+
 2.  Edit `.env` and set your Neo4j password:
     ```bash
     NEO4J_PASSWORD=your_password
@@ -125,10 +128,12 @@ RAA synthesizes three active research frontiers:
 - **Function**: Maintains current goal representation as persistent state.
 - **Update Mechanism**: Receives new goal vectors from Director after successful search.
 
-#### 5. System 3: Adaptive Agents & COMPASS
+#### 5. System 3: Adaptive Agents & COMPASS (Cognitive Orchestration & Metacognitive Planning for Adaptive Semantic Systems)
 
 - **Adaptive Agents**: A "Topological Immune System" that dynamically spawns specialized agents (e.g., Debaters, Explorers) to resolve structural obstructions detected by Sheaf Diagnostics.
 - **COMPASS Integration**: Native integration with the COMPASS framework, allowing bidirectional tool use and delegation of complex planning tasks via `consult_compass`.
+
+Delegate a complex task to the COMPASS cognitive framework. Use this for tasks requiring multi-step reasoning, planning, or metacognitive analysis.
 
 #### 6. Operator C (Belief Revision)
 
