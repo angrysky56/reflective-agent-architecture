@@ -16,8 +16,16 @@ NEW: Sheaf diagnostics provide principled topological analysis based on
 "Sheaf Cohomology of Linear Predictive Coding Networks" (Seely, 2025).
 """
 
+from .adaptive_criterion import AdaptiveCriterion
 from .director_core import DirectorConfig, DirectorMVP
 from .entropy_monitor import EntropyMonitor, compute_entropy
+from .intervention_tracker import (
+    InterventionOutcome,
+    InterventionRecord,
+    InterventionTracker,
+)
+from .meta_pattern_analyzer import MetaPatternAnalyzer, PatternInsight
+from .reflexive_closure_engine import ReflexiveClosureEngine
 from .search_mvp import SearchResult, knn_search
 from .sheaf_diagnostics import (
     AttentionSheafAnalyzer,
@@ -40,6 +48,17 @@ __all__ = [
     "DirectorMVP",
     "DirectorConfig",
     "Director",
+    # Intervention Tracking
+    "InterventionTracker",
+    "InterventionRecord",
+    "InterventionOutcome",
+    # Meta-Pattern Analysis
+    "MetaPatternAnalyzer",
+    "PatternInsight",
+    # Adaptive Criterion
+    "AdaptiveCriterion",
+    # Reflexive Closure
+    "ReflexiveClosureEngine",
     # Sheaf Diagnostics
     "SheafAnalyzer",
     "SheafConfig",
@@ -65,3 +84,4 @@ class Director(DirectorMVP):
     search in the Manifold when confusion is detected.
     """
     pass
+

@@ -12,6 +12,7 @@ This is the Phase 1 (MVP) implementation following SEARCH_MECHANISM_DESIGN.md.
 
 import asyncio
 import logging
+import time
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
@@ -29,6 +30,7 @@ from .entropy_monitor import EntropyMonitor
 from .hybrid_search import HybridSearchConfig, HybridSearchStrategy
 from .ltn_refiner import LTNConfig, LTNRefiner
 from .matrix_monitor import MatrixMonitor, MatrixMonitorConfig
+from .reflexive_closure_engine import ReflexiveClosureEngine
 from .search_mvp import SearchResult
 from .sheaf_diagnostics import SheafAnalyzer, SheafConfig, SheafDiagnostics
 
@@ -43,6 +45,10 @@ class DirectorConfig:
     entropy_threshold_percentile: float = 0.75
     entropy_history_size: int = 100
     default_entropy_threshold: float = 2.0
+
+    # Reflexive Closure
+    enable_reflexive_closure: bool = True
+    reflexive_analysis_interval: int = 50
 
     # Search parameters
     search_k: int = 5  # Number of neighbors to retrieve
@@ -115,6 +121,15 @@ class DirectorMVP:
         # Sheaf Analyzer
         sheaf_config = self.config.sheaf_config or SheafConfig(device=self.config.device)
         self.sheaf_analyzer = SheafAnalyzer(sheaf_config)
+
+        # Initialize Reflexive Closure Engine
+        self.reflexive_engine = None
+        if self.config.enable_reflexive_closure:
+            self.reflexive_engine = ReflexiveClosureEngine(
+                analysis_interval=self.config.reflexive_analysis_interval,
+                criterion=None # Will use default which loads from disk
+            )
+            logger.info("Reflexive Closure Engine initialized.")
 
         # 3. Matrix Monitor (Cognitive Proprioception)
         self.matrix_monitor = MatrixMonitor(
@@ -302,6 +317,21 @@ class DirectorMVP:
                 return result
 
 
+    def _check_entropy(self, entropy: float, energy: float) -> bool:
+        """
+        Check if entropy exceeds threshold.
+
+        Uses Reflexive Closure (if enabled) to get dynamic threshold.
+        """
+        if self.reflexive_engine:
+            # Dynamic threshold from learned criteria
+            threshold = self.reflexive_engine.get_threshold(self.latest_cognitive_state[0])
+        else:
+            # Fallback to percentile-based or static
+            threshold = self.monitor.get_threshold()
+
+        return entropy > threshold
+
     def check_entropy(self, logits: torch.Tensor) -> tuple[bool, float]:
         """
         Check if entropy indicates a clash.
@@ -313,7 +343,15 @@ class DirectorMVP:
             is_clash: Whether clash was detected
             entropy_value: Computed entropy
         """
-        return self.monitor.check_logits(logits)
+        # Get raw entropy and monitor's opinion (which we might override)
+        _, entropy_value = self.monitor.check_logits(logits)
+
+        # Re-evaluate using our dynamic logic
+        # Use latest known energy
+        energy = self.latest_cognitive_state[1]
+        is_clash = self._check_entropy(entropy_value, energy)
+
+        return is_clash, entropy_value
 
     def search(
         self,
@@ -413,7 +451,6 @@ class DirectorMVP:
             logger.warning(f"High entropy/allocation detected ({allocation['amount']:.2f}). Triggering COMPASS intervention.")
 
             # Trigger COMPASS asynchronously
-            import asyncio
             try:
                 # We need to get the running loop or create a task
                 # Since check_and_search is sync, we assume there's an event loop running (e.g. in the server)
@@ -436,7 +473,6 @@ class DirectorMVP:
         # we spawn a specialized agent.
         if entropy_value > 2.5:
             logger.warning(f"Critical Entropy ({entropy_value:.2f}). Triggering Dynamic Agent Escalation.")
-            import asyncio
             try:
                 loop = asyncio.get_running_loop()
                 loop.create_task(self._escalate_to_agent(
@@ -458,6 +494,20 @@ class DirectorMVP:
                 f"Clash detected! Entropy={entropy_value:.3f} > "
                 f"threshold={self.monitor.get_threshold():.3f}"
             )
+
+            # Start Intervention Tracking
+            episode_id = None
+            if self.reflexive_engine:
+                episode_id = self.reflexive_engine.record_intervention_start(
+                    episode_id=f"ep_{int(time.time() * 1000)}",
+                    entropy=entropy_value,
+                    energy=0.0, # TODO: Get real energy
+                    cognitive_state=self.latest_cognitive_state[0],
+                    goal=str(self.current_goal) if hasattr(self, 'current_goal') else "Unknown",
+                    intervention_type="search",
+                    intervention_source="entropy",
+                    threshold=self.reflexive_engine.get_threshold(self.latest_cognitive_state[0])
+                )
 
             # --- ADAPTIVE BETA LOGIC ---
             # Store original beta to reset it after search
@@ -499,6 +549,15 @@ class DirectorMVP:
 
             if search_result is None:
                 logger.warning("Search failed to find alternative")
+                # Record failure if tracking
+                if self.reflexive_engine and episode_id:
+                    self.reflexive_engine.record_intervention_end(
+                        episode_id=episode_id,
+                        entropy_after=entropy_value,
+                        energy_after=0.0,
+                        task_success=False,
+                        outcome_quality=0.0
+                    )
                 return None
 
             # Step 6: Return new goal
@@ -507,6 +566,16 @@ class DirectorMVP:
             logger.info(
                 f"Search successful. Selected neighbor with score={search_result.selection_score:.3f}"
             )
+
+            # Record success if tracking
+            if self.reflexive_engine and episode_id:
+                self.reflexive_engine.record_intervention_end(
+                    episode_id=episode_id,
+                    entropy_after=entropy_value * 0.8, # Mock reduction
+                    energy_after=0.0,
+                    task_success=True,
+                    outcome_quality=search_result.selection_score
+                )
 
             # Anchor this milestone (Continuity)
             if self.continuity_service:
