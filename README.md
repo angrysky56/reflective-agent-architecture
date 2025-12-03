@@ -24,6 +24,7 @@ uv sync --extra server
 ### 2. Configure Services
 
 **Ollama (LLM Backend)**
+
 1.  Install [Ollama](https://ollama.com/).
 2.  Start the service: `ollama serve`
 3.  Pull the required model:
@@ -32,11 +33,13 @@ uv sync --extra server
     ```
 
 **Neo4j (Graph Database)**
+
 1.  Install [Neo4j Desktop](https://neo4j.com/download/) or use Docker.
 2.  Start a database instance.
 3.  Note your password (default user is usually `neo4j`).
 
 **Environment Variables**
+
 1.  Copy the example config:
     ```bash
     cp .env.example .env
@@ -52,10 +55,12 @@ uv sync --extra server
 Add the RAA server to your client configuration (e.g., `claude_desktop_config.json`).
 
 **Config Path:**
+
 - Mac/Linux: `~/.config/Claude/claude_desktop_config.json`
 - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
 
 **JSON Configuration:**
+
 ```json
 {
   "mcpServers": {
@@ -71,7 +76,8 @@ Add the RAA server to your client configuration (e.g., `claude_desktop_config.js
   }
 }
 ```
-*Replace `/ABSOLUTE/PATH/TO/...` with the actual path to your cloned repository.*
+
+_Replace `/ABSOLUTE/PATH/TO/...` with the actual path to your cloned repository._
 
 ### 4. Agent Instructions
 
@@ -83,6 +89,7 @@ Copy the contents of **[RAA_AGENT.md](RAA_AGENT.md)** and paste it into your sys
 ## System Architecture
 
 RAA synthesizes three active research frontiers:
+
 1.  **Modern Hopfield Networks**: Exponential-capacity associative memory (2024 Nobel Prize in Physics context).
 2.  **Entropy-Based Metacognition**: Detection of model uncertainty through predictive entropy monitoring.
 3.  **Sheaf Cohomology**: Topological analysis of network learning dynamics via cellular sheaf theory.
@@ -90,6 +97,7 @@ RAA synthesizes three active research frontiers:
 ### Core Components
 
 #### 1. The Tripartite Manifold (Associative Memory)
+
 - **Implementation**: Three specialized Modern Hopfield Networks (vmPFC, amPFC, dmPFC).
 - **Function**: Stores semantic knowledge as energy landscapes in three orthogonal domains:
   - **State (vmPFC)**: Static context and environment (Low Beta).
@@ -97,32 +105,38 @@ RAA synthesizes three active research frontiers:
   - **Action (dmPFC)**: Transition dynamics and tools (High Beta).
 
 #### 2. The Director (Metacognitive Monitor + Search Engine)
+
 - **Monitor**: Shannon entropy calculation on Transformer output distribution.
 - **Function**: Detects "clashes" (high-entropy states) and triggers search.
 - **Search Engine**: Structured exploration of Manifold to find alternative framings.
 - **Key Innovation**: Entropy-triggered associative search for goal reframing.
 
 #### 3. The Precuneus (Integrator)
+
 - **Implementation**: Energy-gated fusion layer with Continuity Field modulation.
 - **Function**: Fuses the three Manifold streams (State, Agent, Action) into a unified experience.
 - **Mechanism**:
-    - **Energy Gating**: "Silence the Confusion". High energy (confusion) -> low weight.
-    - **Continuity Field**: Modulates weights based on "Causal Signatures" (historical impact), ensuring stable identity over time.
+  - **Energy Gating**: "Silence the Confusion". High energy (confusion) -> low weight.
+  - **Continuity Field**: Modulates weights based on "Causal Signatures" (historical impact), ensuring stable identity over time.
 
 #### 4. The Pointer (Goal Controller)
+
 - **Implementation**: RNN or State-Space Model (S4/Mamba).
 - **Function**: Maintains current goal representation as persistent state.
 - **Update Mechanism**: Receives new goal vectors from Director after successful search.
 
 #### 5. System 3: Adaptive Agents & COMPASS
+
 - **Adaptive Agents**: A "Topological Immune System" that dynamically spawns specialized agents (e.g., Debaters, Explorers) to resolve structural obstructions detected by Sheaf Diagnostics.
 - **COMPASS Integration**: Native integration with the COMPASS framework, allowing bidirectional tool use and delegation of complex planning tasks via `consult_compass`.
 
 #### 6. Operator C (Belief Revision)
+
 - **Tool**: `revise`
 - **Mechanism**: Hybrid search combining Logic Tensor Networks (LTN) truth values and Hopfield energy minimization to refine beliefs against evidence and constraints.
 
 #### 7. Evolutionary Optimization (Genetic Programming + Local Refinement)
+
 - **Tool**: `evolve_formula`
 - **Function**: Discovers symbolic mathematical formulas from data using Genetic Programming with optional hybrid local optimization.
 - **Mechanism**:
@@ -132,8 +146,19 @@ RAA synthesizes three active research frontiers:
 - **Applications**: Harmonic function recovery, symbolic regression, reverse-engineering physical laws.
 
 #### 8. Stereoscopic Engine (Dual-Layer Dynamics)
+
 - **Function**: Orchestrates interaction between the "Generative Function" (LLM) and the "Continuity Field" (System 1).
 - **Plasticity Gate**: A dynamic filter that controls learning rate based on uncertainty (Code Length). High uncertainty opens the gate (high plasticity); low uncertainty closes it.
+
+#### 9. Reflexive Closure (Recursive Observer)
+
+- **Concept**: Layer 4 (Director) observing its own intervention patterns to modify its own observation criteria (Self-Modification).
+- **Components**:
+  - **Intervention Tracker**: Logs entropy, energy, and outcomes of every intervention.
+  - **Meta-Pattern Analyzer**: Detects correlations (e.g., "High thresholds yield better outcomes in 'Flow' state").
+  - **Adaptive Criterion**: Dynamically adjusts entropy thresholds based on discovered patterns.
+  - **Reflexive Engine**: Orchestrates the loop, enabling the system to "escape its instruction set" by evolving its own control parameters.
+- **Safety**: Implements a "Constitution" of immutable meta-constraints (e.g., Conservation of Expected Utility) to prevent wireheading during self-modification.
 
 ---
 
@@ -143,11 +168,12 @@ RAA synthesizes three active research frontiers:
 2.  **Tripartite Manifold** retrieves from each domain (vmPFC, amPFC, dmPFC).
 3.  **Precuneus** fuses streams using Energy Gating (silencing high-energy confusion).
 4.  **Director** monitors entropy of the fused state → Detects "clash".
-5.  **If Clash**: Director suppresses current goal- **Plasticity Gate**: A dynamic filter that controls learning rate based on uncertainty (Code Length). High uncertainty opens the gate (high plasticity); low uncertainty closes it.
+5.  **If Clash**: High uncertainty opens the **Plasticity Gate**, allowing the Director to suppress the current goal.
 6.  **Pointer** updates with new goal.
 7.  **Processor** resumes with new framing → Success.
 
 #### 8. Epistemic Dissonance Trigger (Shadow Validator)
+
 - **Mechanism**: A negative feedback loop that detects "Dunning-Kruger Failure Modes" (High Confidence vs. High Resistance).
 - **Shadow Validator**: A `SandboxProbe` that empirically tests the agent's plans by executing code snippets in a secure process.
 - **Trigger**: Activates when Divergence ($\Delta = |C_s - (1 - R_o)|$) exceeds 0.5, forcing the agent to abandon "Delusional" linear models and adapt to higher-order complexity (e.g., Fourier Analysis).
