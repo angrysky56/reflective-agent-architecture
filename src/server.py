@@ -156,6 +156,7 @@ class CWDConfig(BaseSettings):
         default="BAAI/bge-large-en-v1.5", description="Embedding model name"
     )
     confidence_threshold: float = Field(default=0.7)  # Lower to .3 for asymmetric embeddings
+    device: str = Field(default="cuda" if torch.cuda.is_available() else "cpu", description="Device for tensor operations")
 
 
 class CognitiveWorkspace:

@@ -8,7 +8,9 @@
     "tools": [
       "amend_constitution",
       "verify_agency_coherence",
-      "verify_diamond_alignment"
+      "verify_diamond_alignment",
+      "enter_latent_resonance",
+      "enter_recursive_singularity"
     ],
     "knowledge_paths": []
   },
