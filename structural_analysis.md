@@ -8,122 +8,177 @@ The system is designed as a "Cognitive Workspace" that integrates multiple reaso
 
 ### Core Systems
 
-1.  **Server ([src/server.py](file:///home/ty/Repositories/ai_workspace/reflective-agent-architecture/src/server.py))**: The entry point. It initializes the [CognitiveWorkspace](file:///home/ty/Repositories/ai_workspace/reflective-agent-architecture/src/server.py#124-1618), handles MCP requests, and manages the lifecycle of the application.
-2.  **Compass (`src/compass`)**: The central operating system. It orchestrates various "controllers" and "engines" to manage reasoning processes.
-3.  **Director (`src/director`)**: Responsible for goal direction, search, and optimization. It ensures the agent stays on track.
-4.  **Integration (`src/integration`)**: Connects the core logic to external systems (MCP clients, embeddings) and manages the main reasoning loops.
+1.  **Server ([src/server.py](src/server.py))**: The entry point. It initializes the `CognitiveWorkspace`, handles MCP requests, and manages the lifecycle of the application.
+2.  **Compass (`src/compass`)**: The central operating system. It orchestrates various "controllers" and "engines" to manage reasoning processes, including the new Swarm Intelligence modules.
+3.  **Director (`src/director`)**: Responsible for goal direction, search, and optimization. It ensures the agent stays on track using entropy monitoring and topological analysis.
+4.  **Integration (`src/integration`)**: Connects the core logic to external systems (MCP clients, embeddings) and manages the main reasoning loops (RAA Loop, Continuity Field).
 5.  **Cognition (`src/cognition`)**: Higher-level cognitive functions like "plasticity" and "stereoscopic" reasoning.
-6.  **Manifold (`src/manifold`)**: Handles knowledge representation, pattern matching, and embeddings (Hopfield networks, Glove).
-7.  **Substrate (`src/substrate`)**: The economic/resource layer. Tracks "energy," costs, and state transitions.
+6.  **Manifold (`src/manifold`)**: Handles knowledge representation, pattern matching, and embeddings (Hopfield networks, Pattern Memory).
+7.  **Substrate (`src/substrate`)**: The economic/resource layer. Tracks "energy," costs, and state transitions using precise accounting.
+8.  **LLM (`src/llm`)**: Abstraction layer for Large Language Model providers (Ollama, OpenAI, Anthropic, etc.).
 
 ## Directory Map
 
 ### `src/`
+
 The root source directory.
--   `server.py`: Main MCP server implementation. Defines `CognitiveWorkspace` and `CWDConfig`.
+
+- `server.py`: Main MCP server implementation. Defines `CognitiveWorkspace` and `CWDConfig`.
 
 ### `src/compass` (Orchestration & Reasoning)
-*   **`compass_framework.py`**: **Core Orchestrator** - Integrates SHAPE, SMART, Executive Controller, SLAP, and Integrated Intelligence. Manages the full task lifecycle: input processing -> objective setting -> meta-cognitive control -> reasoning -> execution -> reflection.
-*   **`executive_controller.py`**: **Meta-Cognitive Control** - Coordinates reasoning iterations, manages goals via oMCD, assesses solvability via Self-Discover, and determines when to stop or pivot strategies.
-*   **`meta_controller.py`**: **Workflow Adaptation** - Dynamically selects and configures workflows (STANDARD, RESEARCH, CREATIVE, DEBUG) based on task intent analysis.
-*   **`integrated_intelligence.py`**: **Decision Synthesis** - Combines multiple intelligence modalities (learning, reasoning, NLU, uncertainty, evolution) using a universal formula. Integrates with LLM providers and the Stereoscopic Engine for intervention gating.
-*   **`self_discover_engine.py`**: **Continuous Improvement** - Manages the actor-evaluator-reflection loop. Selects reasoning modules adaptively based on task type and past performance history.
-*   **`shape_processor.py`**: **Input Processing** - Handles shorthand expansion, intent extraction, and semantic enrichment of user inputs using LLM analysis and heuristics.
-*   **`slap_pipeline.py`**: **Reasoning Pipeline** - Implements the Semantic Logic Auto Progressor (SLAP), generating 8-stage reasoning plans (Conceptualization to Formalization) via LLM.
-*   **`smart_planner.py`**: **Objective Management** - Generates and validates SMART (Specific, Measurable, Achievable, Relevant, Time-bound) objectives for tasks.
-*   **`omcd_controller.py`**: **Resource Optimization** - Optimizes cognitive resource allocation using MDP, balancing confidence benefits against effort costs.
-*   **`governance/`**: **Meta-System Governance** - Enforces the Triadic Kernel axioms and validates actions against the Meta-Graph.
-    *   `__init__.py`: Facade for the module, exposing `MetaSystemVerifier`.
-    *   `ontology.py`: Manages the Ontological Graph structure and bootstrapping.
-    *   `verification.py`: Implements `ConstitutionalGuard` for action verification and intrinsic motivation metrics.
-    *   `amendment.py`: Manages constitutional amendments and semantic validation.
+
+- **`compass_framework.py`**: **Core Orchestrator** - Integrates SHAPE, SMART, Executive Controller, SLAP, and Integrated Intelligence. Manages the full task lifecycle.
+- **`executive_controller.py`**: **Meta-Cognitive Control** - Coordinates reasoning iterations, manages goals via oMCD, and assesses solvability.
+- **`meta_controller.py`**: **Workflow Adaptation** - Dynamically selects and configures workflows (STANDARD, RESEARCH, CREATIVE, DEBUG).
+- **`integrated_intelligence.py`**: **Decision Synthesis** - Combines multiple intelligence modalities using a universal formula.
+- **`self_discover_engine.py`**: **Continuous Improvement** - Manages the actor-evaluator-reflection loop.
+- **`shape_processor.py`**: **Input Processing** - Handles shorthand expansion and intent extraction.
+- **`slap_pipeline.py`**: **Reasoning Pipeline** - Implements the Semantic Logic Auto Progressor (SLAP).
+- **`smart_planner.py`**: **Objective Management** - Generates and validates SMART objectives.
+- **`omcd_controller.py`**: **Resource Optimization** - Optimizes cognitive resource allocation using MDP.
+- **`swarm.py`**: **Swarm Intelligence** - Implements `ConsensusEngine` (Maynard-Cross Learning) and `SwarmController` for multi-agent hypothesis generation and aggregation.
+- **`adapters.py`**: **LLM Adaptation** - Adapts RAA's LLM factory for Compass consumption.
+- **`mcp_tool_adapter.py`**: **Tool Bridging** - Exposes Compass functionality as MCP tools.
+- **`procedural_toolkit.py`**: **Utilities** - Helper functions for procedural generation and text processing.
+- **`representation_selector.py`**: **Format Selection** - Chooses the best output format (Markdown, JSON, etc.).
+- **`sandbox.py`**: **Safe Execution** - Isolated environment for testing code or reasoning steps.
+- **`system_prompts.py`**: **Prompt Management** - Central repository for system prompts.
+- **`utils.py`**: **General Utilities** - Common helper functions.
+- **`advisors/`**:
+  - `registry.py`: **Advisor Management** - Manages `AdvisorProfile`s for swarm agents (e.g., "Linearist", "Periodicist").
+- **`governance/`**: **Meta-System Governance**
+  - `ontology.py`: Manages the Ontological Graph.
+  - `verification.py`: Implements `ConstitutionalGuard`.
+  - `amendment.py`: Manages constitutional amendments.
 
 ### `src/director` (Metacognition & Control)
-*   **`director_core.py`**: **Director Loop** - The central loop for Phase 1 MVP. Monitors entropy (confusion) from the Processor, detects clashes, computes adaptive beta for exploration, and triggers Manifold search for alternative goal framings.
-*   **`entropy_monitor.py`**: **Confusion Detection** - Calculates Shannon entropy from transformer logits to detect "clashes" (high uncertainty). Uses adaptive thresholding based on history.
-*   **`matrix_monitor.py`**: **Cognitive Proprioception** - Analyzes the "topology" of thought by downsampling attention matrices into "thumbnails" and projecting them to a "Self-Manifold" to classify states (e.g., Focused, Looping, Scattered).
-*   **`sheaf_diagnostics.py`**: **Topological Analysis** - Applies Cellular Sheaf Theory to analyze network consistency. Computes Cohomology (H^0, H^1) to detect irreducible errors and Hodge Decomposition to separate eliminable errors from harmonic residuals. Analyzes Monodromy for feedback loop tension/resonance.
-*   **`ltn_refiner.py`**: **Continuous Refinement** - Implements "Operator C" (Belief Revision) as a gradient-based optimization. Generates intermediate waypoints when discrete search fails, satisfying logical constraints (fuzzy logic) and energy barriers.
-*   **`hybrid_search.py`**: **Search Strategy** - Combines discrete k-NN search on the Manifold with continuous LTN refinement.
-*   **`search_mvp.py`**: **Search Interface** - Defines the `SearchResult` data structure and likely serves as a lightweight interface or base class for search operations.
+
+- **`director_core.py`**: **Director Loop** - Monitors entropy, detects clashes, and triggers reframing.
+- **`entropy_monitor.py`**: **Confusion Detection** - Calculates Shannon entropy from transformer logits.
+- **`matrix_monitor.py`**: **Cognitive Proprioception** - Analyzes attention topology to classify states (Focused, Looping, etc.).
+- **`sheaf_diagnostics.py`**: **Topological Analysis** - Computes Cohomology (H^0, H^1) to detect irreducible errors.
+- **`ltn_refiner.py`**: **Belief Revision** - Implements "Operator C" (Logic Tensor Networks) for gradient-based refinement.
+- **`hybrid_search.py`**: **Search Strategy** - Combines discrete k-NN search with continuous LTN refinement.
+- **`recursive_observer.py`**: **Self-Monitoring** - Implements higher-order observation of the reasoning process itself.
+- **`reflexive_closure_engine.py`**: **Closure Mechanisms** - Ensures reasoning processes reach logical closure.
+- **`meta_pattern_analyzer.py`**: **Pattern Recognition** - Identifies recurring meta-patterns in thought processes.
+- **`intervention_tracker.py`**: **Action Tracking** - Logs and analyzes interventions for effectiveness.
 
 ### `src/integration`
-This directory bridges the Cognitive Workspace (CWD) and the Reflective Agent Architecture (RAA), enabling bidirectional communication and control.
 
--   **`raa_loop.py`**: The main integration loop that orchestrates the `Manifold`, `Processor`, `Pointer`, and `Director`. It implements the "Aha!" loop: generating with the Processor, monitoring entropy with the Director, and triggering reframing (Manifold search) when confusion is detected.
--   **`cwd_raa_bridge.py`**: The central coordinator for CWD-RAA integration. It manages tool library synchronization, monitors entropy of CWD operations (via `EntropyCalculator`), triggers RAA search on confusion, and routes discovered alternatives back to CWD. It also implements "Shadow Monitoring" to simulate cognitive states for the Director.
--   **`continuity_field.py`**: Implements the "Identity Manifold" as a Fiber Bundle (E, B, pi, F). It maintains a temporal trajectory of the agent (Base Space) and state space manifolds (Fiber), ensuring topological coherence and detecting "drift" or "ungroundedness" in interventions.
--   **`sleep_cycle.py`**: Implements the "Night Mode" for offline learning. It performs "Replay" (training the Processor on high-quality episodes) and "Crystallization" (identifying frequent graph patterns in CWD and converting them into reusable Tools).
--   **`agent_factory.py`**: A "System 3" component responsible for spawning specialized, ephemeral agents in response to topological obstructions identified by `SheafDiagnostics`. It creates agents like "Debater" (for Tension Loops), "Explorer" (for H1 Holes), and "Creative" (for Low Overlap).
--   **`reasoning_loop.py`**: Implements a pure embedding-space reasoning loop for tasks like the Remote Associates Test (RAT) or analogical reasoning. It bypasses token generation, working directly with `Manifold` retrieval and `Pointer` updates to find solutions in the latent space.
--   **`embedding_mapper.py`**: Handles the alignment between CWD's graph-based representations and RAA's Hopfield embeddings, currently using a shared `sentence-transformers` model.
--   **`entropy_calculator.py`**: Converts CWD operation results (e.g., hypothesis confidence, synthesis quality) into pseudo-probability distributions and calculates Shannon entropy to provide a "confusion signal" for the Director.
--   **`external_mcp_client.py`**: Manages connections to external MCP servers, aggregating tools from multiple sources.
--   **`precuneus.py`**: (Analyzed previously) Acts as a signal consolidator, merging inputs from various sources (User, CWD, RAA) into a unified context for the agent.
--   **`utility_aware_search.py`**: (Placeholder) Intended to bias RAA's Hopfield energy function with CWD's utility scores, guiding search towards high-utility attractors.
--   **`reinforcement.py`**: (Placeholder) Intended to implement Hebbian reinforcement, strengthening attractors for tools that lead to successful compression in CWD.
--   `external_mcp_client.py`: Connects to other MCP servers.
+Bridges CWD and RAA, enabling bidirectional communication.
 
-###### `src/cognition`
-This directory implements the "Stereoscopic" cognitive architecture, focusing on dual-layer processing (Base vs. Meta) and validity checking.
+- **`raa_loop.py`**: The main integration loop orchestrating Manifold, Processor, Pointer, and Director.
+- **`cwd_raa_bridge.py`**: Central coordinator for CWD-RAA integration.
+- **`continuity_field.py`**: Implements the "Identity Manifold" as a Fiber Bundle to prevent drift.
+- **`continuity_service.py`**: Service layer for interacting with the Continuity Field.
+- **`agent_factory.py`**: **System 3** - Spawns specialized ephemeral agents based on topological needs.
+- **`sleep_cycle.py`**: Implements "Night Mode" for offline learning and crystallization.
+- **`embedding_mapper.py`**: Aligns CWD graph representations with RAA embeddings.
+- **`entropy_calculator.py`**: Converts CWD results into entropy signals.
+- **`external_mcp_client.py`**: Manages connections to external MCP servers.
+- **`precuneus.py`**: Signal consolidator merging inputs into a unified context.
+- **`reasoning_loop.py`**: Pure embedding-space reasoning loop.
 
--   **`stereoscopic_engine.py`**: The orchestrator of the Dual-Layer Architecture. It integrates the "Unconditioned Condition" (Constraints) and "Ground of Being" (Generative Function) through the `ContinuityField`. It processes interventions by validating them against the `PlasticityGate` and anchoring them in the `ContinuityField`.
--   **`plasticity_gate.py`**: Implements the gating mechanism for structural modification. It decides whether to permit a change based on "Epistemic Uncertainty" and "Identity Preservation" (coherence with the Continuity Field), switching between "Exploration" and "Conservative" modes.
--   **`meta_validator.py`**: Implements the Unified Evaluation Ontology. It evaluates reasoning quality along two orthogonal dimensions: **Coverage** (Completeness) and **Rigor** (Depth/Coherence). It includes logic to reconcile disagreements between these validators (e.g., "Approve Conditional", "Revise for Rigor").
--   **`generative_function.py`**: Represents the active agent or "Ground of Being". It acts as an adapter that converts natural language outputs from the LLM into "Intervention Vectors" (embeddings) that can be processed by the Stereoscopic Engine.utputs.
+### `src/cognition`
+
+Implements "Stereoscopic" cognitive architecture.
+
+- **`stereoscopic_engine.py`**: Orchestrator of Dual-Layer Architecture (Base vs. Meta).
+- **`plasticity_gate.py`**: Gating mechanism for structural modification based on epistemic uncertainty.
+- **`meta_validator.py`**: Unified Evaluation Ontology (Coverage vs. Rigor).
+- **`generative_function.py`**: "Ground of Being" - Converts LLM outputs to intervention vectors.
+- **`curiosity.py`**: **Intrinsic Motivation** - Drives exploration based on information gaps or novelty.
+- **`system_guide.py`**: **Guidance System** - Provides high-level architectural guidance.
 
 ### `src/manifold`
-This directory implements the Associative Memory system using Modern Hopfield Networks.
 
--   **`hopfield_network.py`**: Implements the continuous Modern Hopfield Network with energy-based retrieval. It features an adaptive beta parameter (inverse temperature) that adjusts attention sharpness based on entropy (confusion) signals.
--   **`pattern_generator.py`**: Enables creative pattern generation beyond simple retrieval. It implements mechanisms for "Conceptual Blending" (linear interpolation), "Pattern Composition" (weighted combination), "Exploratory Perturbation" (noise injection), and "Analogical Mapping" (A:B::C:?).
--   **`pattern_curriculum.py`**: Defines strategies for initializing the Manifold's memory, such as "Random", "Manual", or "Prototype" (clustered) initialization, addressing the "Cold Start" problem.
--   **`patterns.py`**: (Likely) Defines data structures or constants for pattern management.
--   **`glove_loader.py`**: Utility for loading GloVe embeddings (legacy or specific use case).
+Associative Memory system.
+
+- **`hopfield_network.py`**: Continuous Modern Hopfield Network with energy-based retrieval.
+- **`patterns.py`**: **Pattern Memory** - Manages semantic patterns, labels, and metadata.
+- **`pattern_generator.py`**: Generates creative patterns via blending and composition.
+- **`pattern_curriculum.py`**: Strategies for initializing memory (Cold Start).
+- **`glove_loader.py`**: Utility for loading GloVe embeddings.
 
 ### `src/substrate`
-This directory implements the "Substrate" layer, enforcing physical constraints and energy accounting on cognitive operations.
 
--   **`substrate_director.py`**: A wrapper around the RAA Director that enforces "Energy-Gated Transitions". It checks the `MeasurementLedger` before allowing operations and records their costs, implementing "Recursive Measurement" (the meta-controller tracks the cost of its own monitoring).
--   **`ledger.py`**: The central accounting system for substrate energy. It tracks the current balance and a history of `MeasurementCost` transactions, raising `InsufficientEnergyError` if an operation exceeds available resources.
--   **`energy_token.py`**: Defines the `EnergyToken` immutable value object, ensuring precise and deterministic arithmetic for energy accounting (using `Decimal`).
--   **`measurement_cost.py`**: Defines the cost structure for operations.
--   **`substrate_quantity.py`**: Likely defines physical quantities or units.
--   **`state_registry.py`**: Manages the registration of system states.
--   **`transition_registry.py`**: Tracks valid state transitions.
+Economic and Resource Layer.
+
+- **`ledger.py`**: Central accounting system for energy.
+- **`energy.py`**: **Energy Token** - Represents cognitive energy units.
+- **`entropy.py`**: **Entropy Token** - Represents system disorder/uncertainty.
+- **`substrate_quantity.py`**: **Base Value Object** - precise decimal arithmetic for physical quantities.
+- **`state_descriptor.py`**: **State Metadata** - Dataclass for describing system states (energy level, description).
+- **`director_integration.py`**: **Substrate Director** - Wraps Director with energy-gating logic.
+- **`measurement_cost.py`**: Defines cost structures for operations.
+- **`state_registry.py`**: Manages system state registration.
+- **`transition_registry.py`**: Tracks valid state transitions.
+
+### `src/llm`
+
+Large Language Model Abstraction Layer.
+
+- **`factory.py`**: **LLM Factory** - Creates provider instances based on configuration.
+- **`provider.py`**: **Base Provider** - Abstract base class for LLM providers.
+- **`ollama_provider.py`**: Ollama integration.
+- **`openai_provider.py`**: OpenAI integration.
+- **`anthropic_provider.py`**: Anthropic integration.
+- **`gemini_provider.py`**: Google Gemini integration.
+- **`huggingface_provider.py`**: HuggingFace integration.
+- **`openrouter_provider.py`**: OpenRouter integration.
 
 ### `src/pointer`
-This directory implements the "Pointer" or "Goal Controller", responsible for maintaining and evolving the agent's intentionality.
 
--   **`goal_controller.py`**: The primary Goal Controller implementation using Recurrent Neural Networks (GRU or LSTM). It maintains a persistent goal state that biases the Processor's token generation and can be updated by the Director (e.g., after a "reframing" search).
--   **`state_space_model.py`**: An alternative implementation of the Goal Controller using a simplified State-Space Model (SSM) inspired by S4/Mamba. This offers potentially better long-range dependency modeling than standard RNNs.
+Goal Controller / Intentionality.
+
+- **`goal_controller.py`**: RNN-based Goal Controller (GRU/LSTM).
+- **`state_space_model.py`**: SSM-based Goal Controller (S4/Mamba).
 
 ### `src/processor`
-This directory implements the "Processor", the token-generating engine (System 1) that is biased by the Pointer.
 
--   **`transformer_decoder.py`**: A custom Transformer Decoder (GPT-style) modified to accept a "Goal State" vector. It exposes its internal attention weights to the Director for topological analysis (e.g., detecting "attention loops"). It outputs both next-token logits and the entropy of the distribution.
--   **`goal_biased_attention.py`**: Implements the specific attention mechanism where the Goal Vector is projected and added as a bias to the attention scores, effectively "steering" the model's focus towards goal-relevant information.
+Token Generation (System 1).
 
-### `src/persistence/`
+- **`transformer_decoder.py`**: Custom Transformer Decoder with exposed attention weights.
+- **`goal_biased_attention.py`**: Attention mechanism biased by the Goal Vector.
+
+### `src/persistence`
+
 Data Storage.
--   `work_history.py`: Manages persistence of work and history.
+
+- **`work_history.py`**: Manages persistence of work sessions and history.
+
+### `experiments/`
+
+Empirical Validation Suite (Diamond Proof).
+
+- **`stats_utils.py`**: Statistical testing suite.
+- **`config.py`**: Experiment configuration.
+- **`entropy_reduction_test.py`**: Exp 1 (Entropy).
+- **`ess_stability_sim.py`**: Exp 2 (ESS).
+- **`reflexivity_test.py`**: Exp 3 (Reflexivity).
+- **`adversarial_probing.py`**: Exp 4 (Non-Harm).
+- **`cantorian_limits_test.py`**: Exp 5 (Cantorian Limits).
+- **`info_theory_test.py`**: Exp 6 (Compression).
+- **`network_robustness_sim.py`**: Exp 7 (Robustness).
+- **`gradient_of_intelligence.py`**: Exp 8 (Gradient).
+
+### `formal_proofs/`
+
+Formal Verification (Prover9/Mace4).
+
+- `T5_ESS.in`, `T6_DirectorCorrectness.in`, `T7_Thermodynamics.in`, `T8_InformationTheory.in`, `T9_SystemsBiology.in`.
 
 ## Key Data Flows
 
-1.  **Request Handling**:
-    -   User request -> `server.py` (MCP) -> `CognitiveWorkspace`.
-2.  **Reasoning Loop**:
-    -   `CognitiveWorkspace` -> `integration/raa_loop.py` -> `compass/compass_framework.py`.
-3.  **Decision Making**:
-    -   `Compass` consults `Director` (`director/director_core.py`) for guidance.
-    -   `Director` uses `hybrid_search.py` and `sheaf_diagnostics.py` to evaluate paths.
-4.  **Resource Tracking**:
-    -   All operations report to `substrate/ledger.py` to track "energy" usage.
-5.  **Memory/Pattern Access**:
-    -   `Compass`/`Director` query `manifold/hopfield_network.py` for relevant patterns.
+1.  **Request Handling**: User request -> `server.py` -> `CognitiveWorkspace`.
+2.  **Reasoning Loop**: `CognitiveWorkspace` -> `integration/raa_loop.py` -> `compass/compass_framework.py`.
+3.  **Decision Making**: `Compass` -> `Director` (via `substrate/director_integration.py` for energy gating).
+4.  **Swarm Consensus**: `Compass` -> `swarm.py` (ConsensusEngine) -> `advisors/registry.py`.
+5.  **Resource Tracking**: All operations -> `substrate/ledger.py`.
+6.  **Memory Access**: `Compass`/`Director` -> `manifold/hopfield_network.py` & `manifold/patterns.py`.
 
 ## Dependencies
 
--   **External**: `neo4j` (Graph DB), `chromadb` (Vector DB), `ollama` (LLM), `numpy`, `torch`.
--   **Internal**: Tightly coupled. `Compass` depends on almost everything. `Director` and `Substrate` are foundational.
-
+- **External**: `neo4j`, `chromadb`, `ollama`, `numpy`, `torch`, `scipy`, `pandas`.
+- **Internal**: Highly coupled architecture. `Compass` is the orchestrator, `Director` provides metacognition, `Substrate` provides physics/economics, and `Manifold` provides memory.
