@@ -1,5 +1,3 @@
-Here is the complete manuscript, compiled into a single document for your records.
-
 ```markdown
 # The Diamond Proof: Formal Foundations for Cooperative, Recursive AI
 
