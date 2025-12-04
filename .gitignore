@@ -82,6 +82,8 @@ pip-delete-this-directory.txt
 
 # Ignore examples output
 examples/*.out
+src/config/advisors.json
+src/config/personas.json
 
 # Ignore large embedding files
 data/embeddings/*.txt
