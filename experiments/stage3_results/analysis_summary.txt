@@ -1,0 +1,84 @@
+=== Stage 3 Validation Analysis ===
+
+--- Task: linear ---
+Descriptive Statistics (RMSE):
+                        mean       std  count
+model                                        
+Epistemic Director  1.592307  1.797069     10
+Gaussian Process    0.153140  0.132719     10
+Huber Regression    0.103155  0.036794     10
+Standard GP         0.149210  0.068295     10
+
+Statistical Tests (Director vs Baselines):
+
+--- Task: harmonic ---
+Descriptive Statistics (RMSE):
+                        mean       std  count
+model                                        
+Epistemic Director  1.123601  0.407742     10
+Gaussian Process    1.041694  0.566119     10
+Huber Regression    1.644827  0.403290     10
+Standard GP         1.131514  0.561223     10
+
+Statistical Tests (Director vs Baselines):
+
+--- Task: chaotic ---
+Descriptive Statistics (RMSE):
+                        mean       std  count
+model                                        
+Epistemic Director  0.657200  0.266696     10
+Gaussian Process    0.726881  0.108213     10
+Huber Regression    0.833046  0.139735     10
+Standard GP         0.120393  0.099262     10
+
+Statistical Tests (Director vs Baselines):
+
+Epistemic Metrics:
+  Discontinuity Warnings: 0/10
+  Suppression Active: 0/10
+
+--- Task: adversarial ---
+Descriptive Statistics (RMSE):
+                        mean       std  count
+model                                        
+Epistemic Director  1.035483  0.335884     10
+Gaussian Process    0.908642  0.210050     10
+Huber Regression    1.054788  0.353306     10
+Standard GP         0.973987  0.218251     10
+
+Statistical Tests (Director vs Baselines):
+
+Epistemic Metrics:
+  Discontinuity Warnings: 0/10
+  Suppression Active: 0/10
+
+--- Task: discontinuous ---
+Descriptive Statistics (RMSE):
+                        mean       std  count
+model                                        
+Epistemic Director  0.993195  0.037963     10
+Gaussian Process    0.725293  0.210851     10
+Huber Regression    0.585963  0.163259     10
+Standard GP         0.088802  0.026534     10
+
+Statistical Tests (Director vs Baselines):
+
+Epistemic Metrics:
+  Discontinuity Warnings: 0/10
+  Suppression Active: 0/10
+
+
+
+=== Ablation Study Analysis ===
+
+--- Ablation: no_suppression (Task: chaotic) ---
+Descriptive Statistics (RMSE):
+                count      mean       std       min       25%       50%       75%       max
+ablation                                                                                   
+no_suppression   10.0  0.548005  0.464721  0.064057  0.076072  0.582821  0.839008  1.280143
+
+--- Ablation: no_attention (Task: harmonic) ---
+Descriptive Statistics (RMSE):
+              count      mean       std       min       25%       50%       75%       max
+ablation                                                                                 
+no_attention   10.0  1.379833  0.608756  0.829075  0.871462  1.027337  1.972977  2.346101

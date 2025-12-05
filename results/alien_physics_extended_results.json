@@ -1,0 +1,66 @@
+{
+  "linear": {
+    "status": "solved",
+    "formula": "(((3.00 + x) + abs((x - x))) + x)",
+    "mse": 8.120714329729932e-05,
+    "generations": 20,
+    "metadata": {
+      "true_formula": "2*x + 3",
+      "type": "linear"
+    }
+  },
+  "harmonic": {
+    "status": "solved",
+    "formula": "(cos((x + x)) - sin((3.19 + x)))",
+    "mse": 0.00010448499214792854,
+    "generations": 20,
+    "metadata": {
+      "true_formula": "sin(x) + cos(2*x)",
+      "type": "harmonic"
+    }
+  },
+  "chaotic": {
+    "status": "solved",
+    "formula": "(sin((cos(x) * hypot(x, -3.54))) * 0.15)",
+    "mse": 0.02300709512992874,
+    "generations": 20,
+    "preprocessed": true,
+    "suppression_info": {
+      "method": "moving_average",
+      "window": 5
+    },
+    "metadata": {
+      "type": "chaotic",
+      "lyapunov": "+",
+      "r": 4.0
+    }
+  },
+  "adversarial": {
+    "status": "solved",
+    "formula": "(-0.00 * (abs(hypot(sin(x), tanh(x))) * abs(x)))",
+    "mse": 0.060314052850771675,
+    "generations": 20,
+    "preprocessed": true,
+    "suppression_info": {
+      "method": "moving_average",
+      "window": 5
+    },
+    "metadata": {
+      "type": "adversarial",
+      "signal": "0.1*x",
+      "noise_level": 1.0
+    }
+  },
+  "discontinuous": {
+    "status": "approximate_with_warning",
+    "formula": "(hypot(x, (cos(abs((((x * x) * (x - x)) - (x + (-3.91 - -5.44))))) + ((x * (sin((x * -16.85)) + x)) + x))) * x)",
+    "mse": 0.02939044677115009,
+    "generations": 20,
+    "warning": "Discontinuities detected at indices [49, 50]",
+    "recommendation": "Use piecewise fitting for exact solution",
+    "metadata": {
+      "type": "discontinuous",
+      "breakpoint": 0.5
+    }
+  }
+}

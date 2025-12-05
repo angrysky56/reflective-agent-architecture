@@ -5,6 +5,17 @@ from typing import Any, Callable, Dict, List, Tuple
 
 from scipy.optimize import minimize
 
+# Define Focused Primitive Sets (Attention Mechanism)
+TRIG_OPS = [
+    (operator.add, "+"),
+    (operator.sub, "-"),
+    (operator.mul, "*"),
+]
+TRIG_UNARY_OPS = [
+    (math.sin, "sin"),
+    (math.cos, "cos"),
+]
+
 
 # AST Nodes
 class Node:
@@ -122,10 +133,13 @@ UNARY_OPS = [
 
 # Simple GP
 class SimpleGP:
-    def __init__(self, variables: List[str], population_size: int = 50, max_depth: int = 4):
+    def __init__(self, variables: List[str], population_size: int = 50, max_depth: int = 4,
+                 ops: List[Tuple[Callable, str]] = None, unary_ops: List[Tuple[Callable, str]] = None):
         self.variables = variables
         self.population_size = population_size
         self.max_depth = max_depth
+        self.ops = ops if ops is not None else OPS
+        self.unary_ops = unary_ops if unary_ops is not None else UNARY_OPS
         self.population: List[Node] = []
 
     def generate_random_tree(self, depth: int = 0) -> Node:
@@ -138,12 +152,12 @@ class SimpleGP:
         else:
             # Operator
             if random.random() < 0.7: # 70% chance for binary op
-                op, symbol = random.choice(OPS)
+                op, symbol = random.choice(self.ops)
                 left = self.generate_random_tree(depth + 1)
                 right = self.generate_random_tree(depth + 1)
                 return BinaryOp(left, right, op, symbol)
             else: # 30% chance for unary op
-                op, symbol = random.choice(UNARY_OPS)
+                op, symbol = random.choice(self.unary_ops)
                 child = self.generate_random_tree(depth + 1)
                 return UnaryOp(child, op, symbol)
 

@@ -26,14 +26,21 @@ from src.compass.compass_framework import COMPASS
 if TYPE_CHECKING:
     from src.integration.continuity_service import ContinuityService
 
+import numpy as np
+
 from .entropy_monitor import EntropyMonitor
+from .epistemic_discriminator import EpistemicDiscriminator
+from .epistemic_metrics import estimate_complexity, estimate_randomness
 from .hybrid_search import HybridSearchConfig, HybridSearchStrategy
 from .ltn_refiner import LTNConfig, LTNRefiner
 from .matrix_monitor import MatrixMonitor, MatrixMonitorConfig
+from .plasticity_modulator import PlasticityModulator
 from .recursive_observer import RecursiveObserver
 from .reflexive_closure_engine import ReflexiveClosureEngine
 from .search_mvp import SearchResult
 from .sheaf_diagnostics import SheafAnalyzer, SheafConfig, SheafDiagnostics
+from .simple_gp import TRIG_OPS, TRIG_UNARY_OPS, SimpleGP
+from .thought_suppression import SuppressionStrategy, ThoughtSuppressor
 
 logger = logging.getLogger(__name__)
 
@@ -194,8 +201,99 @@ class DirectorMVP:
         # Search episode logging
         self.search_episodes = []
 
+        # Energy Budget (Thermodynamic Constraint)
+        self.energy_budget = 100.0
 
-        self.search_episodes = []
+        # --- Research Integrations (Moloch Suite) ---
+
+        # 1. Thought Suppressor (Experiment B: Police Strategy)
+        self.thought_suppressor = ThoughtSuppressor(
+            suppression_threshold=0.6,
+            suppression_cost=2.0,
+            quarantine_threshold=0.8,
+            quarantine_cost=0.5
+        )
+        self.suppression_history = []
+        logger.info("ThoughtSuppressor initialized (active policing mode)")
+
+        # 2. Epistemic Discriminator (Experiment C)
+        self.epistemic_discriminator = EpistemicDiscriminator(
+            complexity_threshold=0.6,
+            randomness_threshold=0.2,
+            dissonance_threshold=0.5
+        )
+        logger.info("EpistemicDiscriminator initialized")
+
+        # 3. Plasticity Modulator (Phenomenal Time)
+        self.plasticity_modulator = PlasticityModulator(
+            P_min=0.1,
+            P_max=1.0,
+            tau_min=0.1,
+            tau_max=2.0
+        )
+        logger.info("PlasticityModulator initialized")
+
+    def get_current_confidence(self) -> float:
+        """Estimate current confidence from entropy."""
+        if not self.monitor.entropy_history:
+            return 0.5
+        last_entropy = self.monitor.entropy_history[-1]
+        # Rough inverse mapping: 0 entropy -> 1 confidence, 2 entropy -> 0 confidence
+        return max(0.0, 1.0 - (last_entropy / 2.0))
+
+    async def intervene(self, current_entropy: float, current_goal: str) -> Optional[bool]:
+        """
+        Intervene in the cognitive process based on entropy and epistemic state.
+        Returns False if propagation should be blocked (Suppression).
+        """
+        # 1. Thought Suppression (Policing)
+        if current_entropy > self.thought_suppressor.suppression_threshold:
+            suppression_result = self.thought_suppressor.evaluate_thought(
+                thought_id=f"thought_{int(time.time())}",
+                entropy=current_entropy,
+                energy_budget=self.energy_budget,
+                graph_handle=self.manifold # Assuming manifold can be passed, or None
+            )
+
+            self.suppression_history.append(suppression_result)
+
+            if suppression_result.suppressed:
+                self.energy_budget -= suppression_result.energy_cost
+                logger.info(
+                    f"[SUPPRESSION] Strategy: {suppression_result.strategy.value}, "
+                    f"Cost: {suppression_result.energy_cost:.2f}J, "
+                    f"Reason: {suppression_result.reason}"
+                )
+
+                if suppression_result.strategy == SuppressionStrategy.SUPPRESS:
+                    return False # Block propagation
+
+        # 2. Epistemic Discrimination
+        entropy_history = np.array(self.monitor.entropy_history)
+        if len(entropy_history) > 10:
+            assessment = self.epistemic_discriminator.assess(entropy_history)
+            logger.info(f"Epistemic Assessment: {assessment.recommendation} (Conf: {assessment.confidence:.2f})")
+
+            if assessment.recommendation == 'trigger_dissonance':
+                logger.warning("Epistemic Dissonance Triggered - Halting path")
+                return False
+
+        # 3. Plasticity Modulation
+        P_state = self.plasticity_modulator.compute_P(
+            energy=self.energy_budget,
+            confidence=self.get_current_confidence(),
+            entropy=current_entropy,
+            manifold_stability=self.matrix_monitor.get_stability() if hasattr(self.matrix_monitor, 'get_stability') else 1.0
+        )
+
+        logger.info(f"Plasticity: P={P_state.value:.2f} ({P_state.mode})")
+
+        # Apply to Precuneus if available (placeholder)
+        if hasattr(self, 'precuneus'):
+            # self.precuneus.set_integration_rate(P_state.value)
+            pass
+
+        return True
 
 
     def map_entropy_to_generations(self, entropy: float) -> int:
@@ -216,24 +314,92 @@ class DirectorMVP:
     async def evolve_formula(self, data_points: List[Dict[str, float]], n_generations: int = 10) -> str:
         """
         Evolve a mathematical formula to fit the data points.
-        Uses Genetic Programming (System 2).
-        """
-        from src.director.simple_gp import SimpleGP
+        Uses Genetic Programming (System 2) with Epistemic Discrimination.
 
+        Implements the "Diamond Proof" mechanisms:
+        1. Complexity Estimation -> Attention (Focused Search)
+        2. Randomness Estimation -> Suppression (Noise Filtering)
+        3. Discontinuity Detection -> Epistemic Honesty (Warning)
+        """
         logger.info(f"Director: Evolving formula for {len(data_points)} points over {n_generations} generations...")
 
-        # Extract variables from the first data point (excluding 'result')
         if not data_points:
             return "0"
 
+        # Extract target values for epistemic analysis
+        y_values = [d.get("result", 0.0) for d in data_points]
+
+        # --- Epistemic Analysis ---
+        complexity_info = estimate_complexity(y_values)
+        randomness_info = estimate_randomness(y_values)
+
+        complexity = complexity_info['complexity_score']
+        randomness = randomness_info['randomness_score']
+
+        logger.info(f"Director: [Epistemic] Complexity: {complexity:.3f} ({complexity_info['type']})")
+        logger.info(f"Director: [Epistemic] Randomness: {randomness:.3f} ({randomness_info['type']})")
+
+        # --- 1. Suppression (Policing Entropy) ---
+        suppression_active = False
+        if randomness > 0.6: # Threshold from Exp C
+            logger.info("Director: [Action] HIGH RANDOMNESS -> Activating Suppression (Noise Filtering)")
+            # Simple moving average smoothing
+            y_smooth = np.convolve(y_values, np.ones(5)/5, mode='same')
+            # Update data points with smoothed values
+            for i, d in enumerate(data_points):
+                d["result"] = float(y_smooth[i])
+            suppression_active = True
+
+        # --- 2. Attention (Focused Search) ---
+        focused_search = False
+        ops = None
+        unary_ops = None
+
+        if complexity > 0.7 and complexity_info['type'] != 'discontinuous':
+             logger.info("Director: [Action] HIGH COMPLEXITY -> Activating Focused Search (Trig Primitives)")
+             focused_search = True
+             ops = TRIG_OPS
+             unary_ops = TRIG_UNARY_OPS
+             # Boost generations for complex problems
+             n_generations = max(n_generations, 100)
+
+        # --- 3. Epistemic Honesty (Discontinuity) ---
+        warning_msg = ""
+        if complexity_info['type'] == 'discontinuous':
+            logger.info("Director: [Action] DISCONTINUITY DETECTED -> Flagging for Segmentation")
+            warning_msg = " [WARNING: Discontinuity Detected - Approximation Only]"
+
+        # Extract variables
         first_point = data_points[0]
         variables = [k for k in first_point.keys() if k != "result"]
 
-        gp = SimpleGP(variables=variables, population_size=50, max_depth=4)
-        best_formula = gp.fit(data_points, target_key="result", generations=n_generations)
+        # Initialize GP with adaptive parameters
+        # Use larger population for focused search or high complexity
+        pop_size = 200 if (focused_search or suppression_active) else 50
 
-        logger.info(f"Director: Evolution complete. Formula: {best_formula}")
-        return best_formula
+        gp = SimpleGP(
+            variables=variables,
+            population_size=pop_size,
+            max_depth=6 if focused_search else 4,
+            ops=ops,
+            unary_ops=unary_ops
+        )
+
+        # Evolve
+        best_formula, best_error = gp.evolve(
+            data_points,
+            target_key="result",
+            generations=n_generations,
+            hybrid=True
+        )
+
+        logger.info(f"Director: Evolution complete. Formula: {best_formula} (MSE: {best_error:.4f})")
+
+        result_str = best_formula + warning_msg
+        if suppression_active:
+            result_str += " [Suppressed Noise]"
+
+        return result_str
 
     async def process_task_with_time_gate(self, task: str, context: Dict[str, Any] = None) -> Dict[str, Any]:
         """
@@ -275,6 +441,13 @@ class DirectorMVP:
             reason = "High Entropy" if entropy_score >= 0.2 else "Forced by User"
             # High Entropy: Distort Time. Enter the "Temporal Buffer".
             logger.info(f"Director: {reason} ({entropy_score:.2f}) detected. Engaging System 2 (Time Dilation).")
+
+            # --- NEW: Intervention Check ---
+            should_continue = await self.intervene(entropy_score, task)
+            if not should_continue:
+                logger.info("Director: Intervention blocked propagation (Suppression/Dissonance).")
+                return {"status": "suppressed", "reason": "High Entropy/Randomness"}
+            # -------------------------------
 
             # A. Allocation of Time (Compute)
             pondering_budget = self.map_entropy_to_generations(entropy_score)
