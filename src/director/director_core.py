@@ -44,6 +44,16 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
+class Intervention:
+    """Represents a proactive intervention in the cognitive process."""
+    type: str
+    source: str
+    target: str
+    content: str
+    priority: float
+    energy_cost: float
+
+@dataclass
 class DirectorConfig:
     """Configuration for Director."""
 
@@ -187,6 +197,7 @@ class DirectorMVP:
         self.compass = COMPASS(llm_provider=_llm_provider, mcp_client=self.mcp_client)
 
         # 6. Agent Factory (Dynamic Escalation)
+        # 6. Agent Factory (Dynamic Escalation)
         # Initialize with the same LLM provider and MCP client executor
         # Import here to avoid circular dependency
         from src.integration.agent_factory import AgentFactory
@@ -194,6 +205,13 @@ class DirectorMVP:
             llm_provider=_llm_provider,
             tool_executor=self.mcp_client.call_tool if self.mcp_client else None
         )
+
+        # Initialize Allostatic Controller (Predictive)
+        from src.director.allostatic_controller import AllostaticConfig, AllostaticController
+        self.allostatic_controller = AllostaticController(AllostaticConfig(), ledger=None) # Ledger wired later
+        # 7. Swarm Controller (Hive Mind)
+        from src.integration.swarm_controller import SwarmController
+        self.swarm_controller = SwarmController(self.agent_factory)
 
         # Cognitive State
         self.latest_cognitive_state: tuple[str, float] = ("Unknown", 0.0)
@@ -281,18 +299,18 @@ class DirectorMVP:
                 return False
 
         # 3. Plasticity Modulation
-        P_state = self.plasticity_modulator.compute_P(
+        p_state = self.plasticity_modulator.compute_P(
             energy=self.energy_budget,
             confidence=self.get_current_confidence(),
             entropy=current_entropy,
             manifold_stability=self.matrix_monitor.get_stability() if hasattr(self.matrix_monitor, 'get_stability') else 1.0
         )
 
-        logger.info(f"Plasticity: P={P_state.value:.2f} ({P_state.mode})")
+        logger.info(f"Plasticity: P={p_state.value:.2f} ({p_state.mode})")
 
         # Apply to Precuneus if available (placeholder)
         if hasattr(self, 'precuneus'):
-            # self.precuneus.set_integration_rate(P_state.value)
+            # self.precuneus.set_integration_rate(p_state.value)
             pass
 
         return True
@@ -441,7 +459,6 @@ class DirectorMVP:
         )
 
         # Evolve
-        start_energy = self.energy_budget
         best_formula, best_error = gp.evolve(
             data_points,
             target_key="result",
@@ -579,6 +596,65 @@ class DirectorMVP:
                 logger.warning("Director: High entropy but no 'data_points' found in context for evolution.")
                 return result
 
+    async def check_proactive_interventions(self) -> Optional[Intervention]:
+        """
+        Check for proactive interventions (Allostasis).
+
+        Returns:
+            Intervention object if triggered, None otherwise.
+        """
+        if not self.allostatic_controller:
+            return None
+
+        predicted_entropy = self.allostatic_controller.predict_future_entropy()
+        allostatic_trigger = self.allostatic_controller.check_trigger()
+
+        if allostatic_trigger == "PROACTIVE_ECC":
+             logger.warning(f"Allostatic Alert! Predicted Entropy {predicted_entropy:.2f} > Critical. Deploying ECC Swarm.")
+             return await self._handle_proactive_ecc(predicted_entropy)
+
+        return None
+
+    async def _handle_proactive_ecc(self, predicted_entropy: float) -> Optional[Intervention]:
+        """
+        Deploy ECC Swarm (Redundancy, Parity, Syndrome) to preemptively stabilize the system.
+        """
+        logger.info(f"Deploying ECC Swarm for Allostatic Regulation (Predicted Entropy: {predicted_entropy:.2f})")
+
+        # 1. Define ECC Task
+        ecc_task = (
+            f"SYSTEM WARNING: Entropy is predicted to reach {predicted_entropy:.2f} (CRITICAL). "
+            f"The logic is becoming unstable. "
+            f"DEPLOYING ERROR CORRECTION CODE. "
+            f"Redundancy Agent: Stabilize axioms. "
+            f"Parity Agent: Check for contradictions. "
+            f"Syndrome Agent: Diagnose the noise source."
+        )
+
+        # 2. Summon ECC Advisors
+        advisor_ids = ["redundancy_agent", "parity_agent", "syndrome_agent"]
+        self.swarm_controller.active_advisors = advisor_ids # Force specific team
+
+        # 3. Run Swarm
+        # We pass an empty context or current manifold state as context
+        swarm_result = await self.swarm_controller.run_swarm(
+            task=ecc_task,
+            context={"predicted_entropy": predicted_entropy},
+            advisor_ids=advisor_ids
+        )
+
+        # 4. Construct Intervention
+        # We treat this as a "Top-Down" correction
+        intervention = Intervention(
+            type="allostatic_correction",
+            source="Swarm_ECC",
+            target="manifold",
+            content=swarm_result,
+            priority=1.0, # High priority prevention
+            energy_cost=5.0 # Expensive but cheaper than a crash
+        )
+
+        return intervention
 
     def _check_entropy(self, entropy: float, energy: float) -> bool:
         """
@@ -810,9 +886,26 @@ class DirectorMVP:
                     threshold=self.reflexive_engine.get_threshold(self.latest_cognitive_state[0])
                 )
 
+            # Update Allostatic Controller with current entropy
+            self.allostatic_controller.record_entropy(entropy_value) # Using entropy_value from monitor
+
+            # 1. Check for Proactive ECC (Allostasis)
+            # This is now async, so we assume fire-and-forget in the main loop context,
+            # OR we check the trigger synchronously and only spawn if needed.
+            # For safety in this sync method, we'll check the trigger synchronously first.
+
+            # Since check_proactive_interventions is now async, in a sync context we should schedule it
+            # if we had a loop.
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(self.check_proactive_interventions())
+            except RuntimeError:
+                pass # No loop, skip proactive check
+
             # --- ADAPTIVE BETA LOGIC ---
             # Store original beta to reset it after search
             original_beta = self.manifold.beta
+
             search_result = None
 
             try:
@@ -1131,23 +1224,34 @@ class DirectorMVP:
 
     async def _escalate_to_agent(self, signal_type: str, context: str) -> None:
         """
-        Async helper to spawn and execute a specialized agent.
+        Async helper to spawn and execute a specialized agent or Swarm.
         """
         try:
             logger.info(f"Escalating to specialized agent for {signal_type}...")
 
-            # 1. Spawn Agent (Generates Persona)
-            tool_name = await self.agent_factory.spawn_agent(signal_type, context)
+            # If High Entropy, trigger Swarm
+            if signal_type == "High Entropy":
+                 logger.info("CRITICAL ENTROPY -> Triggering SWARM CONSENSUS.")
+                 advisors = ["linearist", "periodicist", "evolutionist", "thermodynamicist"]
+                 synthesis = await self.swarm_controller.run_swarm(
+                     task=f"Resolve High Entropy Clash. Context: {context}",
+                     advisor_ids=advisors,
+                     context=context
+                 )
+                 logger.info(f"Swarm Synthesis Result:\n{synthesis}")
+                 # TODO: Apply synthesis to goal?
 
-            # 2. Execute Agent
-            query = f"The system is stuck with {signal_type}. Please analyze the context and provide a new goal or framing to resolve the obstruction.\nContext: {context}"
+            else:
+                 # Default Single Agent Escalation
+                 # 1. Spawn Agent (Generates Persona)
+                 tool_name = await self.agent_factory.spawn_agent(signal_type, context)
 
-            result = await self.agent_factory.execute_agent(tool_name, {"query": query})
+                 # 2. Execute Agent
+                 query = f"The system is stuck with {signal_type}. Please analyze the context and provide a new goal or framing to resolve the obstruction.\nContext: {context}"
 
-            logger.info(f"Specialized Agent {tool_name} Result:\n{result}")
+                 result = await self.agent_factory.execute_agent(tool_name, {"query": query})
 
-            # TODO: Parse result to update goal automatically?
-            # For now, we just log it as a high-level intervention.
+                 logger.info(f"Specialized Agent {tool_name} Result:\n{result}")
 
         except Exception as e:
             logger.error(f"Agent escalation failed: {e}")

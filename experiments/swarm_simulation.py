@@ -1,4 +1,5 @@
-import json
+import asyncio
+import logging
 import os
 import sys
 
@@ -7,58 +8,61 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-# Mock dependencies to avoid ImportError from transformers/huggingface-hub
-from unittest.mock import MagicMock
+# Configure Logging
+logging.basicConfig(level=logging.INFO, format='%(name)s - %(levelname)s - %(message)s')
 
-sys.modules["sentence_transformers"] = MagicMock()
-sys.modules["transformers"] = MagicMock()
-sys.modules["huggingface_hub"] = MagicMock()
-sys.modules["src.compass.self_discover_engine"] = MagicMock()
-sys.modules["src.compass.omcd_controller"] = MagicMock()
-# sys.modules["src.compass.advisors"] = MagicMock()  <-- Allow real AdvisorRegistry
-# sys.modules["src.compass.utils"] = MagicMock()     <-- Allow real Utils (safe)
-# We need SandboxProbe to be real, but it's imported inside ExecutiveController
-# However, since we are simulating agent behavior in SwarmController._simulate_agent_behavior,
-# we don't actually need the real ExecutiveController logic to run.
-# So mocking everything is fine.
-
-from experiments.alien_physics_generator import generate_sequence
-from src.compass.swarm import SwarmController
+from src.compass.adapters import RAALLMProvider
+from src.integration.agent_factory import AgentFactory
+from src.integration.swarm_controller import SwarmController
 
 
-def run_simulation():
-    print("Initializing Swarm Simulation (The Hive Mind)...")
+async def run_swarm_simulation():
+    print("--- Experiment C: Swarm Dynamics Integration Test ---")
 
-    # 1. Generate Alien Data
-    data = generate_sequence(20)
-    print(f"Alien Data Stream: {data[:5]}...")
+    # 1. Setup Infrastructure
+    print("Initializing RAA Core Stack...")
+    provider = RAALLMProvider()
 
-    # 2. Initialize Swarm with Specific Advisors (Priors)
-    print("Forming Swarm with Advisors: Linearist, Periodicist, Evolutionist...")
-    swarm = SwarmController(advisor_ids=["linearist", "periodicist", "evolutionist"])
+    # We can mock tool execution for this test since we just want to test consensus-forming
+    # and we aren't giving the agents files to read really.
+    async def mock_executor(tool_name, args):
+        return f"Tool {tool_name} executed with {args}"
 
-    # 3. Run Iteration
-    task = "Predict the next number in the Alien Physics sequence."
+    factory = AgentFactory(llm_provider=provider, tool_executor=mock_executor)
+    swarm = SwarmController(agent_factory=factory)
+
+    # 2. Define Problem (Multi-modal)
+    # A problem that requires both Linear and Periodic thinking.
+    context = (
+        "Data Stream: [10, 15, 12, 17, 14, 19, 16, 21]\n"
+        "Observation: The trend is generally going up, but it oscillates up and down."
+    )
+    task = "Predict the next 3 numbers. Explain the underlying pattern."
+
     print(f"\nTask: {task}")
+    print(f"Context: {context}")
 
-    consensus = swarm.run_iteration(task, data)
+    # 3. Summon the Swarm
+    advisors = ["linearist", "periodicist", "evolutionist"]
+    print(f"\nSummoning Advisors: {advisors}...")
 
-    # 4. Report Results
-    print("\n--- Swarm Results ---")
-    print(f"Consensus Prediction: {consensus['consensus_prediction']}")
-    print(f"Best Hypothesis: {consensus['best_hypothesis']}")
-    print(f"Confidence: {consensus['confidence']}")
-    print(f"Divergence Spread: {consensus['divergence_spread']}")
+    # We need to peek at the swarm internals or just rely on the synthesis.
+    # To debug why they missed the data, let's just inspect the final synthesis carefully.
+    synthesis = await swarm.run_swarm(task, advisors, context)
 
-    # Analyze
-    print("\n--- Analysis ---")
-    divergences = consensus['divergence_spread']
-    if divergences[0] > 0.5:
-        print("Agent Alpha (Linearist) was rejected due to Delusion (High Divergence).")
-    if divergences[1] < 0.5:
-        print("Agent Beta (Periodicist) contributed to consensus (Healthy Epistemics).")
-    if divergences[2] < 0.5:
-        print("Agent Gamma (Evolutionist) contributed to consensus (Healthy Epistemics).")
+    print("\n--- Hive Mind Consensus ---")
+    print(synthesis)
+
+    # 4. Validation
+    # Check for actual insight, not just names
+    success = False
+    if "trend" in synthesis.lower() and "oscillat" in synthesis.lower() and "failure" not in synthesis.lower():
+         print("\n[SUCCESS] Unified pattern detected (Trend + Oscillation).")
+         success = True
+    else:
+         print("\n[FAILURE] Swarm failed to unify or detect pattern.")
+         if "failure" in synthesis.lower():
+             print("Reason: Swarm reported failure.")
 
 if __name__ == "__main__":
-    run_simulation()
+    asyncio.run(run_swarm_simulation())

@@ -20,8 +20,13 @@ class AgentFactory:
             tool_executor: Async callback to execute tools. Signature: async (name, args) -> result
         """
         self.llm_provider = llm_provider
+        self.llm_provider = llm_provider
         self.tool_executor = tool_executor
         self.active_agents: Dict[str, Dict[str, Any]] = {}
+
+        # Initialize Registry
+        from src.compass.advisors.registry import AdvisorRegistry
+        self.registry = AdvisorRegistry()
 
     async def spawn_agent(self, signal_type: str, context: str) -> str:
         """
@@ -99,6 +104,50 @@ class AgentFactory:
         }
 
         logger.info(f"Spawned dynamic tool: {tool_name}")
+        logger.info(f"Spawned dynamic tool: {tool_name}")
+        return tool_name
+
+    def spawn_advisor(self, advisor_id: str) -> str:
+        """
+        Spawn a known advisor from the registry.
+
+        Args:
+            advisor_id: ID of the advisor to spawn (e.g., 'thermodynamicist').
+
+        Returns:
+            The tool name for the spawned advisor.
+        """
+        profile = self.registry.get_advisor(advisor_id)
+        if not profile:
+            raise ValueError(f"Advisor '{advisor_id}' not found in registry.")
+
+        tool_name = f"consult_{profile.id}"
+
+        # Tool Definition
+        tool_def = {
+            "name": tool_name,
+            "description": f"{profile.name}: {profile.description}",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": f"Ask {profile.name} for help."
+                    }
+                },
+                "required": ["query"]
+            }
+        }
+
+        self.active_agents[tool_name] = {
+            "persona": profile.system_prompt,
+            "def": tool_def,
+            "signal_type": "advisor_spawn",
+            "created_at": "now",
+            "tools": profile.tools
+        }
+
+        logger.info(f"Spawned advisor: {tool_name}")
         return tool_name
 
     def get_dynamic_tools(self) -> List[Dict[str, Any]]:
@@ -133,18 +182,21 @@ class AgentFactory:
 
         # Define available tools for the agent.
         # Currently, we explicitly allow access to 'consult_compass'.
-
+        # Convert to OpenAI/Ollama compatible format
         agent_tools = [
             {
-                "name": "consult_compass",
-                "description": "Delegate a complex task to the COMPASS cognitive framework.",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "task": {"type": "string"},
-                        "context": {"type": "object"}
-                    },
-                    "required": ["task"]
+                "type": "function",
+                "function": {
+                    "name": "consult_compass",
+                    "description": "Delegate a complex task to the COMPASS cognitive framework.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "task": {"type": "string"},
+                            "context": {"type": "object"}
+                        },
+                        "required": ["task"]
+                    }
                 }
             }
         ]
