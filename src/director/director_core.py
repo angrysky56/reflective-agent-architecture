@@ -14,11 +14,9 @@ import asyncio
 import logging
 import time
 from dataclasses import dataclass
-from decimal import Decimal
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
 import torch
-import torch.nn.functional as F
 
 from src.compass.adapters import RAALLMProvider
 from src.compass.compass_framework import COMPASS
@@ -84,6 +82,10 @@ class DirectorConfig:
     # Adaptive Temperature
     adaptive_temp_min: float = 0.2
     adaptive_temp_max: float = 0.8
+
+    # Policing (Thought Suppression)
+    suppression_threshold: float = 0.6
+    suppression_cost: float = 2.0
 
 
 class DirectorMVP:
@@ -208,8 +210,8 @@ class DirectorMVP:
 
         # 1. Thought Suppressor (Experiment B: Police Strategy)
         self.thought_suppressor = ThoughtSuppressor(
-            suppression_threshold=0.6,
-            suppression_cost=2.0,
+            suppression_threshold=self.config.suppression_threshold,
+            suppression_cost=self.config.suppression_cost,
             quarantine_threshold=0.8,
             quarantine_cost=0.5
         )
@@ -339,16 +341,73 @@ class DirectorMVP:
         logger.info(f"Director: [Epistemic] Complexity: {complexity:.3f} ({complexity_info['type']})")
         logger.info(f"Director: [Epistemic] Randomness: {randomness:.3f} ({randomness_info['type']})")
 
+        if self.reflexive_engine:
+             import uuid
+             episode_id = str(uuid.uuid4())
+
+             # Dynamic Threshold Logic (Integration of Reflexive Learning)
+             # Get global learned threshold
+             reflexive_threshold = self.reflexive_engine.get_threshold(self.latest_cognitive_state[0])
+             # Use the higher of local config or learned threshold (Conservative/Safe)
+             current_threshold = max(self.config.suppression_threshold, reflexive_threshold)
+
+             logger.debug(f"Director: Using composed threshold: {current_threshold:.3f} (Config: {self.config.suppression_threshold}, Reflexive: {reflexive_threshold:.3f})")
+
+             self.reflexive_engine.record_intervention_start(
+                 episode_id=episode_id,
+                 entropy=randomness,
+                 energy=self.energy_budget,
+                 cognitive_state=self.latest_cognitive_state[0],
+                 goal="policing_check",
+                 intervention_type="epistemic_filter",
+                 intervention_source="director_core",
+                 threshold=current_threshold,
+                 parameters={"complexity": complexity}
+             )
+        else:
+             current_threshold = self.config.suppression_threshold
+
         # --- 1. Suppression (Policing Entropy) ---
         suppression_active = False
-        if randomness > 0.6: # Threshold from Exp C
-            logger.info("Director: [Action] HIGH RANDOMNESS -> Activating Suppression (Noise Filtering)")
+        if randomness > current_threshold:
+            logger.info(f"Director: [Action] HIGH RANDOMNESS ({randomness:.2f} > {current_threshold:.2f}) -> Activating Suppression (Noise Filtering)")
+
+            # Log to suppression history
+            from src.director.thought_suppression import SuppressionResult, SuppressionStrategy
+            self.suppression_history.append(SuppressionResult(
+                entropy_before=randomness,
+                energy_cost=self.config.suppression_cost,
+                strategy=SuppressionStrategy.SUPPRESS,
+                suppressed=True,
+                reason="High Randomness (Epistemic Filtering)"
+            ))
+            self.energy_budget -= self.config.suppression_cost
+
+            # Reflexive Feedback: Suppression Event
+            if self.reflexive_engine:
+                 # Suppression is the "Safe Bet" (Quality 0.5)
+                 self.reflexive_engine.record_intervention_end(
+                     episode_id=episode_id,
+                     entropy_after=0.0, # Effectively zeroed
+                     energy_after=self.energy_budget,
+                     task_success=True, # We successfully suppressed
+                     outcome_quality=0.5, # Neutral/Safe outcome
+                     metadata={"strategy": "suppress", "cost": self.config.suppression_cost}
+                 )
+
             # Simple moving average smoothing
             y_smooth = np.convolve(y_values, np.ones(5)/5, mode='same')
-            # Update data points with smoothed values
             for i, d in enumerate(data_points):
                 d["result"] = float(y_smooth[i])
             suppression_active = True
+
+            # If we suppress, we usually simplify the problem and continue, OR we abort.
+            # In Experiment C, we continued with smoothing.
+            # But "Suppression" implies blocking the original chaotic signal.
+
+        else:
+             # We ACCEPTED the signal.
+             pass
 
         # --- 2. Attention (Focused Search) ---
         focused_search = False
@@ -360,21 +419,17 @@ class DirectorMVP:
              focused_search = True
              ops = TRIG_OPS
              unary_ops = TRIG_UNARY_OPS
-             # Boost generations for complex problems
              n_generations = max(n_generations, 100)
 
-        # --- 3. Epistemic Honesty (Discontinuity) ---
+        # --- 3. Epistemic Honesty ---
         warning_msg = ""
         if complexity_info['type'] == 'discontinuous':
             logger.info("Director: [Action] DISCONTINUITY DETECTED -> Flagging for Segmentation")
             warning_msg = " [WARNING: Discontinuity Detected - Approximation Only]"
 
-        # Extract variables
+        # GP Setup
         first_point = data_points[0]
         variables = [k for k in first_point.keys() if k != "result"]
-
-        # Initialize GP with adaptive parameters
-        # Use larger population for focused search or high complexity
         pop_size = 200 if (focused_search or suppression_active) else 50
 
         gp = SimpleGP(
@@ -386,12 +441,42 @@ class DirectorMVP:
         )
 
         # Evolve
+        start_energy = self.energy_budget
         best_formula, best_error = gp.evolve(
             data_points,
             target_key="result",
             generations=n_generations,
             hybrid=True
         )
+
+        # Calculate Compute Cost
+        # Heuristic: 0.1J per generation * population_ratio
+        compute_cost = (n_generations * 0.1) * (pop_size / 50.0)
+        self.energy_budget -= compute_cost
+
+        # Reflexive Feedback: Acceptance Outcome
+        if self.reflexive_engine and not suppression_active:
+             # Quality driven by Error (MSE)
+             # Low MSE (< 0.1) -> High Quality (1.0)
+             # High MSE (> 1.0) -> Low Quality (0.0) -> implies we accepted noise
+
+             mse = best_error
+             if mse < 0.1:
+                 quality = 1.0
+             elif mse > 10.0:
+                 quality = 0.0
+             else:
+                 # Linear interpolation 0.1..10.0 -> 1.0..0.0
+                 quality = max(0.0, 1.0 - (mse - 0.1) / 9.9)
+
+             self.reflexive_engine.record_intervention_end(
+                 episode_id=episode_id,
+                 entropy_after=mse, # Uncertainty remains high if error is high
+                 energy_after=self.energy_budget,
+                 task_success=(quality > 0.6),
+                 outcome_quality=quality,
+                 metadata={"strategy": "accept", "mse": mse, "cost": compute_cost}
+             )
 
         logger.info(f"Director: Evolution complete. Formula: {best_formula} (MSE: {best_error:.4f})")
 

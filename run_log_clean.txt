@@ -1,0 +1,83 @@
+INFO:src.director.director_core:Reflexive Closure Engine initialized.
+INFO:src.llm.factory:Initializing LLM provider: ollama with model: qwen3:latest
+INFO:src.director.recursive_observer:RecursiveObserver initialized with ollama/qwen3:latest
+INFO:src.director.director_core:Recursive Observer initialized.
+INFO:src.director.matrix_monitor:Seeding default cognitive states...
+INFO:src.director.matrix_monitor:Registered new self-state: 'Focused' (Index 0)
+INFO:src.director.matrix_monitor:Registered new self-state: 'Looping' (Index 1)
+INFO:src.director.matrix_monitor:Registered new self-state: 'Broad' (Index 2)
+INFO:src.director.matrix_monitor:Seeding complete.
+INFO:src.llm.factory:Initializing LLM provider: ollama with model: kimi-k2-thinking:cloud
+2025-12-05 01:09:32,682 - COMPASS - INFO - SHAPE processor initialized
+INFO:COMPASS:SHAPE processor initialized
+2025-12-05 01:09:32,682 - COMPASS - INFO - SMART planner initialized
+INFO:COMPASS:SMART planner initialized
+2025-12-05 01:09:32,682 - COMPASS - INFO - SLAP pipeline initialized with LLM support
+INFO:COMPASS:SLAP pipeline initialized with LLM support
+2025-12-05 01:09:32,682 - COMPASS - INFO - oMCD controller initialized
+INFO:COMPASS:oMCD controller initialized
+2025-12-05 01:09:32,682 - COMPASS - INFO - Self-Discover engine initialized
+INFO:COMPASS:Self-Discover engine initialized
+2025-12-05 01:09:32,682 - AdvisorRegistry - INFO - Registered advisor: Generalist (generalist)
+INFO:AdvisorRegistry:Registered advisor: Generalist (generalist)
+2025-12-05 01:09:32,682 - AdvisorRegistry - INFO - Registered advisor: Deep Researcher (researcher)
+INFO:AdvisorRegistry:Registered advisor: Deep Researcher (researcher)
+2025-12-05 01:09:32,682 - AdvisorRegistry - INFO - Registered advisor: Senior Engineer (coder)
+INFO:AdvisorRegistry:Registered advisor: Senior Engineer (coder)
+2025-12-05 01:09:32,683 - AdvisorRegistry - INFO - Loaded 7 advisors from /home/ty/Repositories/ai_workspace/reflective-agent-architecture/src/config/advisors.json
+INFO:AdvisorRegistry:Loaded 7 advisors from /home/ty/Repositories/ai_workspace/reflective-agent-architecture/src/config/advisors.json
+2025-12-05 01:09:32,683 - COMPASS - INFO - Integrated Intelligence initialized
+INFO:COMPASS:Integrated Intelligence initialized
+2025-12-05 01:09:32,683 - COMPASS - INFO - Constraint Governor initialized
+INFO:COMPASS:Constraint Governor initialized
+2025-12-05 01:09:32,683 - COMPASS - INFO - oMCD controller initialized
+INFO:COMPASS:oMCD controller initialized
+2025-12-05 01:09:32,683 - COMPASS - INFO - Self-Discover engine initialized
+INFO:COMPASS:Self-Discover engine initialized
+2025-12-05 01:09:32,683 - COMPASS - INFO - Executive Controller initialized
+INFO:COMPASS:Executive Controller initialized
+2025-12-05 01:09:32,683 - COMPASS - INFO - Representation Selector initialized
+INFO:COMPASS:Representation Selector initialized
+2025-12-05 01:09:32,683 - COMPASS - INFO - Procedural Toolkit initialized
+INFO:COMPASS:Procedural Toolkit initialized
+2025-12-05 01:09:32,683 - COMPASS - INFO - COMPASS framework initialized with all components
+INFO:COMPASS:COMPASS framework initialized with all components
+INFO:src.director.director_core:ThoughtSuppressor initialized (active policing mode)
+INFO:src.director.director_core:EpistemicDiscriminator initialized
+INFO:src.director.director_core:PlasticityModulator initialized
+INFO:ReflexiveTest:Initial Threshold: 0.9
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 0.900 (discontinuous)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: -1.185 (structured)
+INFO:src.director.director_core:Director: [Action] DISCONTINUITY DETECTED -> Flagging for Segmentation
+INFO:src.director.director_core:Director: Evolution complete. Formula: ((x - -0.98) + x) (MSE: 0.0108)
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 0.597 (smooth)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: -2.970 (structured)
+INFO:src.director.director_core:Director: Evolution complete. Formula: hypot((-2.23 - hypot(hypot(x, x), (x - -0.03))), x) (MSE: 0.0083)
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 1.099 (complex)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: 0.654 (random)
+INFO:src.director.director_core:Director: [Action] HIGH COMPLEXITY -> Activating Focused Search (Trig Primitives)
+INFO:src.director.director_core:Director: Evolution complete. Formula: (sin(((((12.09 * x) * ((((-4.39 + (x - x)) * ((x + 5.42) + sin(-1.69))) * (x - ((x + x) * (3.08 - 9.94)))) - (((cos(x) - (x * x)) + ((x - x) - x)) * x))) * x) + x)) * x) (MSE: 30.7347)
+INFO:src.director.reflexive_closure_engine:Reflexive Exploration (entropy_threshold): 2.00 -> 2.04
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 0.900 (discontinuous)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: 0.581 (structured)
+INFO:src.director.director_core:Director: [Action] DISCONTINUITY DETECTED -> Flagging for Segmentation
+INFO:src.director.director_core:Director: Evolution complete. Formula: tanh((sin((x * -9.46)) * hypot(x, hypot(-4.37, x)))) (MSE: 99.5371)
+INFO:src.director.reflexive_closure_engine:Reflexive Exploration (entropy_threshold): 2.00 -> 1.76
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 1.119 (complex)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: 0.626 (random)
+INFO:src.director.director_core:Director: [Action] HIGH COMPLEXITY -> Activating Focused Search (Trig Primitives)
+INFO:src.director.director_core:Director: Evolution complete. Formula: ((-0.01 - (x - x)) * sin((sin(((cos(x) + sin((((((-9.57 - x) + x) - -1.90) * ((cos(x) - sin(-7.33)) - cos((x - x)))) - (10.60 - x)))) * (sin(((sin(2.03) - (4.76 - -10.04)) * sin(sin(10.65)))) - ((((4.62 - 10.64) + (x + x)) + ((2.47 * x) - (x * -4.96))) - cos(((x * x) - (-2.63 - -6.18))))))) + cos((x * (-11.44 * (sin((-5.65 * x)) + cos(x)))))))) (MSE: 35.4646)
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 1.114 (complex)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: 0.633 (random)
+INFO:src.director.director_core:Director: [Action] HIGH COMPLEXITY -> Activating Focused Search (Trig Primitives)
+INFO:src.director.director_core:Director: Evolution complete. Formula: (((x + -1.64) + -5.93) * sin((x * 33.95))) (MSE: 47.8081)
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 1.081 (complex)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: 0.608 (random)
+INFO:src.director.director_core:Director: [Action] HIGH COMPLEXITY -> Activating Focused Search (Trig Primitives)

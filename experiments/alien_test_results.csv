@@ -1,0 +1,5 @@
+universe,formula,rmse,suppression_count,energy_spent
+Linear,(tanh(2594.09) + (x + x)) [WARNING: Discontinuity Detected - Approximation Only],12.477735273318649,0,0.0
+Harmonic,(sin((x + (x - (-0.07 * cos(sin(x)))))) - ((cos(0.30) * sin(sin(((cos(8.77) * (x - 2.34)) - -3.99)))) + -0.19)),0.6920740887346185,0,0.0
+Chaotic,0.51 [WARNING: Discontinuity Detected - Approximation Only] [Suppressed Noise],0.14597121804200405,1,2.0
+Adversarial,((((-8.69 + x) + cos(x)) * cos((-99.39 + x))) * cos(-4.76)) [Suppressed Noise],0.5209511816612618,1,2.0

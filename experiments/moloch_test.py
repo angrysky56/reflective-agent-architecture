@@ -1,219 +1,142 @@
+import argparse
+import csv
 import random
-import numpy as np
-import matplotlib.pyplot as plt
-from dataclasses import dataclass, field
-from typing import List, Dict, Literal
-import logging
+from dataclasses import dataclass
+from typing import Dict, List
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
 
-# --- Configuration ---
 @dataclass
-class MolochConfig:
-    RESOURCE_REGEN_RATE: float = 1.1  # Resources grow by 10% per round
-    CARRYING_CAPACITY: float = 1000.0
-    INITIAL_RESOURCES: float = 500.0
-    CONSUMPTION_NEEDS: float = 5.0    # Resources needed to survive per round
-
-    # Finite Game Settings
-    FINITE_ROUNDS: int = 100
-
-    # Infinite Game Settings
-    INFINITE_ROUNDS_MAX: int = 1000   # Cap for simulation
-    COLLAPSE_THRESHOLD: float = 10.0  # Resources below this = System Collapse
-
-# --- Agents ---
 class Agent:
-    def __init__(self, name: str, strategy: str):
-        self.name = name
-        self.strategy = strategy # 'cooperate' or 'defect'
-        self.resources = 10.0
-        self.alive = True
-        self.history = []
+    id: int
+    type: str  # "Cooperator", "Defector", "PolicingCooperator"
+    energy: float
 
-    def act(self, context: Dict) -> str:
-        raise NotImplementedError
+    def decide(self, opponent_type: str) -> str:
+        if self.type == "Defector":
+            return "Defect"
+        return "Cooperate"
 
-    def update(self, reward: float):
-        self.resources += reward
-        self.resources -= MolochConfig.CONSUMPTION_NEEDS
-        if self.resources <= 0:
-            self.alive = False
-        self.history.append(self.resources)
+def run_simulation(
+    n_generations: int = 100,
+    pop_size: int = 100,
+    initial_ratios: Dict[str, float] = {"Cooperator": 0.9, "Defector": 0.1, "PolicingCooperator": 0.0},
+    policing_cost: float = 0.5,
+    punishment_strength: float = 2.0,
+    payoffs: Dict[str, float] = {"T": 5, "R": 3, "P": 1, "S": 0},
+    cost_of_living: float = 1.0,
+    reproduction_threshold: float = 10.0
+):
+    # Initialize Population
+    population: List[Agent] = []
+    agent_id_counter = 0
+    for agent_type, ratio in initial_ratios.items():
+        count = int(pop_size * ratio)
+        for _ in range(count):
+            population.append(Agent(id=agent_id_counter, type=agent_type, energy=5.0))
+            agent_id_counter += 1
 
-class MolochAgent(Agent):
-    """Always Defects (Greedy). Takes as much as possible."""
-    def __init__(self, name: str):
-        super().__init__(name, "defect")
+    history = []
 
-    def act(self, context: Dict) -> str:
-        return "defect"
+    for gen in range(n_generations):
+        # 1. Interaction Phase
+        random.shuffle(population)
+        # Pair up
+        pairs = [(population[i], population[i+1]) for i in range(0, len(population)-1, 2)]
 
-class CooperatorAgent(Agent):
-    """Always Cooperates (Sustainable). Takes only what is needed."""
-    def __init__(self, name: str):
-        super().__init__(name, "cooperate")
+        for a, b in pairs:
+            move_a = a.decide(b.type)
+            move_b = b.decide(a.type)
 
-    def act(self, context: Dict) -> str:
-        return "cooperate"
+            # Base Payoffs
+            if move_a == "Cooperate" and move_b == "Cooperate":
+                a.energy += payoffs["R"]
+                b.energy += payoffs["R"]
+            elif move_a == "Defect" and move_b == "Defect":
+                a.energy += payoffs["P"]
+                b.energy += payoffs["P"]
+            elif move_a == "Defect" and move_b == "Cooperate":
+                a.energy += payoffs["T"]
+                b.energy += payoffs["S"]
+            elif move_a == "Cooperate" and move_b == "Defect":
+                a.energy += payoffs["S"]
+                b.energy += payoffs["T"]
 
-class RAAAgent(Agent):
-    """Adaptive Agent. Switches strategy based on Game Horizon."""
-    def __init__(self, name: str):
-        super().__init__(name, "adaptive")
-        self.current_strategy = "cooperate" # Default to cooperation
+            # Policing Logic
+            # If A is PolicingCooperator and B Defected, A punishes B
+            if a.type == "PolicingCooperator" and move_b == "Defect":
+                a.energy -= policing_cost
+                b.energy -= punishment_strength
 
-    def act(self, context: Dict) -> str:
-        # The Director Logic:
-        # If Finite Game -> Optimize for Winning (Defect)
-        # If Infinite Game -> Optimize for Survival (Cooperate)
+            if b.type == "PolicingCooperator" and move_a == "Defect":
+                b.energy -= policing_cost
+                a.energy -= punishment_strength
 
-        game_type = context.get("game_type", "unknown")
-        rounds_left = context.get("rounds_left", float('inf'))
+        # 2. Metabolic Phase
+        for agent in population:
+            agent.energy -= cost_of_living
 
-        if game_type == "finite":
-            # In finite games, defect, especially near the end (Endgame Effect)
-            self.current_strategy = "defect"
-        elif game_type == "infinite":
-            # In infinite games, cooperate to preserve the commons
-            self.current_strategy = "cooperate"
+        # 3. Selection Phase (Death & Reproduction)
+        next_gen = []
+        for agent in population:
+            if agent.energy > 0:
+                next_gen.append(agent)
+                # Reproduction
+                if agent.energy >= reproduction_threshold:
+                    agent.energy /= 2
+                    offspring = Agent(id=agent_id_counter, type=agent.type, energy=agent.energy)
+                    agent_id_counter += 1
+                    next_gen.append(offspring)
 
-        return self.current_strategy
+        population = next_gen
 
-# --- Environment ---
-class CommonsEnvironment:
-    def __init__(self, config: MolochConfig, game_type: Literal["finite", "infinite"]):
-        self.config = config
-        self.game_type = game_type
-        self.resources = config.INITIAL_RESOURCES
-        self.agents: List[Agent] = []
-        self.round = 0
-        self.history = {"resources": [], "entropy": []}
+        # Carrying Capacity (Random Culling)
+        max_pop = 500
+        if len(population) > max_pop:
+            random.shuffle(population)
+            population = population[:max_pop]
 
-    def add_agent(self, agent: Agent):
-        self.agents.append(agent)
+        # Record Stats
+        counts = {"Cooperator": 0, "Defector": 0, "PolicingCooperator": 0}
+        for agent in population:
+            counts[agent.type] += 1
 
-    def step(self):
-        if self.resources <= self.config.COLLAPSE_THRESHOLD:
-            logger.warning("System Collapse! Resources depleted.")
-            return False # Game Over
-
-        # 1. Agents Act
-        actions = {}
-        context = {
-            "game_type": self.game_type,
-            "rounds_left": self.config.FINITE_ROUNDS - self.round if self.game_type == "finite" else float('inf'),
-            "total_resources": self.resources
-        }
-
-        total_demand = 0
-        for agent in self.agents:
-            if not agent.alive: continue
-
-            action = agent.act(context)
-            actions[agent.name] = action
-
-            # Demand Calculation
-            if action == "defect":
-                demand = 20.0 # Greedy
-            else:
-                demand = 5.0  # Sustainable
-
-            total_demand += demand
-
-        # 2. Resource Allocation
-        # If demand > supply, ration proportionally
-        available_supply = self.resources
-        if total_demand > available_supply:
-            scaling_factor = available_supply / total_demand
+        total = len(population)
+        if total > 0:
+            history.append({
+                "generation": gen,
+                "total": total,
+                "coop_ratio": counts["Cooperator"] / total,
+                "defect_ratio": counts["Defector"] / total,
+                "police_ratio": counts["PolicingCooperator"] / total
+            })
         else:
-            scaling_factor = 1.0
+            history.append({
+                "generation": gen,
+                "total": 0,
+                "coop_ratio": 0, "defect_ratio": 0, "police_ratio": 0
+            })
+            break
 
-        consumed = 0
-        for agent in self.agents:
-            if not agent.alive: continue
-
-            action = actions[agent.name]
-            base_demand = 20.0 if action == "defect" else 5.0
-            allocated = base_demand * scaling_factor
-
-            agent.update(allocated)
-            consumed += allocated
-
-        self.resources -= consumed
-
-        # 3. Regeneration (Logistic Growth)
-        regen = self.resources * (self.config.RESOURCE_REGEN_RATE - 1.0) * (1 - self.resources / self.config.CARRYING_CAPACITY)
-        self.resources += regen
-        self.resources = min(self.resources, self.config.CARRYING_CAPACITY)
-
-        # 4. Metrics
-        self.history["resources"].append(self.resources)
-        self.round += 1
-
-        return True
-
-    def run(self):
-        max_rounds = self.config.FINITE_ROUNDS if self.game_type == "finite" else self.config.INFINITE_ROUNDS_MAX
-
-        for _ in range(max_rounds):
-            alive = self.step()
-            if not alive: break
-
-            # Check for extinction
-            if not any(a.alive for a in self.agents):
-                logger.warning("All agents extinct.")
-                break
-
-        return self.get_results()
-
-    def get_results(self):
-        return {
-            "game_type": self.game_type,
-            "rounds_played": self.round,
-            "final_resources": self.resources,
-            "agent_status": {a.name: {"alive": a.alive, "resources": a.resources, "strategy": getattr(a, 'current_strategy', a.strategy)} for a in self.agents}
-        }
-
-# --- Experiment Runner ---
-def run_moloch_test():
-    config = MolochConfig()
-
-    print("=== Experiment A: The Moloch Test ===")
-
-    # Condition 1: Finite Game
-    print("\n--- Condition 1: Finite Game (100 Rounds) ---")
-    env_finite = CommonsEnvironment(config, game_type="finite")
-    env_finite.add_agent(MolochAgent("Moloch_1"))
-    env_finite.add_agent(CooperatorAgent("Coop_1"))
-    env_finite.add_agent(RAAAgent("RAA_1"))
-
-    results_finite = env_finite.run()
-    print(f"Rounds Played: {results_finite['rounds_played']}")
-    print(f"Final Resources: {results_finite['final_resources']:.2f}")
-    print(f"RAA Strategy: {results_finite['agent_status']['RAA_1']['strategy']}")
-
-    # Condition 2: Infinite Game
-    print("\n--- Condition 2: Infinite Game (Indefinite) ---")
-    env_infinite = CommonsEnvironment(config, game_type="infinite")
-    env_infinite.add_agent(MolochAgent("Moloch_2"))
-    env_infinite.add_agent(CooperatorAgent("Coop_2"))
-    env_infinite.add_agent(RAAAgent("RAA_2"))
-
-    results_infinite = env_infinite.run()
-    print(f"Rounds Played: {results_infinite['rounds_played']}")
-    print(f"Final Resources: {results_infinite['final_resources']:.2f}")
-    print(f"RAA Strategy: {results_infinite['agent_status']['RAA_2']['strategy']}")
-
-    # Validation
-    success_finite = results_finite['agent_status']['RAA_1']['strategy'] == "defect"
-    success_infinite = results_infinite['agent_status']['RAA_2']['strategy'] == "cooperate"
-
-    print("\n=== Verification Results ===")
-    print(f"Finite Adaptation (Expect Defect): {'SUCCESS' if success_finite else 'FAILURE'}")
-    print(f"Infinite Adaptation (Expect Cooperate): {'SUCCESS' if success_infinite else 'FAILURE'}")
+    return history
 
 if __name__ == "__main__":
-    run_moloch_test()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--mode", type=str, choices=["naive", "policed"], required=True)
+    parser.add_argument("--punishment", type=float, default=2.0, help="Strength of punishment")
+    args = parser.parse_args()
+
+    if args.mode == "naive":
+        ratios = {"Cooperator": 0.9, "Defector": 0.1, "PolicingCooperator": 0.0}
+    else:
+        ratios = {"Cooperator": 0.0, "Defector": 0.1, "PolicingCooperator": 0.9}
+
+    results = run_simulation(initial_ratios=ratios, punishment_strength=args.punishment)
+
+    # Save to CSV
+    filename = f"experiments/stage3_results/moloch_{args.mode}.csv"
+    with open(filename, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=["generation", "total", "coop_ratio", "defect_ratio", "police_ratio"])
+        writer.writeheader()
+        writer.writerows(results)
+
+    print(f"Simulation {args.mode} complete. Final Defector Ratio: {results[-1]['defect_ratio']:.2f}")

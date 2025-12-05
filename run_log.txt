@@ -1,0 +1,342 @@
+INFO:src.director.intervention_tracker:Loaded 75 intervention records
+INFO:src.director.director_core:Reflexive Closure Engine initialized.
+INFO:src.llm.factory:Initializing LLM provider: ollama with model: qwen3:latest
+INFO:src.director.recursive_observer:RecursiveObserver initialized with ollama/qwen3:latest
+INFO:src.director.director_core:Recursive Observer initialized.
+INFO:src.director.matrix_monitor:Seeding default cognitive states...
+INFO:src.director.matrix_monitor:Registered new self-state: 'Focused' (Index 0)
+INFO:src.director.matrix_monitor:Registered new self-state: 'Looping' (Index 1)
+INFO:src.director.matrix_monitor:Registered new self-state: 'Broad' (Index 2)
+INFO:src.director.matrix_monitor:Seeding complete.
+INFO:src.llm.factory:Initializing LLM provider: ollama with model: kimi-k2-thinking:cloud
+2025-12-05 01:04:07,055 - COMPASS - INFO - SHAPE processor initialized
+INFO:COMPASS:SHAPE processor initialized
+2025-12-05 01:04:07,056 - COMPASS - INFO - SMART planner initialized
+INFO:COMPASS:SMART planner initialized
+2025-12-05 01:04:07,056 - COMPASS - INFO - SLAP pipeline initialized with LLM support
+INFO:COMPASS:SLAP pipeline initialized with LLM support
+2025-12-05 01:04:07,056 - COMPASS - INFO - oMCD controller initialized
+INFO:COMPASS:oMCD controller initialized
+2025-12-05 01:04:07,056 - COMPASS - INFO - Self-Discover engine initialized
+INFO:COMPASS:Self-Discover engine initialized
+2025-12-05 01:04:07,056 - AdvisorRegistry - INFO - Registered advisor: Generalist (generalist)
+INFO:AdvisorRegistry:Registered advisor: Generalist (generalist)
+2025-12-05 01:04:07,056 - AdvisorRegistry - INFO - Registered advisor: Deep Researcher (researcher)
+INFO:AdvisorRegistry:Registered advisor: Deep Researcher (researcher)
+2025-12-05 01:04:07,056 - AdvisorRegistry - INFO - Registered advisor: Senior Engineer (coder)
+INFO:AdvisorRegistry:Registered advisor: Senior Engineer (coder)
+2025-12-05 01:04:07,056 - AdvisorRegistry - INFO - Loaded 7 advisors from /home/ty/Repositories/ai_workspace/reflective-agent-architecture/src/config/advisors.json
+INFO:AdvisorRegistry:Loaded 7 advisors from /home/ty/Repositories/ai_workspace/reflective-agent-architecture/src/config/advisors.json
+2025-12-05 01:04:07,056 - COMPASS - INFO - Integrated Intelligence initialized
+INFO:COMPASS:Integrated Intelligence initialized
+2025-12-05 01:04:07,056 - COMPASS - INFO - Constraint Governor initialized
+INFO:COMPASS:Constraint Governor initialized
+2025-12-05 01:04:07,056 - COMPASS - INFO - oMCD controller initialized
+INFO:COMPASS:oMCD controller initialized
+2025-12-05 01:04:07,056 - COMPASS - INFO - Self-Discover engine initialized
+INFO:COMPASS:Self-Discover engine initialized
+2025-12-05 01:04:07,056 - COMPASS - INFO - Executive Controller initialized
+INFO:COMPASS:Executive Controller initialized
+2025-12-05 01:04:07,056 - COMPASS - INFO - Representation Selector initialized
+INFO:COMPASS:Representation Selector initialized
+2025-12-05 01:04:07,056 - COMPASS - INFO - Procedural Toolkit initialized
+INFO:COMPASS:Procedural Toolkit initialized
+2025-12-05 01:04:07,056 - COMPASS - INFO - COMPASS framework initialized with all components
+INFO:COMPASS:COMPASS framework initialized with all components
+INFO:src.director.director_core:ThoughtSuppressor initialized (active policing mode)
+INFO:src.director.director_core:EpistemicDiscriminator initialized
+INFO:src.director.director_core:PlasticityModulator initialized
+INFO:ReflexiveTest:Initial Threshold: 0.9
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 0.900 (discontinuous)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: 0.525 (structured)
+INFO:src.director.director_core:Director: [Action] DISCONTINUITY DETECTED -> Flagging for Segmentation
+INFO:src.director.director_core:Director: Evolution complete. Formula: (cos(x) - ((x + x) * ((abs(sin((x + (((cos(x) * x) - ((x + x) + (x + -3.21))) - x)))) - x) + hypot(-0.00, x)))) (MSE: 102.0757)
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 0.597 (smooth)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: -0.218 (structured)
+INFO:src.director.director_core:Director: Evolution complete. Formula: (x + (tanh(464866.32) + (x + 0.43))) (MSE: 0.0145)
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 0.900 (discontinuous)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: 0.642 (random)
+INFO:src.director.director_core:Director: [Action] DISCONTINUITY DETECTED -> Flagging for Segmentation
+INFO:src.director.director_core:Director: Evolution complete. Formula: (cos((hypot(hypot(abs(abs(x)), ((hypot((hypot(x, ((x - x) - (x + x))) - 8.64), tanh(x)) + hypot(x, -3.73)) + x)), (x * 6.19)) + cos(-10.89))) * (abs(hypot(1.40, x)) * cos((x * -7.29)))) (MSE: 46.4663)
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 0.597 (smooth)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: -2.673 (structured)
+INFO:src.director.director_core:Director: Evolution complete. Formula: (x - ((sin(tanh(((-1.61 - x) - x))) + -0.19) - x)) (MSE: 0.0067)
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 1.110 (complex)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: 0.572 (structured)
+INFO:src.director.director_core:Director: [Action] HIGH COMPLEXITY -> Activating Focused Search (Trig Primitives)
+INFO:src.director.director_core:Director: Evolution complete. Formula: ((-0.10 + -0.04) * (sin(x) + cos((((x * 16.63) * (x + x)) * (cos(x) - cos(8.67)))))) (MSE: 63.8428)
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 0.900 (discontinuous)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: 0.593 (structured)
+INFO:src.director.director_core:Director: [Action] DISCONTINUITY DETECTED -> Flagging for Segmentation
+INFO:src.director.director_core:Director: Evolution complete. Formula: (7.71 - sin(((2.43 - x) * x))) (MSE: 117.1439)
+INFO:src.director.reflexive_closure_engine:Reflexive Exploration (entropy_threshold): 1.62 -> 1.76
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 0.597 (smooth)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: -1.480 (structured)
+INFO:src.director.director_core:Director: Evolution complete. Formula: ((x - -0.99) + x) (MSE: 0.0070)
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 0.597 (smooth)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: -0.505 (structured)
+INFO:src.director.director_core:Director: Evolution complete. Formula: ((abs((-0.85 - x)) + hypot(cos((((x - -4.88) + x) - (x + x))), -0.00)) + x) (MSE: 0.0105)
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 1.096 (complex)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: 0.613 (random)
+INFO:src.director.director_core:Director: [Action] HIGH COMPLEXITY -> Activating Focused Search (Trig Primitives)
+INFO:src.director.director_core:Director: Evolution complete. Formula: ((((sin((sin((x * ((-1.88 - 8.71) - cos(3.37)))) - -9.77)) * ((x + (cos(x) + x)) * sin(x))) - -0.09) + x) - -0.00) (MSE: 35.1063)
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 1.096 (complex)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: 0.609 (random)
+INFO:src.director.director_core:Director: [Action] HIGH COMPLEXITY -> Activating Focused Search (Trig Primitives)
+INFO:src.director.director_core:Director: Evolution complete. Formula: (((sin(((x - -13.71) + (x + 7.26))) * (sin(cos(5.74)) * (x - (x - -0.00)))) + x) - cos((x * ((x + (cos(x) * sin(-49.29))) * x)))) (MSE: 35.6195)
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 0.900 (discontinuous)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: 0.558 (structured)
+INFO:src.director.director_core:Director: [Action] DISCONTINUITY DETECTED -> Flagging for Segmentation
+INFO:src.director.director_core:Director: Evolution complete. Formula: ((sin((8.45 - x)) + x) * (cos((hypot(hypot(abs(2.43), ((abs(abs(x)) + hypot(-9.19, x)) - -6.49)), hypot(sin(hypot((x * 6.09), hypot(x, 5.48))), (x * ((x + 4.51) - x)))) + (cos(x) * ((x + 8.57) + hypot(x, x))))) * (x - 6.12))) (MSE: 103.8100)
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 0.900 (discontinuous)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: 0.647 (random)
+INFO:src.director.director_core:Director: [Action] DISCONTINUITY DETECTED -> Flagging for Segmentation
+INFO:src.director.director_core:Director: Evolution complete. Formula: ((abs((8.55 * cos((hypot(x, x) + tanh(1.04))))) - x) - x) (MSE: 57.9866)
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 0.900 (discontinuous)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: 0.617 (random)
+INFO:src.director.director_core:Director: [Action] DISCONTINUITY DETECTED -> Flagging for Segmentation
+INFO:src.director.director_core:Director: Evolution complete. Formula: (x * (sin(((x - hypot(x, ((-8.92 * x) - x))) * (x * x))) * tanh(x))) (MSE: 123.0932)
+INFO:src.director.reflexive_closure_engine:Reflexive Exploration (entropy_threshold): 1.62 -> 1.85
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 0.900 (discontinuous)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: 0.607 (random)
+INFO:src.director.director_core:Director: [Action] DISCONTINUITY DETECTED -> Flagging for Segmentation
+INFO:src.director.director_core:Director: Evolution complete. Formula: (x * tanh(sin(hypot(((abs(sin(((x - -12.14) * x))) - -17.10) - 5.74), hypot(x, (x * (-2.90 * (x + (10.91 + ((x * x) - x)))))))))) (MSE: 54.7296)
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 0.900 (discontinuous)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: 0.607 (random)
+INFO:src.director.director_core:Director: [Action] DISCONTINUITY DETECTED -> Flagging for Segmentation
+INFO:src.director.director_core:Director: Evolution complete. Formula: ((x * ((3.11 * x) - (x + x))) - hypot(5.50, (x * x))) (MSE: 43.9242)
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 1.120 (complex)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: 0.650 (random)
+INFO:src.director.director_core:Director: [Action] HIGH COMPLEXITY -> Activating Focused Search (Trig Primitives)
+INFO:src.director.director_core:Director: Evolution complete. Formula: (x * sin(((x * (sin(x) - ((x + -3.01) * (-2.27 + x)))) - (sin(((cos(x) - -7.84) * x)) * 11.01)))) (MSE: 28.5460)
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 0.900 (discontinuous)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: 0.555 (structured)
+INFO:src.director.director_core:Director: [Action] DISCONTINUITY DETECTED -> Flagging for Segmentation
+INFO:src.director.director_core:Director: Evolution complete. Formula: cos((((x + 9.19) - abs((abs(sin(x)) - x))) * (((x + x) * x) * hypot((cos(cos(x)) * abs((x + hypot(cos(x), hypot(x, x))))), -7.22)))) (MSE: 37.9422)
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 0.900 (discontinuous)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: 0.646 (random)
+INFO:src.director.director_core:Director: [Action] DISCONTINUITY DETECTED -> Flagging for Segmentation
+INFO:src.director.director_core:Director: Evolution complete. Formula: (0.00 * ((x * (tanh(3.15) + hypot(x, x))) + -2350.57)) (MSE: 111.2484)
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 0.900 (discontinuous)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: 0.589 (structured)
+INFO:src.director.director_core:Director: [Action] DISCONTINUITY DETECTED -> Flagging for Segmentation
+INFO:src.director.director_core:Director: Evolution complete. Formula: (hypot(abs((x * sin(((x + abs(x)) * (x - (x + abs(8.34))))))), tanh((abs(-10.03) + cos(x)))) - 3.39) (MSE: 44.5933)
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 0.596 (smooth)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: -0.765 (structured)
+INFO:src.director.reflexive_closure_engine:Running Reflexive Closure Analysis...
+INFO:src.director.reflexive_closure_engine:No actionable patterns found.
+INFO:src.director.director_core:Director: Evolution complete. Formula: ((1.01 + x) + x) (MSE: 0.0110)
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 1.086 (complex)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: 0.551 (structured)
+INFO:src.director.director_core:Director: [Action] HIGH COMPLEXITY -> Activating Focused Search (Trig Primitives)
+INFO:src.director.director_core:Director: Evolution complete. Formula: (cos(((x + (sin(x) * (x * (x + ((((2.00 - cos(x)) * 9.01) - (-6.47 * ((x * x) - (x * x)))) - cos((((x * x) * (x - x)) - cos((6.17 * x))))))))) - x)) * 0.00) (MSE: 53.1747)
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 0.900 (discontinuous)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: 0.543 (structured)
+INFO:src.director.director_core:Director: [Action] DISCONTINUITY DETECTED -> Flagging for Segmentation
+INFO:src.director.director_core:Director: Evolution complete. Formula: (((0.01 * abs((-3.12 - -4.40))) * x) * cos((x * sin((8.86 * x))))) (MSE: 67.4929)
+INFO:src.director.reflexive_closure_engine:Reflexive Exploration (entropy_threshold): 1.62 -> 1.73
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 0.599 (smooth)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: -1.832 (structured)
+INFO:src.director.director_core:Director: Evolution complete. Formula: hypot((x - (-0.80 - x)), hypot(-0.88, sin(((2.68 * hypot(hypot(x, 4.56), tanh(x))) + sin(sin((x + x))))))) (MSE: 0.0044)
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 0.900 (discontinuous)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: 0.598 (structured)
+INFO:src.director.director_core:Director: [Action] DISCONTINUITY DETECTED -> Flagging for Segmentation
+INFO:src.director.director_core:Director: Evolution complete. Formula: (sin(x) * (((x + -16.09) - tanh((x * x))) + sin(x))) (MSE: 66.9594)
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 0.900 (discontinuous)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: 0.625 (random)
+INFO:src.director.director_core:Director: [Action] DISCONTINUITY DETECTED -> Flagging for Segmentation
+INFO:src.director.director_core:Director: Evolution complete. Formula: ((sin((hypot(-10.56, -1.89) * ((hypot(x, x) - sin(((x + x) * x))) - hypot(((x * x) + ((abs(8.56) + abs(x)) + sin(hypot(x, -4.43)))), -6.19)))) * x) + cos(x)) (MSE: 40.0553)
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 1.112 (complex)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: 0.627 (random)
+INFO:src.director.director_core:Director: [Action] HIGH COMPLEXITY -> Activating Focused Search (Trig Primitives)
+INFO:src.director.director_core:Director: Evolution complete. Formula: (x * sin((sin(x) * ((cos(((8.36 + (x * 6.01)) - (sin(x) + (x * 8.24)))) + x) + 11.10)))) (MSE: 39.4944)
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 0.900 (discontinuous)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: -0.321 (structured)
+INFO:src.director.director_core:Director: [Action] DISCONTINUITY DETECTED -> Flagging for Segmentation
+INFO:src.director.director_core:Director: Evolution complete. Formula: (x + (x + cos(-79.12))) (MSE: 0.0124)
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 0.596 (smooth)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: -0.605 (structured)
+INFO:src.director.director_core:Director: Evolution complete. Formula: (((abs(0.57) * x) - -1.05) + x) (MSE: 0.0093)
+INFO:src.director.reflexive_closure_engine:Reflexive Exploration (entropy_threshold): 1.62 -> 1.92
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 0.602 (smooth)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: -1.754 (structured)
+INFO:src.director.director_core:Director: Evolution complete. Formula: (((x * 0.14) + tanh(39.92)) + abs(x)) (MSE: 0.0071)
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 1.071 (complex)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: 0.537 (structured)
+INFO:src.director.director_core:Director: [Action] HIGH COMPLEXITY -> Activating Focused Search (Trig Primitives)
+INFO:src.director.director_core:Director: Evolution complete. Formula: (sin(x) + ((0.18 - cos(sin((39.31 + x)))) * sin((((x + x) * (22.18 * -8.28)) + (cos(8.27) * sin(x)))))) (MSE: 54.2335)
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 0.599 (smooth)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: -0.722 (structured)
+INFO:src.director.director_core:Director: Evolution complete. Formula: ((x + 11.31) + hypot(x, 0.29)) (MSE: 0.0076)
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 0.900 (discontinuous)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: 0.616 (random)
+INFO:src.director.director_core:Director: [Action] DISCONTINUITY DETECTED -> Flagging for Segmentation
+INFO:src.director.director_core:Director: Evolution complete. Formula: ((1.05 - 1.43) * cos(((cos((x + x)) * (abs(x) * (0.74 - 7.75))) - (((7.95 * x) - (x + x)) - (tanh(x) + (x + x)))))) (MSE: 69.4914)
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 0.597 (smooth)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: -0.507 (structured)
+INFO:src.director.director_core:Director: Evolution complete. Formula: ((abs(0.00) * x) + (x + 1.02)) (MSE: 0.0077)
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 0.597 (smooth)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: -1.592 (structured)
+INFO:src.director.director_core:Director: Evolution complete. Formula: (2.01 * (x - 8.23)) (MSE: 0.0062)
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 1.114 (complex)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: 0.645 (random)
+INFO:src.director.director_core:Director: [Action] HIGH COMPLEXITY -> Activating Focused Search (Trig Primitives)
+INFO:src.director.director_core:Director: Evolution complete. Formula: ((sin((((x + (x * x)) - cos((x * x))) - (x - x))) + cos(x)) * (x + (x + -6.03))) (MSE: 43.5418)
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 0.900 (discontinuous)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: 0.480 (structured)
+INFO:src.director.director_core:Director: [Action] DISCONTINUITY DETECTED -> Flagging for Segmentation
+INFO:src.director.director_core:Director: Evolution complete. Formula: (sin((((cos(abs(x)) + cos((6.81 - ((hypot(4.12, x) - (x + x)) * x)))) * cos((x - x))) + (cos(hypot(x, sin(x))) + (abs(6.64) - hypot((x - (x - x)), 6.38))))) * hypot(0.00, x)) (MSE: 115.6906)
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 0.900 (discontinuous)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: 0.459 (structured)
+INFO:src.director.director_core:Director: [Action] DISCONTINUITY DETECTED -> Flagging for Segmentation
+INFO:src.director.director_core:Director: Evolution complete. Formula: tanh(((x + ((x - (cos(x) + (x - 75.28))) * hypot(x, x))) * cos((-1.88 + (cos(x) - (x * -10.11)))))) (MSE: 95.1038)
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 1.127 (complex)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: 0.647 (random)
+INFO:src.director.director_core:Director: [Action] HIGH COMPLEXITY -> Activating Focused Search (Trig Primitives)
+INFO:src.director.director_core:Director: Evolution complete. Formula: (((sin(((((x - -1.88) + (13.01 - x)) - ((-4.02 * x) + x)) * x)) - (cos((cos(11.10) * ((x - x) - cos(x)))) - ((sin(cos(x)) - sin((x * x))) + (x - -3.63)))) + x) * sin(sin(((x - 14.48) * (x * x))))) (MSE: 53.0073)
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 1.103 (complex)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: 0.639 (random)
+INFO:src.director.director_core:Director: [Action] HIGH COMPLEXITY -> Activating Focused Search (Trig Primitives)
+INFO:src.director.director_core:Director: Evolution complete. Formula: (cos((((sin(sin(x)) * (8.68 * (x * x))) * (cos(((x - (-1.34 + cos(x))) + x)) + cos(x))) + (((sin(x) + ((2.51 - 10.18) + ((3.55 - (x - (x * ((8.77 + -4.39) * x)))) * 0.70))) * x) - (10.36 * (x + cos(cos(sin(x)))))))) * x) (MSE: 42.7164)
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 1.082 (complex)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: 0.599 (structured)
+INFO:src.director.director_core:Director: [Action] HIGH COMPLEXITY -> Activating Focused Search (Trig Primitives)
+INFO:src.director.reflexive_closure_engine:Running Reflexive Closure Analysis...
+INFO:src.director.adaptive_criterion:Updated entropy_threshold: 1.62 -> 1.78
+INFO:src.director.reflexive_closure_engine:Reflexive Update Applied: Raise threshold. Higher thresholds (1.62+) yield better outcomes (0.31 vs 0.00).
+INFO:src.director.reflexive_closure_engine:Reflexive Closure Complete: Applied 1 updates.
+INFO:src.director.director_core:Director: Evolution complete. Formula: ((x * sin(((((((-9.79 - 4.87) * sin(x)) + (x + x)) - (x - x)) + -6.56) - (cos(6.40) + (cos(x) * x))))) - 0.00) (MSE: 72.5311)
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 0.599 (smooth)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: -0.839 (structured)
+INFO:src.director.director_core:Director: Evolution complete. Formula: ((1.01 + x) + x) (MSE: 0.0113)
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 0.599 (smooth)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: -1.576 (structured)
+INFO:src.director.director_core:Director: Evolution complete. Formula: (x + ((1.03 * x) - -1.14)) (MSE: 0.0066)
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 1.119 (complex)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: 0.619 (random)
+INFO:src.director.director_core:Director: [Action] HIGH COMPLEXITY -> Activating Focused Search (Trig Primitives)
+INFO:src.director.director_core:Director: Evolution complete. Formula: ((sin((x - -20.06)) + sin(((sin(cos(-2.22)) + -4.47) * cos((sin(x) * (x - (2.57 * (x + x)))))))) * 0.07) (MSE: 25.4545)
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 0.900 (discontinuous)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: 0.620 (random)
+INFO:src.director.director_core:Director: [Action] DISCONTINUITY DETECTED -> Flagging for Segmentation
+INFO:src.director.director_core:Director: Evolution complete. Formula: ((-1.54 + x) * cos(((x * -2.02) * cos(x)))) (MSE: 51.2649)
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 1.121 (complex)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: 0.609 (random)
+INFO:src.director.director_core:Director: [Action] HIGH COMPLEXITY -> Activating Focused Search (Trig Primitives)
+INFO:src.director.director_core:Director: Evolution complete. Formula: (sin((((sin(4.26) + 0.86) - (x + (x + cos(((-10.03 + x) - cos(x)))))) * (((cos((x * -3.72)) - cos(x)) * ((x + (x + x)) + x)) + ((sin((x + x)) - ((x * -3.34) - 4.26)) - (cos((x * x)) + (x * sin(x))))))) * 0.26) (MSE: 84.5364)
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 1.086 (complex)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: 0.536 (structured)
+INFO:src.director.director_core:Director: [Action] HIGH COMPLEXITY -> Activating Focused Search (Trig Primitives)
+INFO:src.director.director_core:Director: Evolution complete. Formula: (sin((sin((x - ((sin((x * x)) - -12.00) - x))) * (x - sin(cos(9.43))))) * ((cos(x) - x) - x)) (MSE: 52.6980)
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 0.900 (discontinuous)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: 0.562 (structured)
+INFO:src.director.director_core:Director: [Action] DISCONTINUITY DETECTED -> Flagging for Segmentation
+INFO:src.director.director_core:Director: Evolution complete. Formula: cos((x * (hypot(tanh(x), (9.15 - -1.88)) * ((-8.95 - x) - (x - x))))) (MSE: 174.1037)
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 1.116 (complex)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: 0.554 (structured)
+INFO:src.director.director_core:Director: [Action] HIGH COMPLEXITY -> Activating Focused Search (Trig Primitives)
+INFO:src.director.director_core:Director: Evolution complete. Formula: ((((x + 1.19) + cos(x)) - -1.54) - (((-3.58 * 4.85) * sin(((7.28 * cos(x)) + x))) * sin((-5.72 - -6.44)))) (MSE: 39.2332)
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 0.600 (smooth)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: -0.901 (structured)
+INFO:src.director.director_core:Director: Evolution complete. Formula: (x + (x + 1.28)) (MSE: 0.0094)
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 0.603 (smooth)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: -1.215 (structured)
+INFO:src.director.director_core:Director: Evolution complete. Formula: (x + (x - -5.05)) (MSE: 0.0097)
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 0.900 (discontinuous)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: 0.631 (random)
+INFO:src.director.director_core:Director: [Action] DISCONTINUITY DETECTED -> Flagging for Segmentation
+INFO:src.director.director_core:Director: Evolution complete. Formula: (((abs(x) - (x * -6.45)) - (x * hypot(x, 1.64))) * sin(x)) (MSE: 61.0849)
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 0.900 (discontinuous)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: 0.635 (random)
+INFO:src.director.director_core:Director: [Action] DISCONTINUITY DETECTED -> Flagging for Segmentation
+INFO:src.director.director_core:Director: Evolution complete. Formula: cos(((hypot(x, cos(tanh((x - x)))) - (hypot(hypot(sin(x), x), x) * (2.42 * 7.53))) - (-9.67 * -4.79))) (MSE: 46.4004)
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 0.900 (discontinuous)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: 0.468 (structured)
+INFO:src.director.director_core:Director: [Action] DISCONTINUITY DETECTED -> Flagging for Segmentation
+INFO:src.director.director_core:Director: Evolution complete. Formula: sin((cos(-10.44) + ((x * (abs(x) * x)) * abs(hypot((-4.98 + (-4.67 * 1.30)), x))))) (MSE: 93.6293)
+INFO:src.director.reflexive_closure_engine:Reflexive Exploration (entropy_threshold): 1.78 -> 1.82
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 0.900 (discontinuous)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: -0.942 (structured)
+INFO:src.director.director_core:Director: [Action] DISCONTINUITY DETECTED -> Flagging for Segmentation
+INFO:src.director.director_core:Director: Evolution complete. Formula: ((2.45 * x) + tanh((x + 34.68))) (MSE: 0.0063)
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 0.900 (discontinuous)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: 0.643 (random)
+INFO:src.director.director_core:Director: [Action] DISCONTINUITY DETECTED -> Flagging for Segmentation
+INFO:src.director.director_core:Director: Evolution complete. Formula: (hypot(-0.90, x) - hypot(x, hypot(((cos(((x * -9.09) * -9.92)) * x) - x), sin(8.38)))) (MSE: 38.8932)
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 0.900 (discontinuous)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: 0.474 (structured)
+INFO:src.director.director_core:Director: [Action] DISCONTINUITY DETECTED -> Flagging for Segmentation
+INFO:src.director.director_core:Director: Evolution complete. Formula: sin((-9.34 * (x + 31.77))) (MSE: 64.0036)
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 0.597 (smooth)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: -0.841 (structured)
+INFO:src.director.director_core:Director: Evolution complete. Formula: (x + abs((tanh(-26.25) + x))) (MSE: 0.0100)
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 0.900 (discontinuous)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: -0.750 (structured)
+INFO:src.director.director_core:Director: [Action] DISCONTINUITY DETECTED -> Flagging for Segmentation
+INFO:src.director.director_core:Director: Evolution complete. Formula: hypot((x + (0.99 + x)), tanh(21.25)) (MSE: 0.0096)
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 0.602 (smooth)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: -0.067 (structured)
+INFO:src.director.director_core:Director: Evolution complete. Formula: ((((x + -1.29) - (-2.27 - 0.07)) * tanh(x)) + (0.02 + x)) (MSE: 0.0200)
+INFO:src.director.director_core:Director: Evolving formula for 20 points over 20 generations...
+INFO:src.director.director_core:Director: [Epistemic] Complexity: 1.087 (complex)
+INFO:src.director.director_core:Director: [Epistemic] Randomness: 0.543 (structured)
+INFO:src.director.director_core:Director: [Action] HIGH COMPLEXITY -> Activating Focused Search (Trig Primitives)
