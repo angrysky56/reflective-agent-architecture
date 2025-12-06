@@ -48,6 +48,16 @@ if "llm_config" not in st.session_state:
         "api_key": os.getenv("OPENROUTER_API_KEY", "")
     }
 
+if "internals" not in st.session_state:
+    st.session_state.internals = {
+        "energy": 0.0,
+        "entropy": 0.0,
+        "phase": "Unknown",
+        "load": "0%",
+        "goals": 0,
+        "active_goal_list": []
+    }
+
 # ==============================================================================
 # Helper Functions
 # ==============================================================================
@@ -107,11 +117,48 @@ def render_message(msg):
                     with st.expander("View Output"):
                         st.code(content)
 
+async def fetch_metrics_async():
+    """Async worker to fetch metrics from MCP."""
+    client = get_client()
+    try:
+        # 1. Check Cognitive State
+        state_raw = await client.call_tool("mcp_check_cognitive_state", {})
+        try:
+            cog_state = json.loads(state_raw)
+        except json.JSONDecodeError:
+            cog_state = {}
+
+        # 2. Get Active Goals
+        goals_raw = await client.call_tool("mcp_get_active_goals", {})
+        try:
+            goals_data = json.loads(goals_raw)
+        except json.JSONDecodeError:
+            goals_data = {}
+
+        return cog_state, goals_data
+    except Exception:
+        return {}, {}
+
 def poll_internals():
-    """Silently poll RAA internals for dashboard visualization."""
-    # This is a placeholder for the Internals Tab logic.
-    # In a real implementation, we would call specific tools here.
-    pass
+    """Poll RAA internals and update session state."""
+    try:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        cog_state, goals_data = loop.run_until_complete(fetch_metrics_async())
+        loop.close()
+
+        if cog_state:
+            st.session_state.internals["energy"] = cog_state.get("energy", 0.0)
+            st.session_state.internals["phase"] = cog_state.get("state", "Unknown")
+            # Heuristic map for entropy/load based on stability if available?
+            st.session_state.internals["entropy"] = 0.5 if cog_state.get("stability") == "Unstable" else 0.1
+
+        if goals_data:
+            st.session_state.internals["goals"] = goals_data.get("count", 0)
+            st.session_state.internals["active_goal_list"] = goals_data.get("goals", {})
+
+    except Exception as e:
+        print(f"Polling failed: {e}")
 
 # ==============================================================================
 # Sidebar
@@ -167,6 +214,10 @@ with st.sidebar:
         st.session_state.messages = []
         st.rerun()
 
+    if st.button("Refresh System State"):
+        poll_internals()
+        st.rerun()
+
 # ==============================================================================
 # Main Interface
 # ==============================================================================
@@ -175,14 +226,16 @@ st.title("Reflective Agent Architecture")
 
 # Heads Up Display (HUD)
 hud_cols = st.columns([1, 1, 1, 1])
+internals = st.session_state.internals
+
 with hud_cols[0]:
-    st.metric("Cognitive Load", "12%", "-2%")
+    st.metric("Cognitive Load", internals.get("load", "N/A"))
 with hud_cols[1]:
-    st.metric("Entropy (S)", "1.45 bits", "Stable")
+    st.metric("Entropy", f"{internals.get('entropy', 0.0):.2f}")
 with hud_cols[2]:
-    st.metric("Energy (E)", "89.4 J", "-10.2 J")
+    st.metric("Energy", f"{internals.get('energy', 0.0):.2f}")
 with hud_cols[3]:
-    st.metric("System Phase", "Homeostatic", "Normal")
+    st.metric("System Phase", internals.get("phase", "Unknown"))
 
 st.divider()
 
@@ -332,12 +385,14 @@ with tab_topo:
 with tab_internal:
     st.subheader("Metabolic Ledger")
     col1, col2, col3 = st.columns(3)
-    col1.metric("Energy", "100.0 J", "Stable")
-    col2.metric("Entropy", "0.45 bits", "-0.1")
-    col3.metric("State", "FOCUSED", "High Beta")
+    internals = st.session_state.internals
+
+    col1.metric("Energy", f"{internals.get('energy', 0.0):.2f}")
+    col2.metric("Entropy", f"{internals.get('entropy', 0.0):.2f}")
+    col3.metric("State", internals.get("phase", "Unknown"))
 
     st.markdown("#### Thermodynamic Dynamics")
-    # Placeholder Data
+    # Placeholder Data (Real data requires history tracking)
     import numpy as np
     import pandas as pd
     chart_data = pd.DataFrame(
@@ -347,7 +402,16 @@ with tab_internal:
 
     st.divider()
     st.subheader("Active Goals (Pointer)")
-    st.info("No active goals found.")
+
+    active_goals = internals.get("active_goal_list", {})
+    if active_goals:
+        for gid, gdata in active_goals.items():
+             with st.container():
+                st.markdown(f"**🎯 {gid}**")
+                st.caption(gdata.get('description', 'No description'))
+                st.progress(gdata.get('utility', 0.5)) # fallback utility
+    else:
+        st.info("No active goals found.")
 
 # ==============================================================================
 # TAB 4: System Config
