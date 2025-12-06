@@ -60,12 +60,45 @@ class OpenRouterProvider(BaseLLMProvider):
                 temperature=0.7,
                 tools=tools if tools else None
             )
-            return response.choices[0].message.content
+
+            if not response.choices:
+                logger.error(f"OpenRouter returned no choices. Raw response: {response.model_dump_json()}")
+                return f"Error: No choices returned. Raw: {response.model_dump_json()}"
+
+            message = response.choices[0].message
+
+            # 1. Handle Native Tool Calls (Convert to Dashboard's expected String format)
+            if message.tool_calls:
+                tool_call = message.tool_calls[0]
+                # Synthesize the markdown block expected by app.py
+                import json
+                try:
+                    args = json.loads(tool_call.function.arguments)
+                except:
+                    args = tool_call.function.arguments
+
+                simulated_block = (
+                    f"```json\n"
+                    f"{json.dumps({'tool': tool_call.function.name, 'args': args})}\n"
+                    f"```"
+                )
+
+                # Prepend content (thoughts) if it exists
+                if message.content:
+                    return f"{message.content}\n\n{simulated_block}"
+
+                return simulated_block
+
+            # 2. Handle Text Content
+            return message.content or ""
+
         except (RateLimitError, APIConnectionError, APITimeoutError):
             raise  # Re-raise for tenacity to handle
         except Exception as e:
-            logger.error(f"OpenRouter generate error: {e}")
-            return f"Error generating text: {e}"
+            import traceback
+            trace = traceback.format_exc()
+            logger.error(f"OpenRouter generate error: {e}\n{trace}")
+            return f"Error generating text: {e}\n\nTraceback:\n{trace}"
 
     @retry(
         retry=retry_if_exception_type((RateLimitError, APIConnectionError, APITimeoutError)),

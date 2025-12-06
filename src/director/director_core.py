@@ -26,7 +26,9 @@ if TYPE_CHECKING:
 
 import numpy as np
 
-from .entropy_monitor import EntropyMonitor
+from src.director.entropy_monitor import EntropyMonitor
+from src.director.process_logger import logger as process_logger  # Integrated Process Logger
+
 from .epistemic_discriminator import EpistemicDiscriminator
 from .epistemic_metrics import estimate_complexity, estimate_randomness
 from .hybrid_search import HybridSearchConfig, HybridSearchStrategy
@@ -459,6 +461,16 @@ class DirectorMVP:
         )
 
         # Evolve
+        # [PROCESS LOGGING]
+        try:
+            process_logger.log("THOUGHT", {
+                "action": "run_reflexive_loop",
+                "step": "start",
+                "context": "Reflexive Evolution Loop",
+                "cognitive_state": self.latest_cognitive_state[0] if hasattr(self, 'latest_cognitive_state') else "Unknown"
+            })
+        except Exception:
+            pass
         best_formula, best_error = gp.evolve(
             data_points,
             target_key="result",
@@ -630,6 +642,17 @@ class DirectorMVP:
             f"Parity Agent: Check for contradictions. "
             f"Syndrome Agent: Diagnose the noise source."
         )
+        task = f"ECC TRIGGERED: Entropy gradient {predicted_entropy:.2f} > 0.05. Check system logic." # Using predicted_entropy as a proxy for gradient here
+
+
+        try:
+            process_logger.log("SWARM", {
+                "action": "ecc_trigger",
+                "gradient": float(predicted_entropy),
+                "task": task
+            })
+        except Exception:
+             pass
 
         # 2. Summon ECC Advisors
         advisor_ids = ["redundancy_agent", "parity_agent", "syndrome_agent"]

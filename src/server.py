@@ -108,7 +108,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("cwd-mcp")
 
 # Initialize MCP server
-server = Server("cognitive-workspace-db")
+server = Server("cwd-mcp")
 
 
 # ============================================================================
@@ -3003,8 +3003,9 @@ RAA_TOOLS = [
 
 
 @server.list_tools()
-async def list_tools() -> list[Tool]:
+async def list_tools(cursor: Any = None, _meta: Any = None, **kwargs) -> list[Tool]:
     """List available cognitive workspace tools"""
+    logger.info("DEBUG: list_tools handler called")
     ctx = get_raa_context()
 
     # Ensure external MCP is initialized
@@ -3017,6 +3018,7 @@ async def list_tools() -> list[Tool]:
     # They are only for internal use by IntegratedIntelligence.
 
     all_tools = RAA_TOOLS + dynamic_tools
+    logger.info(f"DEBUG: Returning {len(all_tools)} tools from handler")
     return all_tools
 
 
@@ -3734,6 +3736,8 @@ async def main():
 if __name__ == "__main__":
     import asyncio
 
+    logger.info(f"DEBUG: Server request handlers: {server.request_handlers.keys()}")
+    logger.info(f"DEBUG: Server notification handlers: {server.notification_handlers.keys()}")
     asyncio.run(main())
 
 
