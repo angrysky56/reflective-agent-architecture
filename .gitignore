@@ -94,3 +94,6 @@ data/embeddings/*.zip
 chroma_db/
 raa_history.db
 test_*.db
+
+src/dashboard/chat_history/
+

@@ -49,6 +49,7 @@ from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from src.cognition.curiosity import CuriosityModule
+from src.cognition.grok_lang import AffectVector, GrokDepthCalculator, Intent, MindState, Utterance
 from src.cognition.meta_validator import MetaValidator
 from src.cognition.system_guide import SystemGuideNodes
 from src.compass.orthogonal_dimensions import OrthogonalDimensionsAnalyzer
@@ -2999,6 +3000,43 @@ RAA_TOOLS = [
             },
         },
     ),
+    Tool(
+        name="compute_grok_depth",
+        description="Compute the Grok-Depth empathetic alignment score between two mind-states across Grok-Lang's six cognitive levels (Signal, Symbol, Syntax, Semantics, Pragmatics, Meta). Returns a total score (0-1) and per-level alignments with a diagnostic interpretation.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "speaker_id": {"type": "string", "description": "Identifier for the speaker/sender"},
+                "listener_id": {"type": "string", "description": "Identifier for the listener/receiver"},
+                "utterance_raw": {"type": "string", "description": "The raw utterance text (e.g., 'Fine.')"},
+                "speaker_intent": {
+                    "type": "string",
+                    "enum": ["assert", "question", "request", "promise", "express", "declare"],
+                    "description": "The speaker's intended speech act type"
+                },
+                "speaker_affect": {
+                    "type": "object",
+                    "properties": {
+                        "valence": {"type": "number", "description": "Positive-negative dimension (-1 to 1)"},
+                        "arousal": {"type": "number", "description": "Activation level (0 to 1)"},
+                        "dominance": {"type": "number", "description": "Control/power dimension (0 to 1)"}
+                    },
+                    "description": "Speaker's affective state (VAD model)"
+                },
+                "listener_affect": {
+                    "type": "object",
+                    "properties": {
+                        "valence": {"type": "number", "description": "Positive-negative dimension (-1 to 1)"},
+                        "arousal": {"type": "number", "description": "Activation level (0 to 1)"},
+                        "dominance": {"type": "number", "description": "Control/power dimension (0 to 1)"}
+                    },
+                    "description": "Listener's perceived affective state (VAD model)"
+                },
+                "context": {"type": "string", "description": "Optional context for the exchange"}
+            },
+            "required": ["speaker_id", "listener_id", "utterance_raw"]
+        },
+    ),
 ]
 
 
@@ -3337,6 +3375,81 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
                 result = {"status": "success", "goal": goal}
             else:
                 result = {"status": "idle", "message": "No boredom-driven goals at this time."}
+            return [TextContent(type="text", text=json.dumps(result, indent=2))]
+        elif name == "compute_grok_depth":
+            # Grok-Lang empathetic alignment scoring
+            # Metabolic Cost: Empathy computation is moderate (2.0)
+            if workspace.ledger:
+                from decimal import Decimal
+
+                from src.substrate.energy import EnergyToken, MeasurementCost
+                workspace.ledger.record_transaction(MeasurementCost(
+                    energy=EnergyToken(Decimal("2.0"), "joules"),
+                    operation_name="compute_grok_depth"
+                ))
+
+            # Parse affect vectors with defaults
+            speaker_affect_data = arguments.get("speaker_affect", {})
+            listener_affect_data = arguments.get("listener_affect", {})
+
+            speaker_affect = AffectVector(
+                valence=speaker_affect_data.get("valence", 0.0),
+                arousal=speaker_affect_data.get("arousal", 0.5),
+                dominance=speaker_affect_data.get("dominance", 0.5)
+            )
+            listener_affect = AffectVector(
+                valence=listener_affect_data.get("valence", 0.0),
+                arousal=listener_affect_data.get("arousal", 0.5),
+                dominance=listener_affect_data.get("dominance", 0.5)
+            )
+
+            # Parse intent with default
+            intent_str = arguments.get("speaker_intent", "assert")
+            intent_map = {
+                "assert": Intent.ASSERT,
+                "question": Intent.QUESTION,
+                "request": Intent.REQUEST,
+                "promise": Intent.PROMISE,
+                "express": Intent.EXPRESS,
+                "declare": Intent.DECLARE
+            }
+            speaker_intent = intent_map.get(intent_str, Intent.ASSERT)
+
+            # Build MindState objects
+            speaker_state = MindState(
+                agent_id=arguments["speaker_id"],
+                affect=speaker_affect,
+                intent=speaker_intent
+            )
+            listener_state = MindState(
+                agent_id=arguments["listener_id"],
+                affect=listener_affect,
+                intent=Intent.ASSERT  # Default for listener
+            )
+
+            # Build Utterance
+            utterance = Utterance(
+                content=arguments["utterance_raw"],
+                speaker_state=speaker_state
+            )
+
+            # Compute Grok-Depth score
+            calculator = GrokDepthCalculator(workspace.embedding_model)
+            grok_result = calculator.compute_grok_depth(
+                speaker_state, listener_state, utterance
+            )
+
+            result = {
+                "total_score": round(grok_result["total_score"], 3),
+                "per_level": {k.name: round(v, 3) for k, v in grok_result["per_level"].items()},
+                "diagnosis": grok_result["diagnosis"],
+                "strongest_level": grok_result["strongest_level"].name,
+                "weakest_level": grok_result["weakest_level"].name,
+                "critical_gaps": [level.name for level in grok_result["critical_gaps"]],
+                "speaker_id": arguments["speaker_id"],
+                "listener_id": arguments["listener_id"],
+                "utterance": arguments["utterance_raw"]
+            }
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
         elif name == "get_active_goals":
             active_goals = workspace.get_active_goals()

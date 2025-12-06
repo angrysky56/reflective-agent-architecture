@@ -3,6 +3,7 @@ import json
 import os
 import re
 import sys
+from datetime import datetime
 
 import graphviz
 from dotenv import load_dotenv
@@ -16,6 +17,23 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 
 from src.dashboard.mcp_client_wrapper import get_client
 from src.llm.factory import LLMFactory
+
+# ==============================================================================
+# Constants
+# ==============================================================================
+
+RAA_CORE_TOOLS = {
+    'deconstruct', 'hypothesize', 'synthesize', 'constrain', 'revise',
+    'set_goal', 'set_intentionality', 'check_cognitive_state',
+    'diagnose_pointer', 'explore_for_utility', 'inspect_graph',
+    'inspect_knowledge_graph', 'recall_work', 'run_sleep_cycle',
+    'consult_compass', 'consult_curiosity', 'evolve_formula',
+    'resolve_meta_paradox', 'compress_to_tool', 'teach_cognitive_state',
+    'get_active_goals', 'propose_goal', 'diagnose_antifragility',
+    'get_known_archetypes', 'visualize_thought', 'compute_grok_depth',
+    'orthogonal_dimensions_analyzer', 'create_advisor', 'delete_advisor',
+    'list_advisors'
+}
 
 # ==============================================================================
 # Configuration & Setup
@@ -57,6 +75,82 @@ if "internals" not in st.session_state:
         "active_goal_list": []
     }
 
+if "energy_history" not in st.session_state:
+    st.session_state.energy_history = []
+
+if "uploaded_file" not in st.session_state:
+    st.session_state.uploaded_file = None
+
+if "show_uploader" not in st.session_state:
+    st.session_state.show_uploader = False
+
+if "metrics_polled" not in st.session_state:
+    st.session_state.metrics_polled = False
+
+if "agent_prompt" not in st.session_state:
+    # Load RAA_AGENT.md as agent prompt
+    agent_md_path = os.path.join(os.path.dirname(__file__), "..", "..", "RAA_AGENT.md")
+    if os.path.exists(agent_md_path):
+        with open(agent_md_path, "r") as f:
+            st.session_state.agent_prompt = f.read()
+    else:
+        st.session_state.agent_prompt = "# RAA Agent\nNo agent prompt file found."
+
+if "current_conversation" not in st.session_state:
+    st.session_state.current_conversation = f"chat_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+
+if "compass_status" not in st.session_state:
+    st.session_state.compass_status = {"active": False, "stage": None, "task": None}
+
+if "active_agents" not in st.session_state:
+    st.session_state.active_agents = []
+
+# Chat History Directory
+CHAT_HISTORY_DIR = os.path.join(os.path.dirname(__file__), "chat_history")
+os.makedirs(CHAT_HISTORY_DIR, exist_ok=True)
+
+def save_conversation(name: str = None):
+    """Save current conversation to JSON file."""
+    name = name or st.session_state.current_conversation
+    path = os.path.join(CHAT_HISTORY_DIR, f"{name}.json")
+    with open(path, "w") as f:
+        json.dump({
+            "name": name,
+            "messages": st.session_state.messages,
+            "timestamp": datetime.now().isoformat()
+        }, f, indent=2)
+
+def load_conversation(name: str) -> bool:
+    """Load conversation from JSON file."""
+    path = os.path.join(CHAT_HISTORY_DIR, f"{name}.json")
+    if os.path.exists(path):
+        with open(path, "r") as f:
+            data = json.load(f)
+            st.session_state.messages = data.get("messages", [])
+            st.session_state.current_conversation = name
+            return True
+    return False
+
+def list_conversations() -> list:
+    """List all saved conversations."""
+    if not os.path.exists(CHAT_HISTORY_DIR):
+        return []
+    convos = []
+    for f in os.listdir(CHAT_HISTORY_DIR):
+        if f.endswith(".json"):
+            path = os.path.join(CHAT_HISTORY_DIR, f)
+            try:
+                with open(path, "r") as fp:
+                    data = json.load(fp)
+                    convos.append({
+                        "name": f.replace(".json", ""),
+                        "timestamp": data.get("timestamp", ""),
+                        "messages": len(data.get("messages", []))
+                    })
+            except Exception:
+                pass
+    return sorted(convos, key=lambda x: x.get("timestamp", ""), reverse=True)
+
 # ==============================================================================
 # Helper Functions
 # ==============================================================================
@@ -93,10 +187,17 @@ def render_message(msg):
 
     if role == "user":
         st.markdown(f'<div class="user-message">👤 <b>Signal</b><br>{content}</div>', unsafe_allow_html=True)
+        # Render attached file if present
+        if meta.get("file_name"):
+            st.caption(f"📎 Attached: {meta['file_name']}")
 
     elif role == "assistant":
         if m_type == "text":
             st.markdown(f'<div class="assistant-message">🤖 <b>Response</b><br>{content}</div>', unsafe_allow_html=True)
+
+        elif m_type == "image":
+            # Render image output
+            st.image(content, caption=meta.get("caption", "Generated Image"))
 
         elif m_type == "tool_call":
             tool_name = meta.get("tool")
@@ -147,14 +248,27 @@ def poll_internals():
         loop.close()
 
         if cog_state:
-            st.session_state.internals["energy"] = cog_state.get("energy", 0.0)
+            energy = cog_state.get("energy", 0.0)
+            entropy = 0.5 if cog_state.get("stability") == "Unstable" else 0.1
+
+            st.session_state.internals["energy"] = energy
             st.session_state.internals["phase"] = cog_state.get("state", "Unknown")
-            # Heuristic map for entropy/load based on stability if available?
-            st.session_state.internals["entropy"] = 0.5 if cog_state.get("stability") == "Unstable" else 0.1
+            st.session_state.internals["entropy"] = entropy
+
+            # Track history for charts (keep last 50 points)
+            st.session_state.energy_history.append({
+                "time": datetime.now().strftime("%H:%M:%S"),
+                "energy": energy,
+                "entropy": entropy
+            })
+            if len(st.session_state.energy_history) > 50:
+                st.session_state.energy_history = st.session_state.energy_history[-50:]
 
         if goals_data:
             st.session_state.internals["goals"] = goals_data.get("count", 0)
             st.session_state.internals["active_goal_list"] = goals_data.get("goals", {})
+
+        st.session_state.metrics_polled = True
 
     except Exception as e:
         print(f"Polling failed: {e}")
@@ -164,31 +278,53 @@ def poll_internals():
 # ==============================================================================
 
 with st.sidebar:
-    st.title("Control Plane")
+    st.title("⚡ Control Plane")
     st.markdown('<div class="status-badge status-online">System Online</div>', unsafe_allow_html=True)
 
     st.divider()
 
-    with st.expander("LLM Configuration"):
-        provider = st.selectbox("Provider", ["openrouter", "openai", "anthropic"],
-                              index=["openrouter", "openai", "anthropic"].index(st.session_state.llm_config["provider"]) if st.session_state.llm_config["provider"] in ["openrouter", "openai", "anthropic"] else 0)
-        model = st.text_input("Model", value=st.session_state.llm_config["model"])
-        api_key = st.text_input("API Key", value=st.session_state.llm_config["api_key"], type="password")
+    # Auto-poll metrics on first load
+    if not st.session_state.metrics_polled:
+        poll_internals()
 
-        if st.button("Update Configuration"):
-            st.session_state.llm_config = {"provider": provider, "model": model, "api_key": api_key}
-            os.environ["LLM_PROVIDER"] = provider
-            os.environ["LLM_MODEL"] = model
-            if api_key:
-                os.environ["OPENROUTER_API_KEY"] = api_key
-            st.toast("Configuration updated!")
-            st.rerun()
+    # Chat History Section
+    st.subheader("📜 Conversations")
 
-    st.subheader("Connection Status")
+    # New conversation button
+    if st.button("➕ New Chat", use_container_width=True):
+        save_conversation()  # Save current before creating new
+        st.session_state.messages = []
+        st.session_state.current_conversation = f"chat_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        st.rerun()
+
+    # List past conversations
+    convos = list_conversations()
+    if convos:
+        with st.expander(f"📂 History ({len(convos)})", expanded=False):
+            for c in convos[:10]:  # Show last 10
+                col1, col2 = st.columns([4, 1])
+                with col1:
+                    if st.button(f"💬 {c['name'][:15]}...", key=f"load_{c['name']}", use_container_width=True):
+                        save_conversation()  # Save current first
+                        load_conversation(c['name'])
+                        st.rerun()
+                with col2:
+                    st.caption(f"{c['messages']}msg")
+
+    st.divider()
+
+    # COMPASS Status (if active)
+    if st.session_state.compass_status.get("active"):
+        st.subheader("🧭 COMPASS")
+        st.info(f"Stage: {st.session_state.compass_status.get('stage', 'Unknown')}")
+        st.caption(st.session_state.compass_status.get('task', '')[:50])
+        st.divider()
+
+    # Connection & Tools
+    st.subheader("🔌 Connection")
     status_box = st.empty()
     status_box.info("Connecting...")
 
-    # Initialize Client & Fetch Tools
     client = get_client()
 
     try:
@@ -199,47 +335,51 @@ with st.sidebar:
             tools = loop.run_until_complete(client.list_tools())
             st.session_state.tools_cache = tools
 
-        status_box.success(f"Connected: {len(st.session_state.tools_cache)} Tools Active")
+        status_box.success(f"✓ {len(st.session_state.tools_cache)} Tools")
 
-        with st.expander("Tool Registry", expanded=False):
-            for t in st.session_state.tools_cache:
+        # DEBUG: Show what's actually in the cache
+        # st.write([t['name'] for t in st.session_state.tools_cache])
+
+        # RAA Core tools (our defined tools) vs external MCP tools
+        # RAA core tools are the cognitive primitives
+        core_tools = [t for t in st.session_state.tools_cache if t['name'] in RAA_CORE_TOOLS]
+        mcp_tools = [t for t in st.session_state.tools_cache if t['name'] not in RAA_CORE_TOOLS]
+
+        with st.expander(f"🧠 RAA Core ({len(core_tools)})", expanded=False):
+            for t in core_tools:
                 st.markdown(f"**{t['name']}**")
-                st.caption(t['description'])
+
+        with st.expander(f"🔌 MCP/External ({len(mcp_tools)})", expanded=False):
+            for t in mcp_tools:
+                st.markdown(f"**{t['name']}**")
 
     except Exception as e:
-        status_box.error(f"Connection Failed: {e}")
-        st.error(e)
+        status_box.error(f"Failed: {e}")
 
-    if st.button("Clear History"):
-        st.session_state.messages = []
-        st.rerun()
+    st.divider()
 
-    if st.button("Refresh System State"):
-        poll_internals()
-        st.rerun()
+    # LLM Config (collapsed)
+    with st.expander("⚙️ LLM Config"):
+        provider = st.selectbox("Provider", ["openrouter", "openai", "anthropic"],
+                              index=["openrouter", "openai", "anthropic"].index(st.session_state.llm_config["provider"]) if st.session_state.llm_config["provider"] in ["openrouter", "openai", "anthropic"] else 0)
+        model = st.text_input("Model", value=st.session_state.llm_config["model"])
+        api_key = st.text_input("API Key", value=st.session_state.llm_config["api_key"], type="password")
+
+        if st.button("Update Config"):
+            st.session_state.llm_config = {"provider": provider, "model": model, "api_key": api_key}
+            os.environ["LLM_PROVIDER"] = provider
+            os.environ["LLM_MODEL"] = model
+            if api_key:
+                os.environ["OPENROUTER_API_KEY"] = api_key
+            st.toast("Config updated!")
+            st.rerun()
+
 
 # ==============================================================================
 # Main Interface
 # ==============================================================================
 
-st.title("Reflective Agent Architecture")
-
-# Heads Up Display (HUD)
-hud_cols = st.columns([1, 1, 1, 1])
-internals = st.session_state.internals
-
-with hud_cols[0]:
-    st.metric("Cognitive Load", internals.get("load", "N/A"))
-with hud_cols[1]:
-    st.metric("Entropy", f"{internals.get('entropy', 0.0):.2f}")
-with hud_cols[2]:
-    st.metric("Energy", f"{internals.get('energy', 0.0):.2f}")
-with hud_cols[3]:
-    st.metric("System Phase", internals.get("phase", "Unknown"))
-
-st.divider()
-
-# Initialize Tab State
+# Initialize System Prompt
 if "system_prompt" not in st.session_state:
     st.session_state.system_prompt = (
         "You are the Reflective Agent. You connect to a backend via MCP.\n"
@@ -252,7 +392,20 @@ if "system_prompt" not in st.session_state:
         "3. Synthesize the final answer.\n"
     )
 
-# Compact Tabs
+# HEADER FIRST (at very top)
+internals = st.session_state.internals
+st.markdown(f'''
+<div class="hud-header">
+    <span class="hud-title">🧠 RAA</span>
+    <span class="hud-metric">⚡ {internals.get("energy", 0.0):.1f}J</span>
+    <span class="hud-metric">📊 {internals.get("entropy", 0.0):.2f}</span>
+    <span class="hud-metric">🎯 {internals.get("goals", 0)}</span>
+    <span class="hud-metric">🌡️ {internals.get("temperature", 0.7):.1f}</span>
+    <span class="hud-phase">{internals.get("phase", "Unknown")}</span>
+</div>
+''', unsafe_allow_html=True)
+
+# TABS BELOW HEADER
 tab_chat, tab_topo, tab_internal, tab_config = st.tabs([
     "💬 Signal",
     "🕸️ Topology",
@@ -264,14 +417,68 @@ tab_chat, tab_topo, tab_internal, tab_config = st.tabs([
 # TAB 1: Cognitive Signal (Chat)
 # ==============================================================================
 with tab_chat:
-    # Render History
-    for msg in st.session_state.messages:
-        render_message(msg)
+    # Main chat area with fixed bottom input
+    st.markdown('<div class="chat-area">', unsafe_allow_html=True)
+
+    # Chat history container
+    chat_container = st.container()
+    with chat_container:
+        for msg in st.session_state.messages:
+            render_message(msg)
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # Fixed bottom input area
+    st.markdown('<div class="fixed-input-area">', unsafe_allow_html=True)
+
+    # Attach button and file indicator
+    attach_col, spacer = st.columns([1, 10])
+    with attach_col:
+        if st.button("📎", key="attach_btn", help="Attach file", use_container_width=True):
+            st.session_state.show_uploader = not st.session_state.show_uploader
+
+    # Show attached file indicator
+    if st.session_state.uploaded_file:
+        st.caption(f"📎 {st.session_state.uploaded_file.name}")
+
+    # File uploader (shown when toggled)
+    if st.session_state.show_uploader:
+        uploaded_file = st.file_uploader(
+            "Attach file",
+            type=["png", "jpg", "jpeg", "gif", "csv", "txt", "json", "md"],
+            key="file_uploader",
+            label_visibility="collapsed"
+        )
+        if uploaded_file and uploaded_file != st.session_state.uploaded_file:
+            st.session_state.uploaded_file = uploaded_file
+            st.toast(f"File attached: {uploaded_file.name}")
+            st.session_state.show_uploader = False
+            st.rerun()
+
+    st.markdown('</div>', unsafe_allow_html=True)
 
     # Chat Input
     if prompt := st.chat_input("Inject cognitive signal..."):
-        # 1. Add User Message
-        add_message("user", prompt)
+        # Include file context if attached
+        file_context = ""
+        file_meta = {}
+        if st.session_state.uploaded_file:
+            uf = st.session_state.uploaded_file
+            file_meta = {"file_name": uf.name, "file_size": uf.size}
+            # Read text files into context
+            if uf.name.endswith(('.txt', '.md', '.json', '.csv')):
+                try:
+                    file_content = uf.read().decode('utf-8')
+                    file_context = f"\n\n[File Contents of {uf.name}]:\n{file_content[:2000]}..." if len(file_content) > 2000 else f"\n\n[File Contents of {uf.name}]:\n{file_content}"
+                except Exception:
+                    file_context = f"\n\n[Binary file attached: {uf.name}]"
+            else:
+                file_context = f"\n\n[Image file attached: {uf.name}]"
+            st.session_state.uploaded_file = None  # Clear after use
+
+        # Add User Message with context
+        add_message("user", prompt + file_context, meta=file_meta)
+        save_conversation()  # Auto-save after each message
         st.rerun()
 
     # Execution Loop (Running the Agent)
@@ -289,9 +496,16 @@ with tab_chat:
     if should_run:
         with st.chat_message("assistant"):
             with st.spinner("Cognitive processing..."):
-                # Update System Prompt with Tools
-                tools_desc = json.dumps(st.session_state.tools_cache, indent=2)
-                current_system_prompt = f"{st.session_state.system_prompt}\n\nTOOLS AVAILABLE:\n{tools_desc}"
+                # Combine System Prompt (tool protocol) + Agent Prompt (cognitive behavior)
+                # Filter tools to only RAA Core for the agent context to prevent flooding
+                agent_tools = [t for t in st.session_state.tools_cache if t['name'] in RAA_CORE_TOOLS]
+
+                tools_desc = json.dumps(agent_tools, indent=2)
+                full_system_prompt = (
+                    f"{st.session_state.system_prompt}\n\n"
+                    f"TOOLS AVAILABLE:\n{tools_desc}\n\n"
+                    f"--- AGENT PROTOCOL ---\n{st.session_state.agent_prompt[:8000]}"
+                )
 
                 try:
                     llm = LLMFactory.create_provider(
@@ -307,10 +521,10 @@ with tab_chat:
                             content = f"Tool Output: {content}"
                         history_str += f"{m['role'].upper()}: {content}\n"
 
-                    openai_tools = convert_mcp_to_openai_tools(st.session_state.tools_cache)
+                    openai_tools = convert_mcp_to_openai_tools(agent_tools)
 
                     raw_response = llm.generate(
-                        system_prompt=current_system_prompt,
+                        system_prompt=full_system_prompt,
                         user_prompt=history_str,
                         tools=openai_tools
                     )
@@ -369,61 +583,133 @@ with tab_chat:
 # TAB 2: Neuro-Topology
 # ==============================================================================
 with tab_topo:
-    st.subheader("Manifold Visualization")
-    if st.button("Refresh Topology"):
-        st.info("Fetching graph data... (Placeholder)")
-        # In real impl, calling inspect_graph via hidden tool call
+    st.subheader("🕸️ Knowledge Graph")
 
+    # Store topology in session state
+    if "topology_data" not in st.session_state:
+        st.session_state.topology_data = None
+
+    col1, col2 = st.columns([3, 1])
+    with col2:
+        node_label = st.selectbox("Node Type", ["Thought", "Goal", "Tool", "Pattern"], key="topo_label")
+        node_limit = st.slider("Max Nodes", 5, 50, 15, key="topo_limit")
+
+    if st.button("🔄 Fetch Graph", key="topo_refresh"):
+        with st.spinner("Fetching graph data..."):
+            try:
+                client = get_client()
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                result = loop.run_until_complete(client.call_tool("mcp_inspect_graph", {
+                    "mode": "nodes",
+                    "label": node_label,
+                    "limit": node_limit
+                }))
+                loop.close()
+                st.session_state.topology_data = json.loads(result) if isinstance(result, str) else result
+                st.toast("Graph refreshed!")
+            except Exception as e:
+                st.error(f"Failed to fetch: {e}")
+
+    # Render graph
     graph = graphviz.Digraph()
-    graph.edge('State', 'Agent')
-    graph.edge('Agent', 'Action')
-    graph.edge('Action', 'State')
-    st.graphviz_chart(graph)
+    graph.attr(bgcolor='transparent', rankdir='TB')
+    graph.attr('node', shape='box', style='rounded,filled', fillcolor='#1a1a2e', fontcolor='white', fontname='Outfit')
+    graph.attr('edge', color='#6c5ce7', penwidth='1.5')
+
+    if st.session_state.topology_data and "nodes" in st.session_state.topology_data:
+        nodes = st.session_state.topology_data["nodes"]
+        for node in nodes[:node_limit]:
+            node_id = node.get("id", str(hash(str(node))))
+            node_name = node.get("name", node.get("content", "Node"))[:30]
+            graph.node(str(node_id), node_name)
+
+        # Add some edges if relationships exist
+        if "relationships" in st.session_state.topology_data:
+            for rel in st.session_state.topology_data["relationships"]:
+                graph.edge(str(rel.get("from")), str(rel.get("to")), label=rel.get("type", ""))
+    else:
+        # Default visualization
+        graph.node('Core', 'RAA Core')
+        graph.node('Goals', 'Goal Controller')
+        graph.node('Memory', 'Memory Manifold')
+        graph.node('Tools', 'Tool Registry')
+        graph.edge('Core', 'Goals')
+        graph.edge('Core', 'Memory')
+        graph.edge('Core', 'Tools')
+        graph.edge('Memory', 'Goals', style='dashed')
+
+    st.graphviz_chart(graph, use_container_width=True)
 
 # ==============================================================================
 # TAB 3: Director Internals
 # ==============================================================================
 with tab_internal:
-    st.subheader("Metabolic Ledger")
+    st.subheader("⚡ Metabolic Ledger")
     col1, col2, col3 = st.columns(3)
     internals = st.session_state.internals
 
-    col1.metric("Energy", f"{internals.get('energy', 0.0):.2f}")
+    col1.metric("Energy", f"{internals.get('energy', 0.0):.2f}J")
     col2.metric("Entropy", f"{internals.get('entropy', 0.0):.2f}")
-    col3.metric("State", internals.get("phase", "Unknown"))
+    col3.metric("Phase", internals.get("phase", "Unknown"))
 
-    st.markdown("#### Thermodynamic Dynamics")
-    # Placeholder Data (Real data requires history tracking)
-    import numpy as np
+    st.markdown("#### 📈 Thermodynamic History")
+
+    # Use real history data if available
     import pandas as pd
-    chart_data = pd.DataFrame(
-        np.random.randn(20, 3),
-        columns=['Energy', 'Entropy', 'Complexity'])
-    st.line_chart(chart_data)
+    if st.session_state.energy_history:
+        df = pd.DataFrame(st.session_state.energy_history)
+        st.line_chart(df.set_index("time")[["energy", "entropy"]])
+    else:
+        st.info("No history data yet. Metrics will appear after system activity.")
 
     st.divider()
-    st.subheader("Active Goals (Pointer)")
+    st.subheader("🎯 Active Goals")
 
     active_goals = internals.get("active_goal_list", {})
     if active_goals:
         for gid, gdata in active_goals.items():
-             with st.container():
-                st.markdown(f"**🎯 {gid}**")
+            with st.container():
+                st.markdown(f"**{gid}**")
                 st.caption(gdata.get('description', 'No description'))
-                st.progress(gdata.get('utility', 0.5)) # fallback utility
+                st.progress(gdata.get('utility', 0.5))
     else:
-        st.info("No active goals found.")
+        st.info("No active goals. Use `set_goal` to create one.")
 
 # ==============================================================================
 # TAB 4: System Config
 # ==============================================================================
 with tab_config:
-    st.subheader("System Instructions")
-    new_prompt = st.text_area("System Prompt",
-                             value=st.session_state.system_prompt,
-                             height=400)
+    # Dual Prompt System
+    st.subheader("🛠️ Tool Protocol (System Prompt)")
+    st.caption("Controls how the LLM calls tools. Keep this minimal.")
+    new_system_prompt = st.text_area(
+        "System Prompt",
+        value=st.session_state.system_prompt,
+        height=150,
+        key="system_prompt_editor"
+    )
 
-    if st.button("Save System Prompt"):
-        st.session_state.system_prompt = new_prompt
+    if st.button("💾 Save System Prompt"):
+        st.session_state.system_prompt = new_system_prompt
         st.toast("System Prompt Updated")
 
+    st.divider()
+
+    st.subheader("🧠 Agent Instructions (from RAA_AGENT.md)")
+    st.caption("Rich cognitive protocol loaded from RAA_AGENT.md. Guides agent behavior.")
+
+    with st.expander("View/Edit Agent Prompt", expanded=False):
+        new_agent_prompt = st.text_area(
+            "Agent Prompt",
+            value=st.session_state.agent_prompt,
+            height=400,
+            key="agent_prompt_editor"
+        )
+
+        if st.button("💾 Save Agent Prompt"):
+            st.session_state.agent_prompt = new_agent_prompt
+            st.toast("Agent Prompt Updated")
+
+    st.divider()
+    st.caption(f"Agent Prompt: {len(st.session_state.agent_prompt)} chars | System Prompt: {len(st.session_state.system_prompt)} chars")
