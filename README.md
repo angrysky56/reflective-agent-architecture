@@ -72,7 +72,9 @@ uv sync --extra server
     # Optional: Change LLM_MODEL or EMBEDDING_MODEL if desired
     ```
 
-### 3. Configure MCP Client
+### 3. Configure MCP Client or the built in Dashboard UI
+
+![alt text](image.png)
 
 Add the RAA server to your client configuration (e.g., `claude_desktop_config.json`).
 
