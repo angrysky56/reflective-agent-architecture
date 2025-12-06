@@ -11,6 +11,10 @@ from src.embeddings.sentence_transformer_provider import SentenceTransformerProv
 
 logger = logging.getLogger(__name__)
 
+# Global cache for embedding providers (singleton pattern)
+# Key: (provider_name, model_name, device)
+_PROVIDER_CACHE: dict[tuple[str, str, str], BaseEmbeddingProvider] = {}
+
 
 class EmbeddingFactory:
     """Factory to create embedding providers based on configuration."""
@@ -23,7 +27,7 @@ class EmbeddingFactory:
         **kwargs
     ) -> BaseEmbeddingProvider:
         """
-        Create an embedding provider.
+        Create an embedding provider (cached).
 
         Args:
             provider_name: Provider type ('sentence-transformers', 'ollama', 'lm_studio')
@@ -32,7 +36,7 @@ class EmbeddingFactory:
             **kwargs: Additional provider-specific arguments
 
         Returns:
-            Embedding provider instance
+            Embedding provider instance (cached singleton per config)
         """
         provider_name = provider_name or os.getenv("EMBEDDING_PROVIDER", "sentence-transformers")
         model_name = model_name or os.getenv("EMBEDDING_MODEL", "BAAI/bge-large-en-v1.5")
@@ -41,25 +45,38 @@ class EmbeddingFactory:
         if device is None:
             device = "cuda" if torch.cuda.is_available() else "cpu"
 
-        logger.info(f"Creating embedding provider: {provider_name} with model: {model_name} on {device}")
-
+        # Normalize provider name
         provider_name = provider_name.lower()
 
+        # Check cache first
+        cache_key = (provider_name, model_name, device)
+        if cache_key in _PROVIDER_CACHE:
+            logger.debug(f"Using cached embedding provider: {provider_name}/{model_name}")
+            return _PROVIDER_CACHE[cache_key]
+
+        logger.info(f"Creating embedding provider: {provider_name} with model: {model_name} on {device}")
+
+        # Create provider
+        provider: BaseEmbeddingProvider
         if provider_name == "sentence-transformers" or provider_name == "sentencetransformers":
-            return EmbeddingFactory._create_sentence_transformer(model_name, device, **kwargs)
+            provider = EmbeddingFactory._create_sentence_transformer(model_name, device, **kwargs)
 
         elif provider_name == "ollama":
             base_url = kwargs.get("base_url") or os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-            return OllamaEmbeddingProvider(model_name, base_url=base_url, device=device)
+            provider = OllamaEmbeddingProvider(model_name, base_url=base_url, device=device)
 
         elif provider_name == "lm_studio" or provider_name == "lmstudio":
             base_url = kwargs.get("base_url") or os.getenv("LMSTUDIO_BASE_URL", "http://localhost:1234/v1")
             api_key = kwargs.get("api_key") or os.getenv("LMSTUDIO_API_KEY", "lm-studio")
-            return LMStudioEmbeddingProvider(model_name, base_url=base_url, api_key=api_key, device=device)
+            provider = LMStudioEmbeddingProvider(model_name, base_url=base_url, api_key=api_key, device=device)
 
         else:
             logger.warning(f"Unknown embedding provider '{provider_name}', defaulting to sentence-transformers")
-            return EmbeddingFactory._create_sentence_transformer(model_name, device, **kwargs)
+            provider = EmbeddingFactory._create_sentence_transformer(model_name, device, **kwargs)
+
+        # Store in cache
+        _PROVIDER_CACHE[cache_key] = provider
+        return provider
 
     @staticmethod
     def _create_sentence_transformer(model_name: str, device: str, **kwargs) -> SentenceTransformerProvider:

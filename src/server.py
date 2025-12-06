@@ -3067,6 +3067,16 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
 
     try:
         if name == "deconstruct":
+            # Metabolic Cost: Deconstruction is analysis (1.5)
+            if workspace.ledger:
+                from decimal import Decimal
+
+                from src.substrate.energy import EnergyToken, MeasurementCost
+
+                workspace.ledger.record_transaction(MeasurementCost(
+                    energy=EnergyToken(Decimal("1.5"), "joules"),
+                    operation_name="deconstruct"
+                ))
             try:
                 result = ctx.execute_deconstruct(arguments["problem"])
                 return [TextContent(type="text", text=json.dumps(result, indent=2))]
@@ -3165,6 +3175,16 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
             )
 
         elif name == "set_goal":
+            # Metabolic Cost: Goal setting is cheap (0.5)
+            if workspace.ledger:
+                from decimal import Decimal
+
+                from src.substrate.energy import EnergyToken, MeasurementCost
+
+                workspace.ledger.record_transaction(MeasurementCost(
+                    energy=EnergyToken(Decimal("0.5"), "joules"),
+                    operation_name="set_goal"
+                ))
             goal_id = workspace.set_goal(
                 goal_description=arguments["goal_description"],
                 utility_weight=arguments.get("utility_weight", 1.0),
@@ -3176,6 +3196,16 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
                 "message": "Goal activated for utility-guided exploration",
             }
         elif name == "compress_to_tool":
+            # Metabolic Cost: Compression is expensive (5.0)
+            if workspace.ledger:
+                from decimal import Decimal
+
+                from src.substrate.energy import EnergyToken, MeasurementCost
+
+                workspace.ledger.record_transaction(MeasurementCost(
+                    energy=EnergyToken(Decimal("5.0"), "joules"),
+                    operation_name="compress_to_tool"
+                ))
             result = bridge.execute_monitored_operation(
                 operation="compress_to_tool",
                 params={

@@ -18,6 +18,7 @@ Key Functions:
 import logging
 from typing import Any
 
+import numpy as np
 import torch
 import torch.nn.functional as f
 
@@ -113,7 +114,11 @@ class EmbeddingMapper:
 
             # Ensure we have a tensor (some providers like Ollama return numpy/list)
             if not isinstance(embedding, torch.Tensor):
-                embedding = torch.tensor(embedding, device=self.device)
+                if isinstance(embedding, np.ndarray):
+                    # Use from_numpy for speed (avoids slow list conversion)
+                    embedding = torch.from_numpy(embedding).to(self.device)
+                else:
+                    embedding = torch.tensor(embedding, device=self.device)
 
         # Ensure correct dimension
         if embedding.shape[0] != self.embedding_dim:

@@ -8,7 +8,8 @@ from typing import Any, Dict, List, Optional
 
 # Constants
 # Use absolute path relative to this file to ensure it works from anywhere
-DB_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../raa_history.db"))
+# Correct path: src/director/ -> src/raa_history.db (one level up)
+DB_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "../raa_history.db"))
 # print(f"DEBUG: ProcessLogger using DB at {DB_PATH}")
 
 class ProcessLogger:

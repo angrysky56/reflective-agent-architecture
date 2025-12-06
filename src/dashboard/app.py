@@ -3,7 +3,6 @@ import json
 import os
 import re
 import sys
-import time
 
 import graphviz
 from dotenv import load_dotenv
@@ -102,20 +101,20 @@ def render_message(msg):
         elif m_type == "tool_call":
             tool_name = meta.get("tool")
             args = meta.get("args")
-            with st.expander(f"🛠️ Thinking: {tool_name}", expanded=False):
-                st.markdown(f"**Tool**: `{tool_name}`")
-                st.markdown("**Arguments**:")
+            # Compact tool call notification (not in expander)
+            st.markdown(f'<div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border-left: 3px solid #e94560; padding: 10px; border-radius: 5px; margin: 5px 0;">🛠️ <b>Calling Tool:</b> <code>{tool_name}</code></div>', unsafe_allow_html=True)
+            with st.expander("View Arguments", expanded=False):
                 st.json(args)
 
         elif m_type == "tool_result":
             tool_name = meta.get("tool")
-            with st.container():
-                st.markdown(f"✅ **Observation** (`{tool_name}`):")
-                if len(content) < 500:
-                   st.code(content, language="json" if content.strip().startswith("{") else None)
-                else:
-                    with st.expander("View Output"):
-                        st.code(content)
+            # Clear tool result display
+            st.markdown(f'<div style="background: linear-gradient(135deg, #0f3443 0%, #34e89e20 100%); border-left: 3px solid #34e89e; padding: 10px; border-radius: 5px; margin: 5px 0;">✅ <b>Result from:</b> <code>{tool_name}</code></div>', unsafe_allow_html=True)
+            if len(content) < 800:
+                st.code(content, language="json" if content.strip().startswith("{") else None)
+            else:
+                with st.expander("View Full Output", expanded=False):
+                    st.code(content)
 
 async def fetch_metrics_async():
     """Async worker to fetch metrics from MCP."""
@@ -180,7 +179,8 @@ with st.sidebar:
             st.session_state.llm_config = {"provider": provider, "model": model, "api_key": api_key}
             os.environ["LLM_PROVIDER"] = provider
             os.environ["LLM_MODEL"] = model
-            if api_key: os.environ["OPENROUTER_API_KEY"] = api_key
+            if api_key:
+                os.environ["OPENROUTER_API_KEY"] = api_key
             st.toast("Configuration updated!")
             st.rerun()
 
@@ -242,14 +242,14 @@ st.divider()
 # Initialize Tab State
 if "system_prompt" not in st.session_state:
     st.session_state.system_prompt = (
-        f"You are the Reflective Agent. You connect to a backend via MCP.\n"
-        f"PROTOCOL:\n"
-        f"1. To use a tool, output valid JSON inside a code block:\n"
-        f"```json\n"
-        f"{{\"tool\": \"tool_name\", \"args\": {{...}}}}\n"
-        f"```\n"
-        f"2. You will receive the tool output.\n"
-        f"3. Synthesize the final answer.\n"
+        "You are the Reflective Agent. You connect to a backend via MCP.\n"
+        "PROTOCOL:\n"
+        "1. To use a tool, output valid JSON inside a code block:\n"
+        "```json\n"
+        "{{\"tool\": \"tool_name\", \"args\": {{...}}}}\n"
+        "```\n"
+        "2. You will receive the tool output.\n"
+        "3. Synthesize the final answer.\n"
     )
 
 # Compact Tabs
@@ -315,30 +315,31 @@ with tab_chat:
                         tools=openai_tools
                     )
 
-                    # Check for Tool Call
-                    tool_match = re.search(r"```json\s*({.*?})\s*```", raw_response, re.DOTALL)
-
-                    if tool_match:
+                    # Robust JSON extraction: find ```json ... ``` and parse
+                    tool_call = None
+                    tool_match = None
+                    json_block_match = re.search(r"```json\s*(.*?)```", raw_response, re.DOTALL)
+                    if json_block_match:
+                        json_text = json_block_match.group(1).strip()
                         try:
-                            # 1. Extract Tool Details
-                            tool_call = json.loads(tool_match.group(1))
-                            t_name = tool_call.get("tool")
-                            t_args = tool_call.get("args", {})
-
-                            # 2. Extract Pre-computation Thought (if any)
-                            # The tool block matches the regex. Everything before it is thought.
-                            thought_content = raw_response[:tool_match.start()].strip()
-
-                            if thought_content:
-                                add_message("assistant", thought_content)
-
-                            # 3. Add Tool Call Message
-                            add_message("assistant", "Executing Tool...", "tool_call", {"tool": t_name, "args": t_args})
-                            st.rerun()
-
+                            tool_call = json.loads(json_text)
+                            tool_match = json_block_match
                         except json.JSONDecodeError:
-                            add_message("assistant", raw_response)
-                            st.rerun()
+                            tool_call = None
+
+                    if tool_call and "tool" in tool_call:
+                        t_name = tool_call.get("tool")
+                        t_args = tool_call.get("args", {})
+
+                        # Extract Pre-computation Thought (if any)
+                        thought_content = raw_response[:tool_match.start()].strip()
+
+                        if thought_content:
+                            add_message("assistant", thought_content)
+
+                        # Add Tool Call Message
+                        add_message("assistant", "Executing Tool...", "tool_call", {"tool": t_name, "args": t_args})
+                        st.rerun()
                     else:
                         add_message("assistant", raw_response)
                         st.rerun()
