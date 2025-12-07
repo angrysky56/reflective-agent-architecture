@@ -398,13 +398,11 @@ class CWDRAABridge:
         Fallback returns mock data for local testing.
         """
         # Prefer direct call into provided CWD server/client
-        try:
-            if self.cwd_server is not None and hasattr(self.cwd_server, operation):
-                op_fn = getattr(self.cwd_server, operation)
-                if callable(op_fn):
-                    return op_fn(**params)  # type: ignore[misc]
-        except Exception as e:
-            logger.warning(f"CWD operation '{operation}' failed, falling back to mock: {e}")
+        if self.cwd_server is not None and hasattr(self.cwd_server, operation):
+            op_fn = getattr(self.cwd_server, operation)
+            if callable(op_fn):
+                # Let exceptions propagate - don't silently fall back to mock
+                return op_fn(**params)  # type: ignore[misc]
 
         logger.warning(f"Mock CWD execution for {operation}")
 
@@ -418,6 +416,7 @@ class CWDRAABridge:
                 "synthesis": "Mock synthesis",
                 "quality": {"coverage": 0.9, "coherence": 0.7, "fidelity": 0.8},
             }
+        elif operation == "constrain":
             return {
                 "valid": True,
                 "satisfaction_score": 0.9,

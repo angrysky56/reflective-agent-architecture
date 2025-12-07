@@ -135,6 +135,7 @@ RAA synthesizes three active research frontiers:
 - **Function**: Detects "clashes" (high-entropy states) and triggers search.
 - **Search Engine**: Structured exploration of Manifold to find alternative framings.
 - **Key Innovation**: Entropy-triggered associative search for goal reframing.
+- **Multi-Signal Cognitive State** (Dec 2025): Combines Hopfield state, entropy trends, metabolic energy, and looping detection for comprehensive self-awareness.
 
 #### 3. The Precuneus (Integrator)
 
@@ -179,6 +180,13 @@ Delegate a complex task to the COMPASS cognitive framework. Use this for tasks r
   - **Rich Primitives**: Mathematical operations (sin, cos, tanh, abs, hypot) for complex pattern discovery.
   - **Hybrid Mode**: Combines GP's structural search with Nelder-Mead local constant refinement for precise solutions.
 - **Applications**: Harmonic function recovery, symbolic regression, reverse-engineering physical laws.
+
+#### 8. LogicCore (Formal Verification)
+
+- **Implementation**: Direct integration with Prover9/Mace4 binaries (self-contained in `src/cognition/ladr/bin`).
+- **Tools**: `prove`, `find_counterexample`, `find_model`, `check_well_formed`, `verify_commutativity`, `get_category_axioms`.
+- **Function**: Provides rigorous First-Order Logic verification, model finding, and category theory support.
+- **Integration**: The `constrain` tool supports `strict=true` mode for Prover9-backed validation.
 
 #### 8. Stereoscopic Engine (Dual-Layer Dynamics)
 
@@ -243,3 +251,21 @@ Delegate a complex task to the COMPASS cognitive framework. Use this for tasks r
 - **[RAA_AGENT.md](RAA_AGENT.md)**: Operational protocol for the AI agent.
 - **[docs/](docs/)**: Detailed design documents and theoretical references.
 - **[Comprehensive Theoretical Advancement](docs/theoretical_advancement_analysis.md)**: Synthesis of Recursive Observer, Reflexive Closure, and Diamond Proof.
+
+---
+
+## Acknowledgments
+
+This project incorporates the following third-party components:
+
+### LADR (Prover9 & Mace4)
+
+The formal logic verification system uses **LADR** (Library for Automated Deduction Research) by **William McCune** at Argonne National Laboratory.
+
+- **Prover9**: Automated theorem prover for First-Order Logic
+- **Mace4**: Finite model finder (counterexample/model generation)
+- **License**: GPL-2.0
+- **Source**: [https://www.cs.unm.edu/~mccune/prover9/](https://www.cs.unm.edu/~mccune/prover9/)
+- **Binaries Location**: `src/cognition/ladr/bin/`
+
+The LADR tools provide the rigorous First-Order Logic foundation for the `constrain`, `prove`, `find_model`, and `find_counterexample` tools.

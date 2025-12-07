@@ -121,8 +121,8 @@ class PrecuneusIntegrator(nn.Module):
         """
         # Ensure energy is a tensor for calculation
         if not isinstance(energy, torch.Tensor):
-            e_tensor = torch.tensor(energy)
+            e_tensor = torch.tensor(energy, dtype=torch.float32)
         else:
-            e_tensor = energy
+            e_tensor = energy.float()
 
         return torch.sigmoid(-e_tensor * distinctiveness)

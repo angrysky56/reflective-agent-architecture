@@ -117,6 +117,7 @@ class DirectorMVP:
         mcp_client: Optional[Any] = None,
         continuity_service: Optional["ContinuityService"] = None,
         llm_provider: Optional[Any] = None,
+        work_history: Optional[Any] = None,
     ):
         """
         Initialize Director.
@@ -127,11 +128,13 @@ class DirectorMVP:
             embedding_fn: Function to embed text for LTN constraints
             mcp_client: Optional MCP client for tool execution
             continuity_service: Optional ContinuityService for anchoring milestones
+            work_history: Optional WorkHistory for long-term entropy recall
         """
         self.manifold = manifold
         self.config = config or DirectorConfig()
         self.mcp_client = mcp_client
         self.continuity_service = continuity_service
+        self.work_history = work_history
 
         # Entropy monitor
         self.monitor = EntropyMonitor(
@@ -291,7 +294,17 @@ class DirectorMVP:
                     return False # Block propagation
 
         # 2. Epistemic Discrimination
-        entropy_history = np.array(self.monitor.entropy_history)
+        # Use long-term history if available, otherwise short-term monitor history
+        if self.work_history:
+            # Fetch last 100 points from DB (Long Term)
+            history_list = self.work_history.get_entropy_history(limit=100)
+            # Append current
+            history_list.append(current_entropy)
+            entropy_history = np.array(history_list)
+        else:
+            # Fallback to in-memory monitor (Short Term)
+            entropy_history = np.array(self.monitor.entropy_history)
+
         if len(entropy_history) > 10:
             assessment = self.epistemic_discriminator.assess(entropy_history)
             logger.info(f"Epistemic Assessment: {assessment.recommendation} (Conf: {assessment.confidence:.2f})")

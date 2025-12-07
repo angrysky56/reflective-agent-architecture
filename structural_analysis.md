@@ -93,6 +93,8 @@ Implements "Stereoscopic" cognitive architecture.
 - **`system_guide.py`**: **Guidance System** - Provides high-level architectural guidance.
 - **`grok_lang.py`**: **Empathetic Alignment** - Implements Grok-Depth scoring across six cognitive levels (Signal, Symbol, Syntax, Semantics, Pragmatics, Meta) for measuring inter-agent alignment.
 - **`working_memory.py`**: **Short-term Context** - Maintains a sliding window of recent cognitive operations (deconstruct, synthesize, hypothesize, etc.) for LLM continuity. Injects context into all LLM calls for coherent multi-step reasoning.
+- **`logic_core.py`**: **Formal Verification** - Direct integration with Prover9/Mace4 for First-Order Logic proofs, model finding, and category theory axioms. Self-contained binaries in `ladr/bin`.
+- **`emotion_framework.py`**: **Computational Empathy** - Loader and query interface for the Emotion Evolution Framework (`src/config/emotion_evolution_framework.json`). Provides access to basic/complex emotions, evolutionary layers, AI interaction guidelines, empathic templates, and valence-arousal mapping.
 
 ### `src/manifold`
 
@@ -149,7 +151,16 @@ Token Generation (System 1).
 
 Data Storage.
 
-- **`work_history.py`**: Manages persistence of work sessions and history.
+- **`work_history.py`**: **SQLite History** - Manages persistence of work sessions, operation history, and entropy tracking.
+  - **Entropy Logging**: Each operation logs its entropy for trend analysis.
+  - **Search**: Tokenized multi-word search with OR logic.
+  - **Methods**: `log_operation()`, `get_recent_history()`, `get_entropy_history()`, `search_history()`.
+
+### Database Architecture
+
+- **Neo4j (Graph)**: Stores `ThoughtNode` structure and relationships (SYNTHESIZES_FROM, HYPOTHESIZES_CONNECTION_TO, etc.).
+- **ChromaDB (Vector)**: Stores document content and embeddings. Path: `chroma_data/` at project root (41MB of persistent data).
+- **SQLite (History)**: Stores operation logs, entropy, and metabolic transactions. Path: `src/raa_history.db`.
 
 ### `experiments/`
 

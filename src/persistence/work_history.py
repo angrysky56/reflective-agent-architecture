@@ -35,7 +35,8 @@ class WorkHistory:
                         params TEXT,
                         result_summary TEXT,
                         cognitive_state TEXT,
-                        energy REAL
+                        energy REAL,
+                        entropy REAL
                     )
                 """)
 
@@ -47,6 +48,9 @@ class WorkHistory:
 
                 if "causal_impact" not in columns:
                     cursor.execute("ALTER TABLE history ADD COLUMN causal_impact REAL")
+
+                if "entropy" not in columns:
+                    cursor.execute("ALTER TABLE history ADD COLUMN entropy REAL")
 
                 conn.commit()
         except sqlite3.Error as e:
@@ -60,7 +64,8 @@ class WorkHistory:
         cognitive_state: str = "Unknown",
         energy: float = 0.0,
         diagnostics: Optional[Dict[str, Any]] = None,
-        causal_impact: float = 0.0
+        causal_impact: float = 0.0,
+        entropy: float = 0.0
     ) -> None:
         """
         Log an operation and its context to history.
@@ -80,9 +85,9 @@ class WorkHistory:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
                 cursor.execute("""
-                    INSERT INTO history (operation, params, result_summary, cognitive_state, energy, diagnostics, causal_impact)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                """, (operation, params_json, summary, cognitive_state, energy, diagnostics_json, causal_impact))
+                    INSERT INTO history (operation, params, result_summary, cognitive_state, energy, diagnostics, causal_impact, entropy)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """, (operation, params_json, summary, cognitive_state, energy, diagnostics_json, causal_impact, entropy))
                 conn.commit()
 
             logger.debug(f"Logged operation '{operation}' to history.")
@@ -149,6 +154,7 @@ class WorkHistory:
     ) -> List[Dict[str, Any]]:
         """
         Search history for operations matching query and/or type.
+        Query is tokenized by whitespace - matches ANY word (OR logic).
         """
         try:
             with sqlite3.connect(self.db_path) as conn:
@@ -163,10 +169,17 @@ class WorkHistory:
                     params.append(operation_type)
 
                 if query:
-                    # Simple LIKE search for now
-                    sql += " AND (params LIKE ? OR result_summary LIKE ?)"
-                    wildcard_query = f"%{query}%"
-                    params.extend([wildcard_query, wildcard_query])
+                    # Tokenize query into words and match ANY word (OR logic)
+                    words = [w.strip() for w in query.split() if w.strip()]
+                    if words:
+                        # Build OR conditions for each word
+                        word_conditions = []
+                        for word in words:
+                            word_conditions.append("(params LIKE ? OR result_summary LIKE ?)")
+                            wildcard = f"%{word}%"
+                            params.extend([wildcard, wildcard])
+
+                        sql += " AND (" + " OR ".join(word_conditions) + ")"
 
                 sql += " ORDER BY timestamp DESC LIMIT ?"
                 params.append(limit)
@@ -197,4 +210,27 @@ class WorkHistory:
                 return [dict(row) for row in rows]
         except sqlite3.Error as e:
             logger.error(f"Failed to retrieve focused episodes: {e}")
+            return []
+
+    def get_entropy_history(self, limit: int = 100) -> List[float]:
+        """
+        Retrieve recent entropy values for trend analysis.
+        Returns list of floats, ordered by time ascending (oldest first).
+        """
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                # Get last 'limit' entries, then reverse to get chronological order
+                cursor.execute("""
+                    SELECT entropy FROM history
+                    WHERE entropy IS NOT NULL
+                    ORDER BY timestamp DESC
+                    LIMIT ?
+                """, (limit,))
+                rows = cursor.fetchall()
+                # rows is [(val,), (val,), ...] desc
+                values = [row[0] for row in rows]
+                return values[::-1] # Reverse to ascending time
+        except sqlite3.Error as e:
+            logger.error(f"Failed to retrieve entropy history: {e}")
             return []

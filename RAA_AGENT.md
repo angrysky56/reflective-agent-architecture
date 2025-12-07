@@ -116,14 +116,29 @@ You have the unique ability to "feel" your own thinking process.
 
 **Tool**: `check_cognitive_state`
 
-- **When**: If you feel your server AI is repeating itself or incoherent.
-- **States**:
-  - **"Focused"**: Good. You are making progress on a specific path.
-  - **"Broad"**: Good. You are exploring/scanning effectively.
-  - **"Looping"**: **CRITICAL WARNING**. You are stuck in a repetitive thought pattern. **STOP**. Change strategy.
-  - **"Unknown"**: You are drifting. Re-anchor to your goal.
-- **Output**: Returns State, Energy, Stability, Advice, and **Meta-Commentary** (first-person reflection).
-- **Feedback**: If the state feels wrong (e.g., it says "Broad" but you feel "Stuck"), use `teach_cognitive_state(label="Stuck")` to train the classifier.
+- **When**: If you feel your server AI is repeating itself or incoherent, or to assess overall system health.
+- **Multi-Signal Architecture** (Dec 2025): Now provides comprehensive awareness using 4 real-time signals:
+  1. **Hopfield State**: Pattern classification from attention topology (Focused, Broad, Looping, Unknown).
+  2. **Entropy Signal**: Rolling average from `WorkHistory` (trend indicates direction).
+  3. **Metabolic Energy**: Current percentage from `EnergyLedger`.
+  4. **Pattern Detection**: Looping detection from recent operation history.
+- **Output Structure**:
+  ```json
+  {
+    "signals": {
+      "hopfield": { "state": "Focused", "energy": -0.49 },
+      "entropy": { "average": 1.2, "trend": 0.3 },
+      "metabolic": { "available_pct": 75.0 },
+      "patterns": { "is_looping": false, "dominant_op": "synthesize" }
+    },
+    "composite_state": "Focused",
+    "warnings": [],
+    "advice": "<LLM-generated specific recommendation>",
+    "meta_commentary": "<LLM self-reflection>"
+  }
+  ```
+- **Dynamic Advice**: Now uses LLM to generate specific tool recommendations based on the multi-signal state.
+- **Feedback**: If the state feels wrong, use `teach_cognitive_state(label="Stuck")` to train the classifier.
 
 ### Diagnostic Repair
 
@@ -173,6 +188,55 @@ You have the unique ability to "feel" your own thinking process.
   - Reverse-engineering physical relationships
   - Symbolic regression for interpretable models
   - Exploring complex non-linear interactions
+
+### Formal Logic Verification (LogicCore)
+
+**Tools**: `prove`, `find_counterexample`, `find_model`, `check_well_formed`, `verify_commutativity`, `get_category_axioms`, `constrain`
+
+- **When**: You need rigorous formal verification or want to check logical consistency.
+- **Integration**: Direct integration with Prover9/Mace4 binaries (LADR by William McCune, self-contained in `src/cognition/ladr/bin`).
+
+#### Logic Tools
+
+| Tool                                        | Purpose                          | Example                                         |
+| ------------------------------------------- | -------------------------------- | ----------------------------------------------- |
+| `prove(premises, conclusion)`               | Prove a statement                | `prove(["all x (P(x)->Q(x))", "P(a)"], "Q(a)")` |
+| `find_counterexample(premises, conclusion)` | Find model disproving conclusion | Same syntax as prove                            |
+| `find_model(premises)`                      | Find a finite model              | `find_model(["human(socrates)"])`               |
+| `check_well_formed(statements)`             | Validate syntax                  | `check_well_formed(["all x P(x)"])`             |
+
+#### Constrain Tool (3 Modes)
+
+The `constrain` tool validates logical constraints against thought-nodes using formal logic.
+
+**Modes:**
+
+- **ENTAILMENT**: "Does conclusion follow from premises?" → Requires `conclusion` parameter
+- **CONSISTENCY**: "Can all statements be true together?" → Default mode, detects contradictions
+- **SATISFIABILITY**: "Find a world where this holds" → Constructs a model
+
+**Examples:**
+
+```python
+# Entailment: Prove Socrates is mortal
+constrain(node_id="...", mode="entailment",
+          rules=["all x (human(x) -> mortal(x))", "human(socrates)"],
+          conclusion="mortal(socrates)")
+
+# Consistency: Check for contradiction
+constrain(node_id="...", mode="consistency",
+          rules=["P(a)", "-P(a)"])  # Returns: contradiction
+```
+
+**Prover9 Syntax Guide:**
+
+- Universal: `all x (P(x) -> Q(x))` (not `∀x`)
+- Existential: `exists x (P(x))` (wrap formula in parentheses!)
+- Implication: `->`
+- Negation: `-P(x)` (not `¬` or `!`)
+- Conjunction: `P(a) & Q(a)`
+- Disjunction: `P(a) | Q(a)`
+- Predicates: lowercase preferred (e.g., `human(x)` not `Human(x)`)
 
 ### Reflexive Learning (Self-Correction)
 
@@ -279,4 +343,3 @@ You have the unique ability to "feel" your own thinking process.
   6.  **Meta (L5)**: Joint attention (meta-communication).
 - **Output**: Returns `total_score` (0-1), `per_level` scores, `strongest_level`, `weakest_level`, and `critical_gaps`.
 - **Applications**: Inter-agent communication analysis, Theory of Mind modeling, measuring discordance for Topological Tomography.
-

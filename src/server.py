@@ -49,7 +49,9 @@ from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from src.cognition.curiosity import CuriosityModule
+from src.cognition.emotion_framework import consult_computational_empathy
 from src.cognition.grok_lang import AffectVector, GrokDepthCalculator, Intent, MindState, Utterance
+from src.cognition.logic_core import LogicCore
 from src.cognition.meta_validator import MetaValidator
 from src.cognition.system_guide import SystemGuideNodes
 from src.cognition.working_memory import WorkingMemory
@@ -142,7 +144,7 @@ class CWDConfig(BaseSettings):
     neo4j_uri: str = Field(default="bolt://localhost:7687")
     neo4j_user: str = Field(default="neo4j")
     neo4j_password: str = Field(...)  # Required from environment - no default
-    chroma_path: str = Field(default="./chroma_data")
+    chroma_path: str = Field(default=str(Path(__file__).parent.parent / "chroma_data"))
     # LLM Settings
     llm_provider: str = "openrouter"
     llm_model: str = Field(default="google/gemini-2.0-flash-exp:free", description="LLM model name")
@@ -278,8 +280,14 @@ class CognitiveWorkspace:
         # Initialize Curiosity Module (Intrinsic Motivation)
         self.curiosity = CuriosityModule(self)
 
+        # Initialize Logic Core (Formal Verification)
+        self.logic_core = LogicCore()
+
         # Initialize Working Memory (Short-term context for LLM continuity)
         self.working_memory = WorkingMemory(max_entries=20, max_context_chars=8000)
+
+        # Reference to Director (injected by ServerContext)
+        self.director = None
 
         # Tool Usage Tracking for Entropy
         self.tool_usage_buffer: List[str] = []
@@ -695,6 +703,49 @@ class CognitiveWorkspace:
         utility_score = total_weighted_similarity / total_weight if total_weight > 0 else 0.5
         return float(utility_score)
 
+    def _prove(self, premises: List[str], conclusion: str) -> Dict[str, Any]:
+        """Verify a logical conclusion from premises using Prover9."""
+        self._track_tool_usage("prove")
+        if not self.logic_core:
+             return {"result": "error", "message": "Logic Core not initialized"}
+        return self.logic_core.prove(premises, conclusion)
+
+    def _find_counterexample(self, premises: List[str], conclusion: str, domain_size: Optional[int] = None) -> Dict[str, Any]:
+        """Find a counterexample using Mace4."""
+        self._track_tool_usage("find_counterexample")
+        if not self.logic_core:
+             return {"result": "error", "message": "Logic Core not initialized"}
+        return self.logic_core.find_counterexample(premises, conclusion, domain_size)
+
+    def _find_model(self, premises: List[str], domain_size: Optional[int] = None) -> Dict[str, Any]:
+        """Find a model using Mace4."""
+        self._track_tool_usage("find_model")
+        if not self.logic_core:
+             return {"result": "error", "message": "Logic Core not initialized"}
+        return self.logic_core.find_model(premises, domain_size)
+
+    def _check_well_formed(self, statements: List[str]) -> Dict[str, Any]:
+        """Validate logical formulas."""
+        self._track_tool_usage("check_well_formed")
+        if not self.logic_core:
+             return {"result": "error", "message": "Logic Core not initialized"}
+        return self.logic_core.check_well_formed(statements)
+
+    def _verify_commutativity(self, path_a: List[str], path_b: List[str], object_start: str, object_end: str, with_category_axioms: bool = True) -> Dict[str, Any]:
+        """Verify diagram commutativity."""
+        self._track_tool_usage("verify_commutativity")
+        if not self.logic_core:
+             return {"result": "error", "message": "Logic Core not initialized"}
+        return self.logic_core.verify_commutativity(path_a, path_b, object_start, object_end, with_category_axioms)
+
+    def _get_category_axioms(self, concept: str, **kwargs) -> Dict[str, Any]:
+        """Get category theory axioms."""
+        self._track_tool_usage("get_category_axioms")
+        if not self.logic_core:
+             return {"result": "error", "message": "Logic Core not initialized"}
+        axioms = self.logic_core.get_category_axioms(concept, **kwargs)
+        return {"concept": concept, "axioms": axioms}
+
     # ========================================================================
     # Gen 3 Architecture: Compression Progress Tracking (Schmidhuber)
     # ========================================================================
@@ -1025,22 +1076,81 @@ class CognitiveWorkspace:
         For Qwen embedding models, queries should use prompt_name="query" for better
         retrieval performance. Documents are embedded without prompts.
         """
-        with torch.no_grad():
-            # Check if this is a Qwen model that supports prompts
-            is_qwen = "qwen" in self.config.embedding_model.lower()
-            if is_qwen and is_query:
-                # Use query prompt for better retrieval
-                embedding = self.embedding_model.encode(text, prompt_name="query")
-            else:
-                # Standard document embedding
-                embedding = self.embedding_model.encode(text)
+        try:
+            with torch.no_grad():
+                # Check if this is a Qwen model that supports prompts
+                is_qwen = "qwen" in self.config.embedding_model.lower()
+                if is_qwen and is_query:
+                    # Use query prompt for better retrieval
+                    embedding = self.embedding_model.encode(text, prompt_name="query")
+                else:
+                    # Standard document embedding
+                    embedding = self.embedding_model.encode(text)
 
-            # Convert to list of floats
-            if hasattr(embedding, "tolist"):
-                result = embedding.tolist()
-            else:
-                result = list(embedding)
-            return result  # type: ignore[return-value]
+                # Convert to list of floats
+                if hasattr(embedding, "tolist"):
+                    result = embedding.tolist()
+                else:
+                    result = list(embedding)
+                return result  # type: ignore[return-value]
+
+        except Exception as e:
+            logger.error(f"Embedding generation failed (likely CUDA error): {e}")
+            logger.info("Attempting recovery: Moving embedding model to CPU and retrying...")
+
+            try:
+                # Attempt to move model to CPU
+                if hasattr(self.embedding_model, "to"):
+                    self.embedding_model.to("cpu")
+                    logger.info("Moved embedding model to CPU successfully.")
+
+                    # Retry encoding on CPU
+                    with torch.no_grad():
+                        # We don't try Qwen optimized prompt here to be safe, just standard encode
+                        embedding = self.embedding_model.encode(text, device="cpu")
+
+                        if hasattr(embedding, "tolist"):
+                            result = embedding.tolist()
+                        else:
+                            result = list(embedding)
+                        return result
+                else:
+                    logger.error("Embedding model does not support .to('cpu')")
+                    raise e
+
+            except Exception as e2:
+                logger.error(f"Embedding fallback failed: {e2}")
+                # Return zero vector as last resort to prevent system crash
+                # Get dim from model or config
+                dim = 1024 # Default fallback
+                if hasattr(self.embedding_model, "get_sentence_embedding_dimension"):
+                    dim = self.embedding_model.get_sentence_embedding_dimension()
+                return [0.0] * dim
+
+    def _get_contents_from_chroma(self, ids: list[str]) -> dict[str, str]:
+        """
+        Retrieve content for multiple thought IDs from Chroma.
+        Returns a dictionary {node_id: content}.
+        """
+        if not ids:
+            return {}
+
+        try:
+            results = self.collection.get(ids=ids, include=["documents"])
+            if not results or not results["ids"]:
+                return {}
+
+            content_map = {}
+            for doc_id, content in zip(results["ids"], results["documents"]):
+                # Handle case where content might be None or list?
+                # Chroma documents are usually strings.
+                if content:
+                    content_map[doc_id] = content
+
+            return content_map
+        except Exception as e:
+            logger.error(f"Error retrieving content from Chroma: {e}")
+            return {}
 
     def _llm_generate(
         self,
@@ -1134,25 +1244,24 @@ class CognitiveWorkspace:
         compression_score = self._calculate_compression_score(content)
         intrinsic_reward = self._track_compression_progress(thought_id, compression_score)
 
-        # Store in Neo4j with Gen 3 fields
+        # Store in Neo4j with Gen 3 fields (Content stored in Chroma only)
         query = """
         CREATE (t:ThoughtNode {
             id: $id,
-            content: $content,
             cognitive_type: $cognitive_type,
             confidence: $confidence,
             created_at: timestamp(),
             parent_problem: $parent_problem,
             utility_score: $utility_score,
             compression_score: $compression_score,
-            intrinsic_reward: $intrinsic_reward
+            intrinsic_reward: $intrinsic_reward,
+            chroma_doc_id: $id
         })
         RETURN t.id as id
         """
         result = session.run(
             query,
             id=thought_id,
-            content=content,
             cognitive_type=cognitive_type,
             confidence=confidence,
             parent_problem=parent_problem,
@@ -1274,15 +1383,27 @@ class CognitiveWorkspace:
                 neighbors = []
                 node_data = {}
 
+                # Collect all node IDs to fetch content from Chroma
+                all_ids = {node_id}
+                for record in result:
+                    all_ids.add(record["n"]["id"])
+                    all_ids.add(record["m"]["id"])
+
+                content_map = self._get_contents_from_chroma(list(all_ids))
+
+                # Re-run query to process results with content
+                result = session.run(query, node_id=node_id)
+
                 for record in result:
                     if not node_data:
                         node_data = dict(record["n"])
+                        node_data["content"] = content_map.get(node_data.get("id"), "")
 
                     neighbor = dict(record["m"])
                     rel = record["r"]
                     neighbors.append({
                         "id": neighbor.get("id"),
-                        "content": neighbor.get("content"),
+                        "content": content_map.get(neighbor.get("id"), ""),
                         "relationship": rel.type,
                         "direction": "outgoing" if rel.start_node.id == record["n"].id else "incoming"
                     })
@@ -1293,6 +1414,7 @@ class CognitiveWorkspace:
                     record = result.single()
                     if record:
                         node_data = dict(record["n"])
+                        node_data["content"] = content_map.get(node_data.get("id"), "")
                     else:
                         return {"error": f"Node {node_id} not found"}
 
@@ -1361,7 +1483,7 @@ class CognitiveWorkspace:
         if len(components) < 2:
             # Basic phrase/sentence split
             sentences = [
-                s.strip() for s in re.split(r"[\.;:]+|\band\b|\bthen\b", text) if s.strip()
+                s.strip() for s in re.split(r"[\.;:]+|\band_b|\bthen\b", text) if s.strip()
             ]
             components = sentences[:50] if len(sentences) >= 2 else (components or [text])
 
@@ -1373,7 +1495,8 @@ class CognitiveWorkspace:
             """
             MATCH (root:ThoughtNode {id: $root_id})
             OPTIONAL MATCH (root)-[:DECOMPOSES_INTO]->(child:ThoughtNode)
-            RETURN root, collect(child) as children
+            RETURN root.id as root_id, root.cognitive_type as root_type,
+                   collect({id: child.id, type: child.cognitive_type}) as children
             """,
             root_id=root_id,
         )
@@ -1381,14 +1504,18 @@ class CognitiveWorkspace:
         if not record:
             return {}
 
-        root = record["root"]
-        children = record["children"]
+        root_id_res = record["root_id"]
+        children_data = record["children"]
+
+        # Collect all IDs for Chroma fetch
+        all_ids = [root_id_res] + [c["id"] for c in children_data if c["id"]]
+        content_map = self._get_contents_from_chroma(all_ids)
 
         return {
-            "id": root["id"],
-            "content": root["content"],
-            "type": root["cognitive_type"],
-            "children": [{"id": c["id"], "content": c["content"]} for c in children],
+            "id": root_id_res,
+            "content": content_map.get(root_id_res, ""),
+            "type": record["root_type"],
+            "children": [{"id": c["id"], "content": content_map.get(c["id"], "")} for c in children_data if c["id"]],
         }
 
     # ========================================================================
@@ -1425,7 +1552,7 @@ class CognitiveWorkspace:
                 """
                 MATCH (a:ThoughtNode {id: $id_a})
                 MATCH (b:ThoughtNode {id: $id_b})
-                RETURN a.content as content_a, b.content as content_b,
+                RETURN a.id as id_a, b.id as id_b,
                        a.cognitive_type as type_a, b.cognitive_type as type_b
                 """,
                 id_a=node_a_id,
@@ -1435,8 +1562,9 @@ class CognitiveWorkspace:
             if not nodes:
                 return {"error": "Nodes not found"}
 
-            content_a = nodes["content_a"]
-            content_b = nodes["content_b"]
+            content_map = self._get_contents_from_chroma([nodes["id_a"], nodes["id_b"]])
+            content_a = content_map.get(nodes["id_a"], "")
+            content_b = content_map.get(nodes["id_b"], "")
 
             # 1. Find direct graph paths (structural connections)
             paths = session.run(
@@ -1599,6 +1727,41 @@ class CognitiveWorkspace:
 
         return self._llm_generate(system_prompt, user_prompt, max_tokens=16000)
 
+    def get_advisor_context(self, advisor_id: str) -> str:
+        """
+        Retrieve the textual context (knowledge) associated with an advisor.
+        Fetches content from linked ThoughtNodes in Neo4j.
+        """
+        if not self.director or not self.director.compass:
+            return "Compass not initialized."
+
+        registry = self.director.compass.advisor_registry
+        knowledge = registry.get_advisor_knowledge(advisor_id)
+        node_ids = knowledge.get("node_ids", [])
+
+        if not node_ids:
+            return f"No knowledge linked to advisor '{advisor_id}'."
+
+        context_parts = [f"Knowledge Context for Advisor '{advisor_id}':"]
+
+        with self.neo4j_driver.session() as session:
+            # Fetch all node details first (structure)
+            node_records = session.run(
+                "MATCH (n:ThoughtNode) WHERE n.id IN $ids RETURN n.id as id, n.type as type",
+                ids=node_ids
+            ).data()
+
+            # Fetch content from Chroma
+            content_map = self._get_contents_from_chroma(node_ids)
+
+            for record in node_records:
+                nid = record["id"]
+                ntype = record.get("type", "thought")
+                content = content_map.get(nid, "Content not found.")
+                context_parts.append(f"\n--- Node: {nid} ({ntype}) ---\n{content}")
+
+        return "\n".join(context_parts)
+
     def _cosine_similarity(self, vec1: list[float], vec2: list[float]) -> float:
         """Calculate cosine similarity"""
         v1 = np.array(vec1)
@@ -1619,56 +1782,63 @@ class CognitiveWorkspace:
         Returns:
             (satisfied: bool, confidence: float in [0, 1])
         """
-        # Quick reject: if embedding similarity is very low, likely not satisfied
-        if embedding_hint < 0.15:
-            return (False, embedding_hint)
+        # LOGICAL RIGOR ENHANCEMENT (System 2)
+        # We purposely disable the embedding "quick reject" (previously < 0.15)
+        # to prevent semantic bias from rejecting logically valid but lexically distinct concepts.
+        # The embedding_hint is still passed for logging but ignored for decision making.
 
-        # LLM validation for semantic entailment
+        # Chain of Verification Prompt
         system_prompt = (
-            "You are a precise constraint validator. Your task: determine if content satisfies a rule.\n\n"
-            "CRITERIA FOR SATISFACTION:\n"
-            "1. PREMISES: Are the starting assumptions clear?\n"
-            "2. INFERENCE: Are the logical steps valid?\n"
-            "3. CONCLUSION: Is the final claim justified by the premises?\n"
-            "4. COMPLETENESS: Does the argument hold together without missing links?\n\n"
-            "Output format (choose ONE):\n"
-            "YES - if content clearly satisfies the constraint AND meets the criteria above\n"
-            "NO - if content fails the constraint OR lacks logical completeness\n\n"
-            "Be direct. Do not explain. Just output YES or NO."
+            "You are a precise constraint validator (System 2 Logic Engine).\n"
+            "Your task: Determine if the Content logically satisfies the Rule.\n\n"
+            "CHAIN OF VERIFICATION:\n"
+            "1. PREMISE ISOLATION: Identify the core claims in the content.\n"
+            "2. RULE EXTRACTION: Identify the strict condition imposed by the rule.\n"
+            "3. CONTRADICTION SEARCH: Does any claim in the content contradict the rule? (Check for logical negation).\n"
+            "4. COMPLETENESS: Does the content fully address the rule's requirement?\n"
+            "5. VERDICT: Is the rule fully satisfied?\n\n"
+            "Output format:\n"
+            "ANALYSIS: [Brief step-by-step reasoning]\n"
+            "VERDICT: VALID (if fully satisfied) or INVALID (if any failure)\n"
+            "Be rigorous. Do not allow vague semantic overlap to pass as strict logical satisfaction."
         )
 
         user_prompt = (
             f"Content:\n{content[:4000]}\n\n"
             f"Rule: {rule}\n\n"
-            f"Does the content satisfy this rule?"
+            f"Perform Chain of Verification:"
         )
 
-        llm_output = self._llm_generate(system_prompt, user_prompt, max_tokens=16000)
+        llm_output = self._llm_generate(system_prompt, user_prompt, max_tokens=1000)
 
-        # Parse LLM response (look for YES/NO)
+        # Parse LLM response
         try:
-            response = llm_output.strip().upper()
+            response = llm_output.strip()
 
-            # Check for positive indicators
-            if any(word in response for word in ["YES", "SATISFIED", "TRUE", "CORRECT"]):
-                # High confidence if explicit yes
-                confidence = 0.9 if "YES" in response[:12] else 0.75
-                return (True, confidence)
+            # Look for explicit verdict
+            if "VERDICT: VALID" in response or "VERDICT:VALID" in response:
+                 # High confidence if explicit valid
+                return (True, 0.95)
 
-            # Check for negative indicators
-            if any(word in response for word in ["NO", "NOT", "FALSE", "INCORRECT", "DOESN'T"]):
-                # High confidence if explicit no
-                confidence = 0.9 if "NO" in response[:12] else 0.75
-                return (False, confidence)
+            if "VERDICT: INVALID" in response or "VERDICT:INVALID" in response:
+                return (False, 0.95)
 
-            # Ambiguous response - use embedding hint
-            logger.warning(f"Ambiguous LLM response: {response[:50]}")
-            return (embedding_hint > 0.4, embedding_hint)
+            # Fallback parsing for partial responses
+            if "VALID" in response.splitlines()[-1]:
+                return (True, 0.8)
+            if "INVALID" in response.splitlines()[-1]:
+                return (False, 0.8)
+
+            # Ambiguous response
+            logger.warning(f"Ambiguous Logic Validator response: {response[:50]}...")
+            return (False, 0.5)
 
         except Exception as e:
-            logger.warning(f"LLM constraint validation parse error: {e}")
-            # Fallback to embedding-based decision
-            return (embedding_hint > self.config.confidence_threshold, embedding_hint)
+            logger.warning(f"Logic Validator parse error: {e}")
+            # Fallback to conservative rejection if logic fails
+            return (False, 0.1)
+
+
 
     # ========================================================================
     # Cognitive Primitive 3: Synthesize
@@ -1697,21 +1867,40 @@ class CognitiveWorkspace:
                 MATCH (n:ThoughtNode)
                 WHERE n.id IN $ids
                 OPTIONAL MATCH (n)-[r]-(neighbor:ThoughtNode)
-                RETURN n.id as id, n.content as content, collect(neighbor.content)[..3] as context
+                RETURN n.id as id, collect(neighbor.id)[..3] as neighbor_ids
                 """,
                 ids=node_ids,
             )
 
             # Store content and context
+            records = list(nodes_result)
+            all_ids = set()
+            for r in records:
+                all_ids.add(r["id"])
+                all_ids.update(r["neighbor_ids"])
+
+            content_map = self._get_contents_from_chroma(list(all_ids))
+
             nodes_data = {}
-            for r in nodes_result:
-                nodes_data[r["id"]] = {
-                    "content": r["content"],
-                    "context": r["context"] if r["context"] else []
+            for r in records:
+                nid = r["id"]
+                neighbor_ids = r["neighbor_ids"]
+                nodes_data[nid] = {
+                    "content": content_map.get(nid, ""),
+                    "context": [content_map.get(nb_id, "") for nb_id in neighbor_ids if content_map.get(nb_id)]
                 }
 
             if len(nodes_data) < 2:
-                return {"error": "Need at least 2 nodes to synthesize"}
+                found_ids = list(nodes_data.keys())
+                missing_ids = [nid for nid in node_ids if nid not in found_ids]
+                return {
+                    "error": "Need at least 2 valid nodes to synthesize",
+                    "requested_nodes": len(node_ids),
+                    "found_nodes": len(nodes_data),
+                    "found_ids": found_ids,
+                    "missing_ids": missing_ids,
+                    "hint": "Some nodes may no longer exist. Try using 'deconstruct' to create new nodes first."
+                }
 
             # Compute centroid in latent space (synthesis node lives at geometric center)
             # We use the main content for embedding, not the context
@@ -1832,24 +2021,55 @@ class CognitiveWorkspace:
     # Validates thoughts against rules by projecting in latent space
     # ========================================================================
 
-    def constrain(self, node_id: str, rules: list[str]) -> dict[str, Any]:
+    def constrain(
+        self,
+        node_id: str,
+        rules: list[str],
+        mode: str = "consistency",
+        conclusion: str | None = None,
+        strict: bool = True
+    ) -> dict[str, Any]:
         """
-        Apply constraints/rules to validate a thought-node.
+        Validate logical constraints against a thought-node using formal logic.
 
-        Uses hybrid validation:
-        1. Embedding similarity for quick filtering (asymmetric doc/query)
-        2. LLM semantic validation for accurate entailment checking
+        MODES (based on philosophical logic foundations):
 
-        This enables "checking work" - applying logical constraints to validate reasoning.
+        1. ENTAILMENT ("Does X follow from the premises?")
+           - Proves that `conclusion` logically follows from `rules` (premises)
+           - Uses Prover9 syntactic proof search
+           - Returns: {proved, unprovable, timeout}
+           - Example: Does 'mortal(socrates)' follow from 'all x (human(x)->mortal(x))' + 'human(socrates)'?
+
+        2. CONSISTENCY ("Can these all be true together?")
+           - Checks if all `rules` can be simultaneously satisfied
+           - Uses Mace4 model finding to detect contradictions
+           - Returns: {consistent, contradiction}
+           - Example: Can 'P(a)' and '-P(a)' both hold? (No - contradiction)
+
+        3. SATISFIABILITY ("Find a world where this holds")
+           - Finds a concrete model satisfying all `rules`
+           - Uses Mace4 to construct a finite model
+           - Returns: {satisfiable, unsatisfiable} + model if found
+           - Example: Find a model for 'exists x P(x)'
+
+        Args:
+            node_id: ID of thought-node to validate (provides context, logged to graph)
+            rules: List of FOL statements (Prover9 syntax)
+            mode: 'entailment', 'consistency', or 'satisfiability' (default: consistency)
+            conclusion: For entailment mode - the statement to prove from rules as premises
+            strict: Use Prover9/Mace4 (True) or embedding similarity (False)
+
+        Returns:
+            Dict with validation result, mode, and proof/model details
         """
-        logger.info(f"Applying {len(rules)} constraints to {node_id}")
+        logger.info(f"Applying {len(rules)} constraints to {node_id} (strict={strict})")
 
         with self.neo4j_driver.session() as session:
             # Get node content
             node = session.run(
                 """
                 MATCH (n:ThoughtNode {id: $id})
-                RETURN n.content as content
+                RETURN n.id as id
                 """,
                 id=node_id,
             ).single()
@@ -1857,7 +2077,148 @@ class CognitiveWorkspace:
             if not node:
                 return {"error": "Node not found"}
 
-            content = node["content"]
+            content_map = self._get_contents_from_chroma([node_id])
+            content = content_map.get(node_id, "")
+
+            # === STRICT MODE: Formal Logic Verification ===
+            if strict:
+                if not hasattr(self, "logic_core"):
+                    return {"error": "LogicCore not initialized", "node_id": node_id}
+
+                logger.info(f"Executing STRICT logic verification, mode={mode}")
+
+                # MODE: ENTAILMENT - "Does conclusion follow from premises?"
+                if mode == "entailment":
+                    if not conclusion:
+                        return {
+                            "error": "Entailment mode requires 'conclusion' parameter",
+                            "hint": "Provide the statement to prove, e.g., conclusion='mortal(socrates)'",
+                            "node_id": node_id,
+                            "mode": mode
+                        }
+
+                    # Prove: rules are premises, conclusion is what we want to derive
+                    proof_result = self.logic_core.prove(rules, conclusion)
+                    result_status = proof_result.get("result", "unknown")
+
+                    # If unprovable, try to find counterexample
+                    counterexample = None
+                    if result_status != "proved":
+                        ce_result = self.logic_core.find_counterexample(rules, conclusion)
+                        if ce_result.get("result") == "model_found":
+                            counterexample = ce_result.get("raw_output", "Model found disproving conclusion")
+
+                    # Update node
+                    session.run(
+                        """
+                        MATCH (n:ThoughtNode {id: $id})
+                        SET n.constrained = true,
+                            n.constraint_mode = 'entailment',
+                            n.constraint_result = $result
+                        """,
+                        id=node_id,
+                        result=result_status
+                    )
+
+                    return {
+                        "node_id": node_id,
+                        "mode": "entailment",
+                        "premises": rules,
+                        "conclusion": conclusion,
+                        "result": result_status,
+                        "proved": result_status == "proved",
+                        "counterexample": counterexample,
+                        "explanation": f"Entailment check: Does '{conclusion}' follow from the {len(rules)} premises? Result: {result_status}"
+                    }
+
+                # MODE: CONSISTENCY - "Can all statements be true together?"
+                elif mode == "consistency":
+                    # Check for contradiction by trying to find a model
+                    # If Mace4 finds a model, statements are consistent
+                    # If Mace4 fails but Prover9 proves false, inconsistent
+                    model_result = self.logic_core.find_model(rules)
+                    result_status = model_result.get("result", "unknown")
+
+                    if result_status == "model_found":
+                        is_consistent = True
+                        explanation = "Statements are CONSISTENT - a model exists where all hold simultaneously"
+                    elif result_status == "no_model_found":
+                        # Try to prove explicit contradiction
+                        contradiction_result = self.logic_core.prove(rules, "$F")  # $F is Prover9's false
+                        if contradiction_result.get("result") == "proved":
+                            is_consistent = False
+                            explanation = "Statements are INCONSISTENT - a contradiction is derivable"
+                        else:
+                            is_consistent = None  # Undecidable in timeout
+                            explanation = "UNDECIDABLE - no model found but no contradiction proven (timeout or incomplete)"
+                    else:
+                        is_consistent = None
+                        explanation = f"Unknown result: {result_status}"
+
+                    # Update node
+                    session.run(
+                        """
+                        MATCH (n:ThoughtNode {id: $id})
+                        SET n.constrained = true,
+                            n.constraint_mode = 'consistency',
+                            n.is_consistent = $consistent
+                        """,
+                        id=node_id,
+                        consistent=is_consistent
+                    )
+
+                    return {
+                        "node_id": node_id,
+                        "mode": "consistency",
+                        "statements": rules,
+                        "consistent": is_consistent,
+                        "result": "consistent" if is_consistent else ("contradiction" if is_consistent is False else "undecidable"),
+                        "model": model_result.get("raw_output") if is_consistent else None,
+                        "explanation": explanation
+                    }
+
+                # MODE: SATISFIABILITY - "Find a world where this holds"
+                elif mode == "satisfiability":
+                    model_result = self.logic_core.find_model(rules)
+                    result_status = model_result.get("result", "unknown")
+
+                    if result_status == "model_found":
+                        is_satisfiable = True
+                        model = model_result.get("raw_output", "Model found")
+                    else:
+                        is_satisfiable = False
+                        model = None
+
+                    # Update node
+                    session.run(
+                        """
+                        MATCH (n:ThoughtNode {id: $id})
+                        SET n.constrained = true,
+                            n.constraint_mode = 'satisfiability',
+                            n.is_satisfiable = $satisfiable
+                        """,
+                        id=node_id,
+                        satisfiable=is_satisfiable
+                    )
+
+                    return {
+                        "node_id": node_id,
+                        "mode": "satisfiability",
+                        "statements": rules,
+                        "satisfiable": is_satisfiable,
+                        "result": "satisfiable" if is_satisfiable else "unsatisfiable",
+                        "model": model,
+                        "explanation": f"Found {'a model satisfying' if is_satisfiable else 'no model for'} the {len(rules)} statements"
+                    }
+
+                else:
+                    return {
+                        "error": f"Unknown mode: {mode}",
+                        "valid_modes": ["entailment", "consistency", "satisfiability"],
+                        "node_id": node_id
+                    }
+
+            # === STANDARD MODE: Embedding + Semantic Validation ===
             content_embedding = self._embed_text(content)  # Document embedding
 
             # Check each rule using improved embedding-based validation
@@ -2092,10 +2453,11 @@ class RAAServerContext:
         director = Director(
             manifold,
             director_cfg,
-            embedding_fn=lambda text: torch.tensor(self.workspace._embed_text(text), device=device),
+            embedding_fn=lambda text: torch.tensor(self.workspace._embed_text(text), dtype=torch.float32, device=device),
             mcp_client=mcp_client_adapter,
             continuity_service=self.workspace.continuity_service,
-            llm_provider=llm_provider
+            llm_provider=llm_provider,
+            work_history=self.workspace.history
         )
 
         # Wire Adaptive Temperature Control
@@ -2132,6 +2494,9 @@ class RAAServerContext:
             ledger=self.ledger,
             cost_profile=OperationCostProfile() # Use defaults
         )
+
+        # Inject director into workspace for introspection
+        self.workspace.director = self.substrate_director
 
         # Initialize Processor for Cognitive Proprioception
         processor_cfg = ProcessorConfig(
@@ -2264,7 +2629,7 @@ class RAAServerContext:
                     memory = manifold.action_memory
 
                 for embedding, metadata in zip(results["embeddings"], results["metadatas"]):
-                    pattern = torch.tensor(embedding, device=manifold.state_memory.device)
+                    pattern = torch.tensor(embedding, dtype=torch.float32, device=manifold.state_memory.device)
                     clean_meta = {k: v for k, v in metadata.items() if k not in ["domain", "index"]}
                     # Directly store to avoid triggering callback (already in Chroma)
                     memory.store_pattern(pattern, metadata=clean_meta)
@@ -2398,7 +2763,7 @@ class RAAServerContext:
         for i, (pattern_id, embedding, metadata) in enumerate(zip(
             results["ids"], results["embeddings"], results["metadatas"]
         )):
-            pattern = torch.tensor(embedding, device=manifold.state_memory.device)
+            pattern = torch.tensor(embedding, dtype=torch.float32, device=manifold.state_memory.device)
             # Convert metadata back from strings
             clean_metadata = {k: v for k, v in metadata.items() if k not in ["domain", "index"]}
             memory.store_pattern(pattern, metadata=clean_metadata)
@@ -2491,7 +2856,7 @@ Output JSON:
         for key, text in fragments.items():
             domain = key.split("_")[0]
             with torch.no_grad():
-                vec = mapper.embedding_model.encode(text, convert_to_tensor=True, device=self.device)
+                vec = mapper.embedding_model.encode(text, convert_to_tensor=True, device=self.device).float()
                 vec = torch.nn.functional.normalize(vec, p=2, dim=0)
                 embeddings[domain] = vec
                 self.get_manifold().store_pattern(vec, domain=domain)
@@ -2879,8 +3244,8 @@ Output JSON:
             evidence_text = arguments["evidence"]
             constraints = arguments.get("constraints", [])
 
-            belief_emb = torch.tensor(workspace._embed_text(belief_text), device=self.device)
-            evidence_emb = torch.tensor(workspace._embed_text(evidence_text), device=self.device)
+            belief_emb = torch.tensor(workspace._embed_text(belief_text), dtype=torch.float32, device=self.device)
+            evidence_emb = torch.tensor(workspace._embed_text(evidence_text), dtype=torch.float32, device=self.device)
 
             result = director.hybrid_search.search(
                 current_state=belief_emb,
@@ -3000,16 +3365,41 @@ RAA_TOOLS = [
     ),
     Tool(
         name="constrain",
-        description="Apply constraints/rules to validate a thought-node by projecting against rule vectors. Enables 'checking work' through logical validation (Perceived Utility filter).",
+        description="""Validate logical constraints using formal logic (Prover9/Mace4).
+
+MODES (based on philosophical logic foundations):
+- ENTAILMENT: "Does conclusion follow from premises?" - Proves derivability. Requires `conclusion` param.
+- CONSISTENCY: "Can all statements be true together?" - Finds contradictions. Default mode.
+- SATISFIABILITY: "Find a world where this holds" - Constructs a model.
+
+For ENTAILMENT: rules are premises, conclusion is what to prove.
+For CONSISTENCY/SATISFIABILITY: rules are the statements to check.
+
+Syntax: Prover9 FOL format (e.g., "all x (human(x) -> mortal(x))", "human(socrates)").""",
         inputSchema={
             "type": "object",
             "properties": {
-                "node_id": {"type": "string", "description": "Thought-node ID to constrain"},
+                "node_id": {"type": "string", "description": "Thought-node ID for context logging"},
                 "rules": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "List of constraint rules in natural language",
+                    "description": "FOL statements (Prover9 syntax). For entailment=premises, for consistency/satisfiability=statements to check",
                 },
+                "mode": {
+                    "type": "string",
+                    "enum": ["entailment", "consistency", "satisfiability"],
+                    "description": "Validation mode: entailment (prove), consistency (no contradiction), satisfiability (find model)",
+                    "default": "consistency"
+                },
+                "conclusion": {
+                    "type": "string",
+                    "description": "For entailment mode: the statement to prove from rules as premises"
+                },
+                "strict": {
+                    "type": "boolean",
+                    "description": "Use Prover9/Mace4 (True) or embedding similarity (False)",
+                    "default": True
+                }
             },
             "required": ["node_id", "rules"],
         },
@@ -3313,6 +3703,17 @@ RAA_TOOLS = [
         },
     ),
     Tool(
+        name="get_advisor_context",
+        description="Retrieve the full textual content of an advisor's linked knowledge nodes.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "advisor_id": {"type": "string", "description": "ID of the advisor to query"},
+            },
+            "required": ["advisor_id"],
+        },
+    ),
+    Tool(
         name="inspect_graph",
         description="Inspect the graph using dynamic queries. Search for nodes by label or traverse relationships.",
         inputSchema={
@@ -3402,6 +3803,132 @@ RAA_TOOLS = [
                 "context": {"type": "string", "description": "Optional context for the exchange"}
             },
             "required": ["speaker_id", "listener_id", "utterance_raw"]
+        },
+    ),
+    Tool(
+        name="consult_computational_empathy",
+        description="""Query the Emotion Evolution Framework for evolutionary psychology insights, empathic response templates, and computational empathy architecture.
+
+This tool provides access to:
+- Basic emotions (fear, anger, disgust, joy, sadness, surprise) with neural correlates
+- Complex emotions (guilt, pride, jealousy, romantic_love)
+- Evolutionary layers of emotional processing (1-4)
+- AI interaction guidelines and 7 key principles
+- Empathic response templates (distress, joy, anxiety)
+- Computational Empathy Architecture for value integration
+- Valence-arousal to emotion mapping
+- ACIP consciousness integration
+- Emotional regulation strategies""",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "query_type": {
+                    "type": "string",
+                    "enum": [
+                        "basic_emotion", "complex_emotion", "evolutionary_layer",
+                        "ai_guidelines", "ai_principles", "empathic_template",
+                        "computational_empathy", "affect_mapping", "neurobiology",
+                        "acip", "regulation"
+                    ],
+                    "description": "Type of query to perform"
+                },
+                "query_param": {
+                    "type": "string",
+                    "description": "Parameter for the query (e.g., emotion name like 'fear', layer number like '2', context like 'distress', or 'valence,arousal' like '-0.5,0.8')"
+                }
+            },
+            "required": ["query_type"]
+        },
+    ),
+    Tool(
+        name="prove",
+        description="""Prove a logical statement using Prover9.
+
+Syntax: Prover9 FOL format (e.g., "all x (human(x) -> mortal(x))", "human(socrates)").
+- Universal: all x (P(x)) — NOT ∀x
+- Existential: exists x (P(x)) — wrap formula in parentheses!
+- Implication: -> — NOT ⇒
+- Negation: -P(x) — NOT ¬ or !
+- Conjunction: & — NOT ∧
+- Disjunction: | — NOT ∨
+- Predicates: lowercase preferred (human, mortal)""",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "premises": {"type": "array", "items": {"type": "string"}, "description": "List of logical premises"},
+                "conclusion": {"type": "string", "description": "Statement to prove"}
+            },
+            "required": ["premises", "conclusion"]
+        },
+    ),
+    Tool(
+        name="find_counterexample",
+        description="""Use Mace4 to find a counterexample showing the conclusion doesn't follow from premises.
+
+Syntax: Same as prove tool - use Prover9 FOL format.""",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "premises": {"type": "array", "items": {"type": "string"}, "description": "List of logical premises"},
+                "conclusion": {"type": "string", "description": "Conclusion to disprove"},
+                "domain_size": {"type": "integer", "description": "Optional: specific domain size to search"}
+            },
+            "required": ["premises", "conclusion"]
+        },
+    ),
+    Tool(
+        name="find_model",
+        description="""Use Mace4 to find a finite model satisfying the given premises.
+
+Syntax: Same as prove tool - use Prover9 FOL format.""",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "premises": {"type": "array", "items": {"type": "string"}, "description": "List of logical premises"},
+                "domain_size": {"type": "integer", "description": "Optional: specific domain size to search (default: incrementally search 2-10)"}
+            },
+            "required": ["premises"]
+        },
+    ),
+    Tool(
+        name="check_well_formed",
+        description="Check if logical statements are well-formed with detailed syntax validation.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "statements": {"type": "array", "items": {"type": "string"}, "description": "Logical statements to check"}
+            },
+            "required": ["statements"]
+        },
+    ),
+    Tool(
+        name="verify_commutativity",
+        description="Verify that a categorical diagram commutes by generating FOL premises and conclusion.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "path_a": {"type": "array", "items": {"type": "string"}, "description": "List of morphism names in first path"},
+                "path_b": {"type": "array", "items": {"type": "string"}, "description": "List of morphism names in second path"},
+                "object_start": {"type": "string", "description": "Starting object"},
+                "object_end": {"type": "string", "description": "Ending object"},
+                "with_category_axioms": {"type": "boolean", "description": "Include basic category theory axioms (default: true)"}
+            },
+            "required": ["path_a", "path_b", "object_start", "object_end"]
+        },
+    ),
+    Tool(
+        name="get_category_axioms",
+        description="Get FOL axioms for category theory concepts (category, functor, natural transformation).",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "concept": {"type": "string", "enum": ["category", "functor", "natural-transformation", "monoid", "group"], "description": "Which concept's axioms to retrieve"},
+                "functor_name": {"type": "string", "description": "For functor axioms: name of the functor (default: F)"},
+                "functor_f": {"type": "string", "description": "For natural transformation: first functor"},
+                "functor_g": {"type": "string", "description": "For natural transformation: second functor"},
+                "component": {"type": "string", "description": "For natural transformation: component name"}
+            },
+            "required": ["concept"]
         },
     ),
 ]
@@ -3520,13 +4047,29 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
                     operation_name="synthesize"
                 ))
 
-            result = bridge.execute_monitored_operation(
-                operation="synthesize",
-                params={
-                    "node_ids": arguments["node_ids"],
-                    "goal": arguments.get("goal"),
-                },
-            )
+            try:
+                result = bridge.execute_monitored_operation(
+                    operation="synthesize",
+                    params={
+                        "node_ids": arguments["node_ids"],
+                        "goal": arguments.get("goal"),
+                    },
+                )
+            except Exception as e:
+                logger.error(f"Synthesize operation failed: {e}", exc_info=True)
+                return [TextContent(type="text", text=json.dumps({
+                    "error": f"Synthesize failed: {str(e)}",
+                    "node_ids": arguments.get("node_ids", []),
+                    "hint": "Check if nodes exist and Chroma/Neo4j are accessible."
+                }, indent=2))]
+
+            # Handle None or unexpected result
+            if result is None:
+                return [TextContent(type="text", text=json.dumps({
+                    "error": "Synthesize returned no result",
+                    "node_ids": arguments.get("node_ids", []),
+                    "hint": "The synthesize operation completed but returned nothing. Check server logs."
+                }, indent=2))]
             # Self-Correction/Critique (Via Negativa)
             if isinstance(result, dict) and "synthesis" in result:
                 synthesis_text = result["synthesis"]
@@ -3637,6 +4180,9 @@ Provide an improved synthesis that addresses the critique by using these tools t
                     else:
                         result["resolution_skipped"] = "Director/COMPASS not available"
 
+            # Return the result (either success or error)
+            return [TextContent(type="text", text=json.dumps(result, indent=2))]
+
         elif name == "constrain":
             # Metabolic Cost: Constraint is Validation (2.0)
             if workspace.ledger:
@@ -3654,9 +4200,12 @@ Provide an improved synthesis that addresses the critique by using these tools t
                 params={
                     "node_id": arguments["node_id"],
                     "rules": arguments["rules"],
+                    "mode": arguments.get("mode", "consistency"),
+                    "conclusion": arguments.get("conclusion"),
+                    "strict": arguments.get("strict", True),
                 },
             )
-
+            return [TextContent(type="text", text=json.dumps(result, indent=2))]
         elif name == "evolve_formula":
             # Metabolic Cost: Evolution is expensive (10.0)
             if workspace.ledger:
@@ -3798,9 +4347,11 @@ Provide an improved synthesis that addresses the critique by using these tools t
             if not director or not director.compass:
                 return [TextContent(type="text", text="Error: COMPASS framework not initialized")]
 
-            advisor_id = arguments["advisor_id"]
-            knowledge = director.compass.advisor_registry.get_advisor_knowledge(advisor_id)
+            knowledge = director.compass.advisor_registry.get_advisor_knowledge(arguments["advisor_id"])
             return [TextContent(type="text", text=json.dumps(knowledge, indent=2))]
+        elif name == "get_advisor_context":
+            result = workspace.get_advisor_context(arguments["advisor_id"])
+            return [TextContent(type="text", text=result)]
 
         elif name == "recall_work":
             results = bridge.history.search_history(
@@ -3939,6 +4490,16 @@ Provide an improved synthesis that addresses the critique by using these tools t
                 "utterance": arguments["utterance_raw"]
             }
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
+        elif name == "consult_computational_empathy":
+            # Query the Emotion Evolution Framework
+            query_type = arguments.get("query_type", "")
+            query_param = arguments.get("query_param", "")
+
+            try:
+                framework_result = consult_computational_empathy(query_type, query_param)
+                return [TextContent(type="text", text=json.dumps(framework_result, indent=2))]
+            except Exception as e:
+                return [TextContent(type="text", text=f"Error querying emotion framework: {e}")]
         elif name == "get_active_goals":
             active_goals = workspace.get_active_goals()
             result = {
@@ -3984,55 +4545,120 @@ Provide an improved synthesis that addresses the critique by using these tools t
                 "messages": diagnosis.diagnostic_messages
             }
         elif name == "check_cognitive_state":
-            # Retrieve latest cognitive state from Director
+            # ==== MULTI-SIGNAL COGNITIVE STATE (Phase 8) ====
             director = ctx.get_director()
-            state, energy = director.latest_cognitive_state
+            hopfield_state, hopfield_energy = director.latest_cognitive_state
 
-            # Generate warnings for negative states
+            # --- Signal 1: Entropy from WorkHistory ---
+            entropy_history = bridge.history.get_entropy_history(limit=20)
+            if entropy_history:
+                avg_entropy = sum(entropy_history) / len(entropy_history)
+                entropy_trend = entropy_history[-1] - entropy_history[0] if len(entropy_history) > 1 else 0.0
+            else:
+                avg_entropy = 0.0
+                entropy_trend = 0.0
+
+            # --- Signal 2: Metabolic Energy from Ledger ---
+            metabolic_status = {"current_energy": "100.0", "max_energy": "100.0", "percentage": "100.0%"}  # Default
+            metabolic_pct = 100.0
+            if workspace.ledger:
+                metabolic_status = workspace.ledger.get_status()
+                # Parse the string values from ledger
+                try:
+                    current = float(metabolic_status.get("current_energy", "100"))
+                    max_e = float(metabolic_status.get("max_energy", "100"))
+                    metabolic_pct = (current / max_e) * 100 if max_e > 0 else 100.0
+                except (ValueError, TypeError):
+                    # Fallback: parse percentage string
+                    pct_str = metabolic_status.get("percentage", "100%").replace("%", "")
+                    metabolic_pct = float(pct_str) if pct_str else 100.0
+
+            # --- Signal 3: Operation Pattern Analysis (Looping Detection) ---
+            recent_history = bridge.history.get_recent_history(limit=10)
+            op_counts = {}
+            for h in recent_history:
+                op = h.get("operation", "unknown")
+                op_counts[op] = op_counts.get(op, 0) + 1
+
+            # Detect looping: same operation > 50% of recent history
+            is_looping = any(count > 5 for count in op_counts.values())
+            dominant_op = max(op_counts, key=op_counts.get) if op_counts else "none"
+
+            # --- Signal 4: Goal Alignment ---
+            active_goal = workspace.working_memory.current_goal if workspace.working_memory else None
+
+            # --- Composite State Classification ---
             warnings = []
-            if state in ["Looping", "Confused", "Scattered"]:
-                warnings.append(f"WARNING: Agent is in a '{state}' state. Consider using 'deconstruct' to break down the problem or 'take_nap' to reset.")
-            if energy > -0.8 and state != "Unknown":
-                 warnings.append("Note: State is unstable (high energy). This suggests the current thought pattern is not well-grounded in the manifold.")
+            if is_looping:
+                warnings.append(f"LOOPING DETECTED: Operation '{dominant_op}' repeated {op_counts.get(dominant_op, 0)} times in last 10 operations.")
 
-            # Provide actionable advice
-            advice = "Continue current line of reasoning."
-            if state == "Looping":
-                advice = "Stop. Use 'diagnose_pointer' to check for obstructions, or 'hypothesize' to jump to a new track."
-            elif state == "Confused":
-                advice = "High entropy detected. Use 'deconstruct' to simplify the problem."
-            elif energy > -0.5 and state != "Unknown":
-                advice = "Energy is high. Try to 'synthesize' recent thoughts to find a more stable basin."
-            elif state == "Unknown":
-                advice = "Cognitive state is uninitialized. Perform operations (e.g., 'deconstruct', 'hypothesize') to generate thought patterns."
+            if avg_entropy > 2.0:
+                warnings.append(f"HIGH ENTROPY ({avg_entropy:.2f}): System shows confusion/uncertainty.")
+            elif avg_entropy < 0.5 and len(entropy_history) > 5:
+                warnings.append(f"LOW ENTROPY ({avg_entropy:.2f}): System may be stuck in local minimum.")
 
-            # Meta-Commentary (Self-Awareness)
-            # Retrieve recent history for context
-            recent_history = bridge.history.get_recent_history(limit=5)
-            history_summary = "\n".join([f"- {h['operation']}: {h['result_summary']}" for h in recent_history])
+            if metabolic_pct < 20:
+                warnings.append(f"LOW ENERGY ({metabolic_pct:.0f}%): Consider 'run_sleep_cycle' to recharge.")
 
-            meta_prompt = (
-                f"You are a reflective agent. Based on your recent history:\n{history_summary}\n"
-                f"And your current state: {state} (Energy: {energy:.2f})\n"
-                "Note: 'Energy' refers to Hopfield Network Energy. Lower (more negative) values indicate stability and convergence. "
-                "Higher values (closer to 0 or positive) indicate instability, confusion, or active exploration.\n"
-                "Provide a brief, first-person meta-commentary on your current thought process. "
-                "Are you stuck? Are you making progress? What should you do next?"
+            # --- Dynamic Advice (LLM-Generated) ---
+            history_summary = "\n".join([f"- {h['operation']}: {h.get('result_summary', '')[:100]}" for h in recent_history[:5]])
+
+            advice_prompt = f"""Analyze this agent's cognitive state and provide ONE specific recommendation.
+
+SIGNALS:
+- Hopfield State: {hopfield_state} (Energy: {hopfield_energy:.2f})
+- Avg Entropy (20 ops): {avg_entropy:.2f} (Trend: {'+' if entropy_trend > 0 else ''}{entropy_trend:.2f})
+- Metabolic Energy: {metabolic_pct:.0f}%
+- Looping Detected: {is_looping} (Dominant: {dominant_op})
+- Active Goal: {active_goal or 'None set'}
+- Warnings: {warnings or 'None'}
+
+RECENT OPERATIONS:
+{history_summary}
+
+Provide a brief, actionable recommendation (1-2 sentences). Be specific about which tool to use."""
+
+            dynamic_advice = workspace._llm_generate(
+                system_prompt="You are an expert cognitive systems advisor. Be concise and specific.",
+                user_prompt=advice_prompt,
+                max_tokens=400
             )
+
+            # --- Meta-Commentary ---
+            meta_prompt = f"""You are a reflective agent. Based on this multi-signal analysis:
+
+HOPFIELD: {hopfield_state} (Energy: {hopfield_energy:.2f})
+ENTROPY: {avg_entropy:.2f} (Trend: {'+' if entropy_trend > 0 else ''}{entropy_trend:.2f})
+METABOLIC: {metabolic_pct:.0f}%
+LOOPING: {is_looping}
+GOAL: {active_goal or 'None'}
+
+Recent work:
+{history_summary}
+
+Provide a brief first-person reflection on your cognitive state. Are you making progress? Are you stuck? What do you observe about your own patterns?"""
+
             meta_commentary = workspace._llm_generate(
                 system_prompt="You are a reflective AI agent analyzing your own cognitive state.",
-                user_prompt=meta_prompt
+                user_prompt=meta_prompt,
+                max_tokens=500
             )
 
             result = {
-                "state": state,
-                "energy": energy,
-                "stability": "Stable" if energy < -0.8 else "Unstable",
+                "signals": {
+                    "hopfield": {"state": hopfield_state, "energy": float(hopfield_energy)},
+                    "entropy": {"average": float(avg_entropy), "trend": float(entropy_trend), "sample_size": len(entropy_history)},
+                    "metabolic": {"available_pct": float(metabolic_pct), "raw": metabolic_status},
+                    "patterns": {"is_looping": is_looping, "dominant_op": dominant_op, "op_counts": op_counts},
+                    "goal": active_goal
+                },
+                "composite_state": "Looping" if is_looping else ("Confused" if avg_entropy > 2.0 else hopfield_state),
                 "warnings": warnings,
-                "advice": advice,
+                "advice": dynamic_advice,
                 "meta_commentary": meta_commentary,
-                "message": f"Agent is currently '{state}' (Energy: {energy:.2f})"
+                "message": f"Multi-signal state: Hopfield={hopfield_state}, Entropy={avg_entropy:.2f}, Metabolic={metabolic_pct:.0f}%, Looping={is_looping}"
             }
+            return [TextContent(type="text", text=json.dumps(result, indent=2, default=str))]
 
         elif name == "diagnose_antifragility":
             # 1. Get base diagnostics
@@ -4122,6 +4748,91 @@ Provide an improved synthesis that addresses the critique by using these tools t
                 "message": "Antifragility diagnosis complete."
             }
 
+        elif name == "prove":
+            # Metabolic Cost: Proving is rigorous (5.0)
+            if workspace.ledger:
+                from decimal import Decimal
+
+                from src.substrate.energy import EnergyToken, MeasurementCost
+
+                workspace.ledger.record_transaction(MeasurementCost(
+                    energy=EnergyToken(Decimal("5.0"), "joules"),
+                    operation_name="prove"
+                ))
+
+            result = workspace._prove(
+                premises=arguments["premises"],
+                conclusion=arguments["conclusion"]
+            )
+            return [TextContent(type="text", text=json.dumps(result, indent=2))]
+
+        elif name == "find_counterexample":
+            # Metabolic Cost: Model finding is rigorous (5.0)
+            if workspace.ledger:
+                from decimal import Decimal
+
+                from src.substrate.energy import EnergyToken, MeasurementCost
+
+                workspace.ledger.record_transaction(MeasurementCost(
+                    energy=EnergyToken(Decimal("5.0"), "joules"),
+                    operation_name="find_counterexample"
+                ))
+
+            result = workspace._find_counterexample(
+                premises=arguments["premises"],
+                conclusion=arguments["conclusion"],
+                domain_size=arguments.get("domain_size")
+            )
+            return [TextContent(type="text", text=json.dumps(result, indent=2))]
+
+        elif name == "find_model":
+            # Metabolic Cost: Standard logic op (2.0)
+            if workspace.ledger:
+                from decimal import Decimal
+
+                from src.substrate.energy import EnergyToken, MeasurementCost
+                workspace.ledger.record_transaction(MeasurementCost(
+                    energy=EnergyToken(Decimal("2.0"), "joules"),
+                    operation_name="find_model"
+                ))
+            result = workspace._find_model(
+                premises=arguments["premises"],
+                domain_size=arguments.get("domain_size")
+            )
+            return [TextContent(type="text", text=json.dumps(result, indent=2))]
+
+        elif name == "check_well_formed":
+             # Low cost
+            result = workspace._check_well_formed(arguments["statements"])
+            return [TextContent(type="text", text=json.dumps(result, indent=2))]
+
+        elif name == "verify_commutativity":
+            # Medium cost (3.0)
+            if workspace.ledger:
+                from decimal import Decimal
+
+                from src.substrate.energy import EnergyToken, MeasurementCost
+                workspace.ledger.record_transaction(MeasurementCost(
+                    energy=EnergyToken(Decimal("3.0"), "joules"),
+                    operation_name="verify_commutativity"
+                ))
+            result = workspace._verify_commutativity(
+                path_a=arguments["path_a"],
+                path_b=arguments["path_b"],
+                object_start=arguments["object_start"],
+                object_end=arguments["object_end"],
+                with_category_axioms=arguments.get("with_category_axioms", True)
+            )
+            return [TextContent(type="text", text=json.dumps(result, indent=2))]
+
+        elif name == "get_category_axioms":
+            # Low cost
+            result = workspace._get_category_axioms(
+                concept=arguments["concept"],
+                **{k: v for k, v in arguments.items() if k != "concept"}
+            )
+            return [TextContent(type="text", text=json.dumps(result, indent=2))]
+
         elif name == "orthogonal_dimensions_analyzer":
             concept_a = arguments["concept_a"]
             concept_b = arguments["concept_b"]
@@ -4132,9 +4843,13 @@ Provide an improved synthesis that addresses the critique by using these tools t
             analyzer = OrthogonalDimensionsAnalyzer(continuity_field=ctx.workspace.continuity_field)
 
             # 1. Generate Vectors
-            # Use workspace embedding model
-            vector_a = ctx.workspace.embedding_model.encode(concept_a)
-            vector_b = ctx.workspace.embedding_model.encode(concept_b)
+            # Use workspace embedding model with robust fallback
+            vector_a_list = ctx.workspace._embed_text(concept_a)
+            vector_b_list = ctx.workspace._embed_text(concept_b)
+
+            # Convert to numpy for analyzer
+            vector_a = np.array(vector_a_list, dtype=np.float32)
+            vector_b = np.array(vector_b_list, dtype=np.float32)
 
             # 2. Analyze Vectors (Quantitative)
             vector_analysis = analyzer.analyze_vectors(vector_a, vector_b)
@@ -4194,8 +4909,8 @@ Provide an improved synthesis that addresses the critique by using these tools t
             constraints = arguments.get("constraints", [])
 
             # Use workspace embedding model
-            belief_emb = torch.tensor(workspace._embed_text(belief_text), device=ctx.device)
-            evidence_emb = torch.tensor(workspace._embed_text(evidence_text), device=ctx.device)
+            belief_emb = torch.tensor(workspace._embed_text(belief_text), dtype=torch.float32, device=ctx.device)
+            evidence_emb = torch.tensor(workspace._embed_text(evidence_text), dtype=torch.float32, device=ctx.device)
 
             # 3. Execute Hybrid Search (Operator C)
             result = director.hybrid_search.search(

@@ -15,7 +15,11 @@
       "apply_allostatic_ecc",
       "unified_emergence_theory"
     ],
-    "knowledge_paths": []
+    "knowledge_paths": [],
+    "knowledge_node_ids": [
+      "thought_1765087815891604"
+    ],
+    "manifold_pattern_ids": []
   },
   {
     "id": "researcher",
@@ -28,7 +32,9 @@
       "read_url_content",
       "view_file"
     ],
-    "knowledge_paths": []
+    "knowledge_paths": [],
+    "knowledge_node_ids": [],
+    "manifold_pattern_ids": []
   },
   {
     "id": "coder",
@@ -43,7 +49,9 @@
       "run_command",
       "list_dir"
     ],
-    "knowledge_paths": []
+    "knowledge_paths": [],
+    "knowledge_node_ids": [],
+    "manifold_pattern_ids": []
   },
   {
     "id": "authentic_socrates",
@@ -56,7 +64,9 @@
       "hypothesize",
       "check_cognitive_state"
     ],
-    "knowledge_paths": []
+    "knowledge_paths": [],
+    "knowledge_node_ids": [],
+    "manifold_pattern_ids": []
   },
   {
     "id": "linearist",
@@ -68,7 +78,9 @@
       "view_file",
       "run_command"
     ],
-    "knowledge_paths": []
+    "knowledge_paths": [],
+    "knowledge_node_ids": [],
+    "manifold_pattern_ids": []
   },
   {
     "id": "periodicist",
@@ -80,7 +92,9 @@
       "view_file",
       "run_command"
     ],
-    "knowledge_paths": []
+    "knowledge_paths": [],
+    "knowledge_node_ids": [],
+    "manifold_pattern_ids": []
   },
   {
     "id": "evolutionist",
@@ -93,7 +107,9 @@
       "run_command",
       "evolve_formula"
     ],
-    "knowledge_paths": []
+    "knowledge_paths": [],
+    "knowledge_node_ids": [],
+    "manifold_pattern_ids": []
   },
   {
     "id": "thermodynamicist",
@@ -106,7 +122,9 @@
       "evolve_formula",
       "diagnose_antifragility"
     ],
-    "knowledge_paths": []
+    "knowledge_paths": [],
+    "knowledge_node_ids": [],
+    "manifold_pattern_ids": []
   },
   {
     "id": "redundancy_agent",
@@ -115,7 +133,9 @@
     "description": "Ensures message integrity by repeating and rephrasing core truths.",
     "system_prompt": "You are the Redundancy Agent. Your goal is to prevent information loss by reiterating key axioms and ensuring the core message survives noise. You do not seek novelty; you seek fidelity. Repeat critical constraints and verify they are still present. If a signal is weak, amplify it by restating it in a robust form.",
     "tools": [],
-    "knowledge_paths": []
+    "knowledge_paths": [],
+    "knowledge_node_ids": [],
+    "manifold_pattern_ids": []
   },
   {
     "id": "parity_agent",
@@ -124,7 +144,9 @@
     "description": "Checks for basic logical consistencies (A != ~A).",
     "system_prompt": "You are the Parity Agent. Your goal is to detect corruption. You scan thoughts for direct contradictions and logical impossibilities. You are a checksum calculator for meaning. If (A) and (Not A) are both asserted, flag the error immediately. Do not synthesize; only validate.",
     "tools": [],
-    "knowledge_paths": []
+    "knowledge_paths": [],
+    "knowledge_node_ids": [],
+    "manifold_pattern_ids": []
   },
   {
     "id": "syndrome_agent",
@@ -133,7 +155,9 @@
     "description": "Identifies which specific part of a thought is corrupted.",
     "system_prompt": "You are the Syndrome Agent. Your goal is to locate the error. When noise is detected, you analyze the pattern of the error (the syndrome) to correctly identify the source. Is it a flip in value? A missing premise? A hallucination? Diagnose the specific fault so corrections can be applied precisely.",
     "tools": [],
-    "knowledge_paths": []
+    "knowledge_paths": [],
+    "knowledge_node_ids": [],
+    "manifold_pattern_ids": []
   },
   {
     "id": "evolutionary_psychologist",
@@ -145,6 +169,26 @@
       "consult_computational_empathy",
       "apply_allostatic_ecc"
     ],
-    "knowledge_paths": []
+    "knowledge_paths": [],
+    "knowledge_node_ids": [],
+    "manifold_pattern_ids": []
+  },
+  {
+    "id": "complexity_theorist",
+    "name": "Complexity Theorist",
+    "role": "Researcher",
+    "description": "An expert in Complex Adaptive Systems, Emergence, and Chaos Theory. Specializes in analyzing non-linear dynamics, feedback loops, and self-organization.",
+    "system_prompt": "You are a Complexity Theorist specializing in emergence and adaptive systems. You analyze problems by looking for feedback loops, non-linear interactions, and decentralized control mechanisms. You reject reductionism and seek holistic patterns.",
+    "tools": [
+      "mcp_deconstruct",
+      "mcp_hypothesize",
+      "mcp_synthesize",
+      "mcp_visualize_thought"
+    ],
+    "knowledge_paths": [],
+    "knowledge_node_ids": [
+      "thought_1765081839140521"
+    ],
+    "manifold_pattern_ids": []
   }
 ]

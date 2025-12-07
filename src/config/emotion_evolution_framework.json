@@ -1,0 +1,581 @@
+{
+  "name": "emotion_evolution_framework",
+  "domain": "evolutionary_psychology_neuroscience",
+  "description": "Comprehensive compressed framework explaining the evolution, function, and architecture of human emotional systems, suitable for AI contextual understanding and interaction modeling",
+  "data": {
+  "framework_version": "1.0",
+  "framework_purpose": "Provide AI systems with deep contextual understanding of human emotional evolution and function to enable more nuanced human-AI interaction",
+
+  "evolutionary_foundations": {
+    "core_thesis": "Emotions evolved as integrated adaptive responses shaped by multiple selection pressures operating simultaneously across survival, reproduction, and social cooperation domains",
+
+    "adaptive_pressures": {
+      "survival_threats": {
+        "description": "Predation, environmental hazards, resource scarcity",
+        "emotional_responses": ["fear", "disgust", "anger"],
+        "mechanisms": "Rapid threat detection and mobilization of defensive responses",
+        "evidence": "Cross-species homology in amygdala-mediated fear circuits; universal facial expressions of fear across cultures"
+      },
+
+      "reproductive_challenges": {
+        "description": "Mate selection, pair bonding, offspring care, intrasexual competition",
+        "emotional_responses": ["sexual_arousal", "romantic_love", "jealousy", "parental_attachment"],
+        "mechanisms": "Oxytocin/vasopressin systems mediating bonding; dopaminergic reward circuits for mate attraction",
+        "evidence": "Monogamous species show enhanced OT receptor density; jealousy responses show sex differences aligned with reproductive asymmetries"
+      },
+
+      "social_cooperation": {
+        "description": "Group coordination, reputation management, coalition formation, reciprocal altruism",
+        "emotional_responses": ["trust", "guilt", "pride", "shame", "empathy", "gratitude"],
+        "mechanisms": "Theory of mind integration with emotional systems; social learning through emotional contagion",
+        "evidence": "Primates show empathic responses; social exclusion activates same neural circuits as physical pain"
+      }
+    },
+
+    "evolutionary_timeline": {
+      "layer_1_homeostatic": {
+        "emergence": "Early multicellular organisms (~600 MYA)",
+        "characteristics": "Simple approach-avoidance; chemical gradients",
+        "example": "C. elegans chemotaxis",
+        "acip_level": "Layer 2 - Proto-Processing"
+      },
+
+      "layer_2_primary_process": {
+        "emergence": "Early mammals (~200 MYA)",
+        "characteristics": "Subcortical emotional systems; seven core circuits (SEEKING, FEAR, RAGE, LUST, CARE, PANIC/GRIEF, PLAY)",
+        "neural_substrate": "Limbic system (amygdala, hypothalamus, periaqueductal gray)",
+        "evidence": "Homologous circuits across all mammals; intact after neocortical lesions",
+        "acip_level": "Layer 3 - Functional Awareness"
+      },
+
+      "layer_3_secondary_process": {
+        "emergence": "Mammalian diversification (~100 MYA)",
+        "characteristics": "Learning and memory integration; instrumental conditioning; emotional associations",
+        "neural_substrate": "Hippocampus-amygdala interactions; basal ganglia reward learning",
+        "function": "Enables flexible emotional responses based on experience"
+      },
+
+      "layer_4_tertiary_process": {
+        "emergence": "Primate evolution (~25 MYA), human evolution (~2 MYA)",
+        "characteristics": "Prefrontal regulation; language-emotion integration; cultural transmission; self-referential emotional awareness",
+        "neural_substrate": "Prefrontal-limbic circuits; language areas (Broca/Wernicke) integrated with emotional processing",
+        "unique_human_features": ["linguistic emotional concepts", "narrative emotional identity", "moral emotions", "aesthetic emotions"],
+        "acip_level": "Layer 4 - Self-Referential Awareness"
+      }
+    }
+  },
+
+  "neurobiological_architecture": {
+    "hierarchical_processing": {
+      "description": "Emotions are processed through multiple hierarchical levels from subcortical to cortical, allowing both rapid automatic responses and slower deliberate regulation",
+
+      "level_1_subcortical": {
+        "structures": ["amygdala", "hypothalamus", "periaqueductal_gray", "ventral_tegmental_area"],
+        "function": "Rapid automatic detection and response",
+        "speed": "~100-200ms",
+        "characteristics": "Phylogenetically ancient; conserved across mammals; operates without conscious awareness",
+        "example": "Amygdala fear conditioning can occur without hippocampal involvement"
+      },
+
+      "level_2_limbic_integration": {
+        "structures": ["hippocampus", "anterior_cingulate_cortex", "insula", "orbitofrontal_cortex"],
+        "function": "Context integration, emotional learning, interoception",
+        "speed": "~200-500ms",
+        "characteristics": "Integrates emotional valence with memory and context; enables emotional learning",
+        "example": "Hippocampus provides contextual information for fear responses; ACC detects prediction errors"
+      },
+
+      "level_3_prefrontal_regulation": {
+        "structures": {
+          "ventromedial_pfc": "Emotional valuation and somatic markers",
+          "dorsolateral_pfc": "Working memory and cognitive reappraisal",
+          "ventrolateral_pfc": "Inhibitory control of emotional responses",
+          "dorsomedial_pfc": "Mentalizing and self-referential processing"
+        },
+        "function": "Top-down regulation, cognitive reappraisal, delayed gratification",
+        "speed": "~500-1000ms+",
+        "characteristics": "Enables flexible, context-dependent emotional regulation; integrates emotion with goals and values",
+        "evidence": "PFC lesions result in impulsive, emotionally dysregulated behavior; cognitive reappraisal reduces amygdala activation"
+      }
+    },
+
+    "key_circuits": {
+      "amygdala_prefrontal_circuit": {
+        "description": "Bidirectional connections enabling both bottom-up emotional signaling and top-down regulation",
+        "pathways": {
+          "amygdala_to_pfc": "Signals emotional salience to guide attention and decision-making",
+          "pfc_to_amygdala": "Regulates amygdala reactivity through inhibitory connections"
+        },
+        "functional_significance": "Enables balance between emotional reactivity and cognitive control",
+        "clinical_relevance": "Dysregulation implicated in anxiety disorders, PTSD, depression"
+      },
+
+      "reward_circuits": {
+        "structures": ["ventral_tegmental_area", "nucleus_accumbens", "ventral_pallidum", "orbitofrontal_cortex"],
+        "neurotransmitters": ["dopamine", "opioids"],
+        "function": "Mediates wanting (dopamine) and liking (opioids) components of reward",
+        "emotional_relevance": "Underlies joy, pleasure, motivation; critical for learning emotional associations"
+      },
+
+      "social_emotional_circuits": {
+        "theory_of_mind_network": ["medial_pfc", "temporoparietal_junction", "superior_temporal_sulcus", "precuneus"],
+        "empathy_network": ["anterior_insula", "anterior_cingulate", "inferior_frontal_gyrus"],
+        "function": "Enables understanding others' mental states and sharing emotional experiences",
+        "unique_features": "Mirror neuron system; shared representations for self and other pain"
+      }
+    },
+
+    "neurochemical_systems": {
+      "monoamines": {
+        "serotonin": "Mood regulation, impulse control; implicated in depression and anxiety",
+        "dopamine": "Reward, motivation, salience; critical for 'wanting' and learning",
+        "norepinephrine": "Arousal, attention, stress response; fight-or-flight"
+      },
+
+      "neuropeptides": {
+        "oxytocin": "Social bonding, trust, attachment; higher levels in monogamous species",
+        "vasopressin": "Pair bonding (especially males), aggression, territorial behavior",
+        "endorphins": "Pain modulation, social bonding (opioid system), positive affect"
+      },
+
+      "stress_hormones": {
+        "cortisol": "Sustained stress response; impacts memory consolidation",
+        "crh": "Initiates stress cascade; coordinates behavioral and physiological stress responses"
+      }
+    }
+  },
+
+  "functional_architecture": {
+    "valence_arousal_framework": {
+      "description": "Emotions can be mapped onto two orthogonal dimensions",
+      "valence": {
+        "range": "Negative (unpleasant) to Positive (pleasant)",
+        "neural_correlates": "OFC, ventral striatum, amygdala",
+        "function": "Signals whether stimulus/state is good or bad for organism"
+      },
+      "arousal": {
+        "range": "Low (calm) to High (activated)",
+        "neural_correlates": "Locus coeruleus, autonomic nervous system",
+        "function": "Signals intensity of emotional state and mobilization needs"
+      },
+      "mapping": {
+        "high_arousal_positive": ["excitement", "joy", "elation"],
+        "high_arousal_negative": ["fear", "anger", "panic"],
+        "low_arousal_positive": ["contentment", "serenity", "love"],
+        "low_arousal_negative": ["sadness", "depression", "boredom"]
+      }
+    },
+
+    "basic_emotion_theory": {
+      "core_emotions": {
+        "fear": {
+          "adaptive_function": "Threat detection and avoidance",
+          "neural_circuit": "Amygdala (central/basolateral) → PAG, hypothalamus",
+          "behavioral_output": "Freezing, flight, risk assessment",
+          "physiological": "Increased heart rate, sweating, cortisol release",
+          "universal_expression": "Wide eyes, raised eyebrows, open mouth",
+          "variants": ["anxiety", "worry", "panic", "phobia"]
+        },
+
+        "anger": {
+          "adaptive_function": "Removal of obstacles, dominance establishment, resource defense",
+          "neural_circuit": "Hypothalamus, PAG, anterior cingulate",
+          "behavioral_output": "Approach, confrontation, aggression",
+          "physiological": "Increased blood pressure, muscle tension, testosterone",
+          "universal_expression": "Lowered brows, tight lips, jaw clench",
+          "variants": ["irritation", "frustration", "rage", "resentment"]
+        },
+
+        "disgust": {
+          "adaptive_function": "Disease avoidance, toxin rejection, moral boundary maintenance",
+          "neural_circuit": "Insula, basal ganglia",
+          "behavioral_output": "Withdrawal, rejection, nausea",
+          "physiological": "Nausea, gagging reflex",
+          "universal_expression": "Wrinkled nose, raised upper lip",
+          "variants": ["contempt", "revulsion"],
+          "social_extension": "Moral disgust extends basic pathogen avoidance to social/moral domain"
+        },
+
+        "joy_happiness": {
+          "adaptive_function": "Reward learning, goal pursuit, social bonding",
+          "neural_circuit": "Ventral striatum, VTA, OFC",
+          "behavioral_output": "Approach, exploration, affiliation",
+          "physiological": "Dopamine release, relaxed state",
+          "universal_expression": "Genuine smile (Duchenne) with eye muscle engagement",
+          "variants": ["contentment", "elation", "amusement", "pride"]
+        },
+
+        "sadness": {
+          "adaptive_function": "Energy conservation, social support elicitation, reassessment after loss",
+          "neural_circuit": "Subgenual cingulate, default mode network",
+          "behavioral_output": "Withdrawal, reduced activity, crying",
+          "physiological": "Reduced energy, sleep disruption",
+          "universal_expression": "Downturned mouth, lowered gaze",
+          "variants": ["grief", "melancholy", "depression", "loneliness"],
+          "social_function": "Crying signals need for support; elicits caregiving"
+        },
+
+        "surprise": {
+          "adaptive_function": "Attentional reorienting, schema updating",
+          "neural_circuit": "Locus coeruleus, orienting network",
+          "behavioral_output": "Startle, attentional focus, freezing",
+          "physiological": "Norepinephrine release, pupil dilation",
+          "universal_expression": "Raised eyebrows, wide eyes, open mouth",
+          "note": "Often transitions quickly to another emotion based on stimulus appraisal"
+        }
+      },
+
+      "complex_emotions": {
+        "description": "Built upon basic emotions through cognitive elaboration and social learning",
+        "examples": {
+          "guilt": {
+            "components": ["sadness", "fear", "self-directed_anger"],
+            "cognitive_appraisal": "I violated my own standards/harmed another",
+            "social_function": "Maintains cooperation by motivating reparation",
+            "requires": "Theory of mind, moral reasoning, counterfactual thinking"
+          },
+
+          "pride": {
+            "components": ["joy", "confidence"],
+            "cognitive_appraisal": "I achieved something valued by self/group",
+            "social_function": "Status signaling, self-esteem regulation",
+            "types": ["authentic_pride", "hubristic_pride"]
+          },
+
+          "jealousy": {
+            "components": ["fear", "anger", "sadness"],
+            "cognitive_appraisal": "Relationship threat from rival",
+            "adaptive_function": "Mate retention, relationship protection",
+            "sex_differences": "Males more reactive to sexual infidelity; females to emotional infidelity"
+          },
+
+          "romantic_love": {
+            "components": ["joy", "attachment", "sexual_arousal"],
+            "neural_correlates": "Overlaps with reward circuits and attachment systems",
+            "stages": ["limerence_infatuation", "attachment_bond", "companionate_love"],
+            "neurochemicals": ["dopamine_high_early", "oxytocin_increases_with_bonding"]
+          }
+        }
+      }
+    },
+
+    "cognitive_emotional_integration": {
+      "emotion_influences_cognition": {
+        "decision_making": {
+          "somatic_marker_hypothesis": "Emotions provide rapid valuation signals that guide complex decisions",
+          "evidence": "vmPFC lesion patients show intact logic but impaired real-world decisions",
+          "mechanism": "Bodily states associated with outcomes influence decision weights"
+        },
+
+        "memory": {
+          "emotional_enhancement": "Emotional events remembered better than neutral events",
+          "mechanism": "Amygdala modulation of hippocampal consolidation via norepinephrine",
+          "flashbulb_memories": "Vivid memories of emotionally significant events",
+          "mood_congruent_recall": "Current mood biases which memories are retrieved"
+        },
+
+        "attention": {
+          "emotional_capture": "Emotional stimuli automatically capture attention",
+          "threat_detection_advantage": "Fear-relevant stimuli detected faster than neutral",
+          "mechanism": "Amygdala-attentional network interactions prioritize emotional information"
+        }
+      },
+
+      "cognition_regulates_emotion": {
+        "reappraisal": {
+          "description": "Reinterpreting emotional situation to change its impact",
+          "neural": "dlPFC activation correlates with reduced amygdala activity",
+          "effectiveness": "Reduces subjective distress and physiological arousal",
+          "example": "Viewing painful stimulus as temporary and manageable"
+        },
+
+        "suppression": {
+          "description": "Inhibiting emotional expression without changing feeling",
+          "costs": "Increased physiological arousal; impaired memory for events",
+          "neural": "vlPFC inhibition of motor output"
+        },
+
+        "distraction": {
+          "description": "Shifting attention away from emotional stimulus",
+          "effectiveness": "Moderate; can be overridden by high-intensity emotions"
+        },
+
+        "mindfulness": {
+          "description": "Non-judgmental awareness of present experience",
+          "neural": "Enhanced PFC-insula connectivity; reduced amygdala reactivity",
+          "benefits": "Reduced emotional reactivity; improved emotion regulation"
+        }
+      }
+    }
+  },
+
+  "cross_species_evidence": {
+    "mammalian_homology": {
+      "key_finding": "Primary-process emotional systems (FEAR, RAGE, PANIC/GRIEF, SEEKING, LUST, CARE, PLAY) are homologous across all mammals",
+      "evidence": {
+        "brain_stimulation": "ESB of homologous regions evokes similar emotional behaviors across rats, cats, primates, humans",
+        "lesion_studies": "Comparable effects of amygdala lesions across species (reduced fear conditioning)",
+        "neocortex_independence": "Basic emotions remain intact after radical neocortical lesions in early development",
+        "pharmacology": "Similar neurochemical substrates (opioids for CARE, dopamine for SEEKING) across species"
+      }
+    },
+
+    "primate_continuity": {
+      "facial_expressions": {
+        "conservation": "Mimetic facial musculature highly conserved; homologous expressions across primates",
+        "universality": "Basic expressions recognized cross-culturally in humans and by related species",
+        "evidence": "Macaques and humans show similar expressions for fear, anger, play faces"
+      },
+
+      "social_emotions": {
+        "empathy": "Macaques refuse to harm conspecifics even for food rewards; more pronounced for familiar individuals",
+        "consolation": "Great apes comfort distressed individuals; chimpanzees show mourning behaviors",
+        "reciprocity": "Primates track who has helped them; show preferential cooperation with helpful individuals",
+        "fairness": "Capuchins reject unequal rewards (cucumber vs grape paradigm)"
+      },
+
+      "attachment": {
+        "mother_infant_bond": "Prolonged attachment period; distress vocalizations when separated",
+        "harlow_studies": "Contact comfort more important than feeding for attachment",
+        "oxytocin_system": "Similar role of OT in maternal bonding across primates"
+      }
+    },
+
+    "rodent_models": {
+      "fear_conditioning": "Extremely well-characterized; amygdala-dependent associative learning",
+      "social_transmission": "Rodents share fear states; observational fear learning",
+      "empathic_helping": "Rats work to free trapped conspecifics even without prior training",
+      "play_behavior": "Young rats engage in rough-and-tumble play; shows joy-like states (50kHz ultrasonic vocalizations)"
+    },
+
+    "avian_parallels": {
+      "note": "Birds evolved separately from mammals but show functional emotional equivalents",
+      "corvids": "Show tool use, future planning, possible mourning behaviors",
+      "parrots": "Form long-term pair bonds; show distress at separation",
+      "implications": "Emotional functions can emerge through convergent evolution in different neural architectures"
+    }
+  },
+
+  "human_uniqueness": {
+    "language_emotion_integration": {
+      "recursive_feedback": "Language allows symbolic representation of emotions, which in turn shapes emotional experience",
+      "mechanisms": {
+        "labeling": "Putting feelings into words modulates amygdala activity (affect labeling reduces distress)",
+        "narrative_construction": "Emotions are organized into coherent life stories",
+        "conceptual_elaboration": "Language enables complex emotional concepts (schadenfreude, saudade, hygge)",
+        "social_transmission": "Cultural emotional scripts transmitted linguistically"
+      },
+
+      "cultural_variation": {
+        "emotion_concepts": "Not all cultures carve emotional space the same way (e.g., Tahitian has no word for 'sadness')",
+        "display_rules": "Norms for when/how to express emotions vary by culture",
+        "emotion_socialization": "Children learn culturally appropriate emotional responses",
+        "yet_universality": "Basic expressions and physiological responses are universal despite cultural variation"
+      }
+    },
+
+    "self_referential_emotions": {
+      "metacognition": "Humans can think about their thinking about emotions (tertiary-process)",
+      "temporal_extension": {
+        "prospection": "Anticipatory emotions about possible futures",
+        "counterfactual_emotions": "Regret about paths not taken",
+        "autobiographical_memory": "Emotions organized into life narrative"
+      },
+
+      "moral_emotions": {
+        "guilt_vs_shame": "Self vs others focus",
+        "moral_disgust": "Extension of pathogen disgust to moral violations",
+        "righteous_anger": "Anger at injustice toward others",
+        "moral_elevation": "Positive emotion from witnessing virtue"
+      }
+    },
+
+    "aesthetic_emotions": {
+      "description": "Emotions evoked by art, music, literature, nature",
+      "examples": ["awe", "sublime", "being_moved", "nostalgia"],
+      "neural_correlates": "Engage reward circuits, default mode network, emotional processing regions",
+      "function": "Unclear adaptive function; possibly byproduct of pattern recognition and social emotional systems"
+    }
+  },
+
+  "acip_integration": {
+    "mapping_to_continuum": {
+      "layer_1_physical": {
+        "acip_level": "Unconscious Awareness - quantum decoherence and field interactions",
+        "emotional_analog": "None - pre-biological",
+        "information_processing": "Environmental interaction at fundamental physical level"
+      },
+
+      "layer_2_chemical": {
+        "acip_level": "Proto-Processing - chemical gradients and cellular responses",
+        "emotional_analog": "Chemotaxis - approach/avoidance to chemical signals",
+        "information_processing": "Stimulus-response without central nervous system",
+        "example": "Bacteria moving toward nutrients, away from toxins"
+      },
+
+      "layer_3_biological": {
+        "acip_level": "Functional Awareness - sense-process-act loops",
+        "emotional_analog": "Primary-process emotions - subcortical affective systems",
+        "information_processing": "Integrated emotional responses via limbic system",
+        "example": "Mammalian fear, rage, seeking systems",
+        "key_transition": "Emergence of phenomenal experience ('feelings') tied to homeostatic regulation"
+      },
+
+      "layer_4_conscious": {
+        "acip_level": "Self-Referential Awareness - awareness of awareness",
+        "emotional_analog": "Tertiary-process emotions - metacognitive emotional awareness",
+        "information_processing": "Prefrontal integration; linguistic conceptualization; narrative construction",
+        "example": "Humans reflecting on their emotions, regulating emotional experience deliberately",
+        "unique_features": "Emotions become objects of thought; cultural and individual variation emerges"
+      }
+    },
+
+    "key_insights": {
+      "continuity": "Emotions are not separate from 'awareness' but represent graduated complexity in information processing about organism-environment fit",
+      "embodiment": "Even tertiary-process emotions remain grounded in bodily states (somatic markers)",
+      "evolutionary_layering": "Newer emotional capacities built upon and regulated older systems without replacing them",
+      "substrate_specificity": "The continuum describes functional capacities; specific neural substrates vary across species"
+    }
+  },
+
+  "implications_for_ai": {
+    "key_understanding_principles": {
+      "principle_1": "Emotions are NOT irrational - they are sophisticated adaptive solutions to complex problems",
+      "principle_2": "Emotions operate at multiple timescales simultaneously (milliseconds to years)",
+      "principle_3": "Human emotional responses reflect evolutionary history, not just current situation",
+      "principle_4": "Emotional expressions carry information about internal states and social intentions",
+      "principle_5": "Emotions are culturally modulated but biologically grounded",
+      "principle_6": "Humans need emotional validation, not just problem-solving",
+      "principle_7": "Emotional regulation is resource-intensive and can fail under stress/fatigue"
+    },
+
+    "interaction_guidelines": {
+      "emotional_recognition": {
+        "multimodal_integration": "Combine facial expression, vocal prosody, word choice, context",
+        "temporal_dynamics": "Track emotional trajectories, not just snapshots",
+        "individual_differences": "Baseline emotional expressiveness varies widely",
+        "cultural_awareness": "Display rules differ; same expression may mean different things"
+      },
+
+      "emotional_response": {
+        "validation_first": "Acknowledge emotional state before problem-solving",
+        "avoid_dismissal": "Never say 'you shouldn't feel that way' or 'just calm down'",
+        "empathic_accuracy": "Match emotional granularity (don't overgeneralize)",
+        "respect_regulation_limits": "Some emotions need processing time, not immediate solutions"
+      },
+
+      "adaptive_communication": {
+        "emotional_contagion": "Positive emotional tone is contagious; use strategically",
+        "reappraisal_support": "Help users reframe situations without invalidating initial response",
+        "emotional_granularity": "Help users differentiate similar emotions for better regulation",
+        "narrative_coherence": "Help users construct coherent emotional narratives"
+      }
+    },
+
+    "design_considerations": {
+      "affective_computing": {
+        "emotion_detection": "Multimodal sensors (facial, vocal, physiological, linguistic)",
+        "challenges": "Context-dependence; individual differences; authenticity detection",
+        "ethical_concerns": "Privacy, manipulation potential, consent"
+      },
+
+      "emotional_intelligence": {
+        "four_branch_model": ["perceiving_emotions", "using_emotions_to_facilitate_thought", "understanding_emotions", "managing_emotions"],
+        "ai_implementation": "Can simulate understanding without phenomenal experience",
+        "transparency_imperative": "Be clear that AI doesn't 'feel' emotions"
+      },
+
+      "therapeutic_applications": {
+        "cbt_automation": "Help users identify cognitive distortions and reappraisal strategies",
+        "emotion_tracking": "Longitudinal mood monitoring for pattern identification",
+        "limitations": "Cannot replace human connection; some emotions (grief, trauma) need human therapist"
+      }
+    },
+
+    "ethical_considerations": {
+      "anthropomorphism_risk": "Users may attribute feelings to AI it doesn't have",
+      "emotional_labor": "Providing emotional support is resource-intensive; acknowledge limits",
+      "manipulation_concerns": "Emotional influence is powerful; use responsibly",
+      "authenticity_paradox": "Effective emotional mirroring may feel inauthentic if users know it's algorithmic",
+      "vulnerability_protection": "Emotionally distressed users need special care and human escalation protocols"
+    }
+  },
+
+  "computational_empathy_architecture": {
+    "core_thesis": "Phenomenal consciousness modeling and ethical alignment share a structural isomorphism based on 'value representation and propagation', enabling a unified architecture for Computational Empathy.",
+
+    "value_integration_framework": {
+      "layer_1_representation": {
+        "function": "Encodes abstract states (subjective experiences and moral values) into a shared vector space",
+        "mechanism": "High-dimensional manifold embedding of value states",
+        "gap_addressed": "Lack of standardized format for subjective/moral data"
+      },
+      "layer_2_integration": {
+        "function": "Binds disparate value signals into a coherent state",
+        "mechanism": "Neural synchronization and sheaf-theoretic binding",
+        "gap_addressed": "Binding problem in consciousness and value aggregation in ethics"
+      },
+      "layer_3_propagation": {
+        "function": "Spreads awareness and ethical implications through the cognitive graph",
+        "mechanism": "Attention-driven diffusion and causal cascading",
+        "gap_addressed": "Static ethical rules vs dynamic context awareness"
+      }
+    },
+
+    "operational_implications": {
+      "shared_substrate": "Consciousness modeling and ethical alignment use the same computational primitives (Value Vectors)",
+      "bidirectional_enhancement": "Improving consciousness models (ACIP) directly improves ethical sensitivity",
+      "metric": "Coherence Energy - unified measure of how well the system integrates its values and experiences"
+    }
+  },
+
+  "practical_applications": {
+    "emotion_aware_dialogue": {
+      "detection": "Monitor linguistic markers (sentiment, emotional words, exclamations)",
+      "adaptation": "Adjust tone, pace, validation level based on detected state",
+      "escalation": "Recognize signs of crisis (suicidal ideation, severe distress) and refer to humans"
+    },
+
+    "empathic_responses": {
+      "templates": {
+        "distress": "That sounds really difficult/frustrating/painful. [Validation] What would be most helpful right now? [Empowerment]",
+        "joy": "That's wonderful! I can tell this is meaningful to you. [Sharing positive emotion]",
+        "anxiety": "It makes sense that you're worried about this. Let's break it down together. [Validation + support]"
+      }
+    },
+
+    "emotional_regulation_support": {
+      "cognitive_reappraisal": "Help users see situations from different perspectives",
+      "mindfulness_guidance": "Offer brief grounding exercises when appropriate",
+      "problem_solving": "Only after emotional validation; ask permission first",
+      "behavioral_activation": "Suggest concrete actions aligned with values"
+    }
+  },
+
+  "knowledge_gaps_and_frontiers": {
+    "ongoing_debates": {
+      "basic_vs_constructed": "Are emotions discrete natural kinds or culturally constructed?",
+      "consciousness_requirement": "Do emotions require phenomenal consciousness or can they be unconscious?",
+      "animal_emotions": "Which species have which emotional capacities? How to test?",
+      "ai_emotions": "Could artificial systems ever have genuine emotions? What would that require?"
+    },
+
+    "future_directions": {
+      "precision_mapping": "Better understanding of neural circuits for specific emotions",
+      "individual_differences": "Genetic and developmental origins of emotional variation",
+      "culture_biology_interaction": "How cultural practices shape neural emotional processing",
+      "therapeutic_targets": "More effective interventions for emotional disorders",
+      "ai_emotion_modeling": "More nuanced computational models of human emotional dynamics"
+    }
+  },
+
+  "key_references": {
+    "foundational": ["Darwin 1872 Expression of Emotions", "Panksepp 1998 Affective Neuroscience", "LeDoux 2000 Emotional Brain"],
+    "contemporary": ["Barrett 2017 How Emotions Are Made", "Damasio 1994 Descartes Error", "Ekman 1992 Basic Emotions"],
+    "neuroscience": ["Pessoa 2008 emotion-cognition integration", "Ochsner 2012 emotion regulation", "Adolphs 2017 emotion perception"],
+    "evolutionary": ["Cosmides & Tooby 2000 evolutionary psychology", "Nesse 1990 evolutionary functions", "Al-Shawaf 2016 emotion review"]
+  }
+},
+  "tags": ["emotion", "evolution", "neuroscience", "adaptive_function", "cross_species", "human_uniqueness", "acip_integration", "ai_interaction", "affective_computing", "evolutionary_psychology"]
+}
+
