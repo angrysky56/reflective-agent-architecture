@@ -343,3 +343,22 @@ constrain(node_id="...", mode="consistency",
   6.  **Meta (L5)**: Joint attention (meta-communication).
 - **Output**: Returns `total_score` (0-1), `per_level` scores, `strongest_level`, `weakest_level`, and `critical_gaps`.
 - **Applications**: Inter-agent communication analysis, Theory of Mind modeling, measuring discordance for Topological Tomography.
+
+## 10. Computational Empathy (Emotion Framework)
+
+**Tool**: `consult_computational_empathy`
+
+- **When**: You need evolutionary psychology insights, empathic response templates, or understanding of human emotional systems.
+- **Action**: Call `consult_computational_empathy(query_type="...", query_param="...")`.
+- **Query Types**:
+  - `basic_emotion`: Get neural correlates, variants for fear/anger/disgust/joy/sadness/surprise.
+  - `complex_emotion`: Get components for guilt/pride/jealousy/romantic_love.
+  - `evolutionary_layer`: Get layer 1-4 details (homeostatic → tertiary process).
+  - `ai_guidelines`: Get full AI interaction guidelines.
+  - `ai_principles`: Get the 7 key principles for AI understanding emotions.
+  - `empathic_template`: Get response templates for distress/joy/anxiety contexts.
+  - `computational_empathy`: Get the Value Integration Architecture.
+  - `affect_mapping`: Map valence,arousal to likely emotions (compatible with `compute_grok_depth`).
+  - `acip`: Get ACIP consciousness integration mapping.
+  - `regulation`: Get emotional regulation strategies (reappraisal, mindfulness, etc.).
+- **Applications**: Understanding user emotional state, crafting empathic responses, ethical AI interaction design.

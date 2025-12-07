@@ -166,12 +166,20 @@ Delegate a complex task to the COMPASS cognitive framework. Use this for tasks r
 - **Levels**: Signal (somatic), Symbol (lexical), Syntax (structural), Semantics (perspective), Pragmatics (functional), Meta (joint attention).
 - **Applications**: Inter-agent communication analysis, ToM modeling, discordance measurement for Topological Tomography.
 
-#### 6. Operator C (Belief Revision)
+#### 7. Computational Empathy (Emotion Framework)
+
+- **Tool**: `consult_computational_empathy`
+- **Implementation**: Loads and queries the Emotion Evolution Framework (`src/config/emotion_evolution_framework.json`).
+- **Function**: Provides evolutionary psychology insights, empathic response templates, and AI interaction guidelines.
+- **Query Types**: Basic emotions, complex emotions, evolutionary layers, AI principles, empathic templates, valence-arousal mapping, ACIP integration.
+- **Applications**: Understanding emotional context, crafting empathic responses, ethical AI design.
+
+#### 8. Operator C (Belief Revision)
 
 - **Tool**: `revise`
 - **Mechanism**: Hybrid search combining Logic Tensor Networks (LTN) truth values and Hopfield energy minimization to refine beliefs against evidence and constraints.
 
-#### 7. Evolutionary Optimization (Genetic Programming + Local Refinement)
+#### 9. Evolutionary Optimization (Genetic Programming + Local Refinement)
 
 - **Tool**: `evolve_formula`
 - **Function**: Discovers symbolic mathematical formulas from data using Genetic Programming with optional hybrid local optimization.
@@ -181,19 +189,19 @@ Delegate a complex task to the COMPASS cognitive framework. Use this for tasks r
   - **Hybrid Mode**: Combines GP's structural search with Nelder-Mead local constant refinement for precise solutions.
 - **Applications**: Harmonic function recovery, symbolic regression, reverse-engineering physical laws.
 
-#### 8. LogicCore (Formal Verification)
+#### 10. LogicCore (Formal Verification)
 
 - **Implementation**: Direct integration with Prover9/Mace4 binaries (self-contained in `src/cognition/ladr/bin`).
 - **Tools**: `prove`, `find_counterexample`, `find_model`, `check_well_formed`, `verify_commutativity`, `get_category_axioms`.
 - **Function**: Provides rigorous First-Order Logic verification, model finding, and category theory support.
 - **Integration**: The `constrain` tool supports `strict=true` mode for Prover9-backed validation.
 
-#### 8. Stereoscopic Engine (Dual-Layer Dynamics)
+#### 11. Stereoscopic Engine (Dual-Layer Dynamics)
 
 - **Function**: Orchestrates interaction between the "Generative Function" (LLM) and the "Continuity Field" (System 1).
 - **Plasticity Gate**: A dynamic filter that controls learning rate based on uncertainty (Code Length). High uncertainty opens the gate (high plasticity); low uncertainty closes it.
 
-#### 9. Reflexive Closure (Recursive Observer)
+#### 12. Reflexive Closure (Recursive Observer)
 
 - **Concept**: Layer 4 (Director) observing its own intervention patterns to modify its own observation criteria (Self-Modification).
 - **Components**:
@@ -203,7 +211,7 @@ Delegate a complex task to the COMPASS cognitive framework. Use this for tasks r
   - **Reflexive Engine**: Orchestrates the loop, enabling the system to "escape its instruction set" by evolving its own control parameters.
 - **Safety**: Implements a "Constitution" of immutable meta-constraints (e.g., Conservation of Expected Utility) to prevent wireheading during self-modification.
 
-#### 10. Thermodynamics (Energy & Entropy)
+#### 13. Thermodynamics (Energy & Entropy)
 
 - **Energy Token System**:
   - **Metabolic Ledger**: Tracks "Joules" as a scarce resource.
@@ -216,7 +224,7 @@ Delegate a complex task to the COMPASS cognitive framework. Use this for tasks r
     - **EXPLORE**: High entropy, divergent behavior (broad search).
   - **Regulation**: High entropy triggers "Focus" mechanisms; low entropy triggers "Explore" mechanisms.
 
-#### 11. Intrinsic Motivation (The Ruminator)
+#### 14. Intrinsic Motivation (The Ruminator)
 
 - **Curiosity Drive**:
   - **Boredom Tracking**: Detects repetitive actions and triggers "Boredom".
