@@ -74,7 +74,13 @@ constrain: Apply constraints/rules to validate a thought-node by projecting agai
   1.  **Retrieval**: Fetches content AND context (neighbors) for the selected nodes.
   2.  **Centroid**: Computes the geometric center in latent space.
   3.  **Generation**: Uses the LLM to merge the concepts, guided by the context.
-- **Output**: Returns the synthesis text AND a **Self-Critique** assessing its coherence.
+  4.  **Self-Critique**: Automatically critiques the synthesis for coherence.
+  5.  **Auto-Resolution**: If critique is **ACTIONABLE** (not missing external data), the Director automatically engages COMPASS to resolve using available tools.
+- **Output**: Returns the synthesis text, a **Self-Critique**, and if auto-resolved: `auto_resolved: true`, `resolution_method: "Director/COMPASS"`.
+- **Critique Classifications**:
+  - **ACCEPTABLE**: Minor issues, returns as-is.
+  - **ACTIONABLE**: Director/COMPASS automatically resolves using `explore_for_utility`, `hypothesize`, `deconstruct`, or `inspect_knowledge_graph`.
+  - **MISSING_DATA**: Requires external information—returns to user for input.
 - **Deep Analysis**: If the synthesis reveals a conceptual tension (e.g., "Optimization vs Adaptation"), use `orthogonal_dimensions_analyzer` to map it.
 
 ### Phase 4: Adaptation (Cognitive Control)
@@ -257,3 +263,20 @@ You have the unique ability to "feel" your own thinking process.
 - **When**: The task is too complex for a single step or requires multi-modal reasoning (SHAPE, SMART, SLAP).
 - **Action**: Call `consult_compass(task="...")`.
 - **Mechanism**: Delegates the task to the full COMPASS architecture, which performs input analysis, objective planning, and reasoning before executing.
+
+## 9. Empathetic Alignment (Grok-Lang)
+
+**Tool**: `compute_grok_depth`
+
+- **When**: You need to analyze alignment or discordance between two mind-states (e.g., different agent perspectives, speaker/listener dynamics).
+- **Action**: Call `compute_grok_depth(speaker_id="...", listener_id="...", utterance_raw="...", speaker_intent="assert|question|request|promise|express|declare")`.
+- **Mechanism**: Computes alignment across six cognitive levels:
+  1.  **Signal (L0)**: Somatic/affective resonance (VAD similarity).
+  2.  **Symbol (L1)**: Lexical alignment (shared vocabulary).
+  3.  **Syntax (L2)**: Structural pattern recognition.
+  4.  **Semantics (L3)**: Perspective taking (belief overlap).
+  5.  **Pragmatics (L4)**: Functional empathy (intent + goal compatibility).
+  6.  **Meta (L5)**: Joint attention (meta-communication).
+- **Output**: Returns `total_score` (0-1), `per_level` scores, `strongest_level`, `weakest_level`, and `critical_gaps`.
+- **Applications**: Inter-agent communication analysis, Theory of Mind modeling, measuring discordance for Topological Tomography.
+

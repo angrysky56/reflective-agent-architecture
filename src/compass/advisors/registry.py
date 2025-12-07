@@ -18,6 +18,9 @@ logger = COMPASSLogger("AdvisorRegistry")
 class AdvisorProfile:
     """
     Profile for a specialized Advisor.
+
+    Advisors can now be linked to ThoughtNodes in the knowledge graph,
+    giving them persistent, learnable identities.
     """
     id: str
     name: str
@@ -26,6 +29,10 @@ class AdvisorProfile:
     system_prompt: str
     tools: List[str] = field(default_factory=list)
     knowledge_paths: List[str] = field(default_factory=list)
+    # NEW: Links to ThoughtNodes in Neo4j for persistent advisor knowledge
+    knowledge_node_ids: List[str] = field(default_factory=list)
+    # NEW: Associated patterns in Manifold for advisor-specific retrieval
+    manifold_pattern_ids: List[str] = field(default_factory=list)
 
     def to_dict(self) -> Dict:
         return {
@@ -35,11 +42,17 @@ class AdvisorProfile:
             "description": self.description,
             "system_prompt": self.system_prompt,
             "tools": self.tools,
-            "knowledge_paths": self.knowledge_paths
+            "knowledge_paths": self.knowledge_paths,
+            "knowledge_node_ids": self.knowledge_node_ids,
+            "manifold_pattern_ids": self.manifold_pattern_ids
         }
 
     @classmethod
     def from_dict(cls, data: Dict) -> "AdvisorProfile":
+        # Handle backward compatibility for old advisor files
+        # without knowledge_node_ids or manifold_pattern_ids
+        data.setdefault("knowledge_node_ids", [])
+        data.setdefault("manifold_pattern_ids", [])
         return cls(**data)
 
 
@@ -127,19 +140,67 @@ class AdvisorRegistry:
         return self.advisors.get(advisor_id)
 
     def load_advisors(self):
-        """Load advisors from storage."""
+        """Load advisors from storage with robust error handling."""
         if not os.path.exists(self.storage_path):
+            logger.info(f"Advisor file not found at {self.storage_path}, using defaults only")
             return
 
         try:
             with open(self.storage_path, 'r') as f:
-                data = json.load(f)
-                for advisor_data in data:
+                content = f.read()
+                if not content.strip():
+                    logger.warning(f"Advisor file is empty: {self.storage_path}")
+                    return
+                data = json.loads(content)
+
+            if not isinstance(data, list):
+                logger.error(f"Advisor file corrupted: expected list, got {type(data).__name__}")
+                self._backup_and_warn("corrupted_format")
+                return
+
+            loaded_count = 0
+            skipped_count = 0
+            for i, advisor_data in enumerate(data):
+                try:
+                    if not isinstance(advisor_data, dict):
+                        logger.warning(f"Skipping advisor #{i}: not a dict")
+                        skipped_count += 1
+                        continue
+                    if "id" not in advisor_data or "name" not in advisor_data:
+                        logger.warning(f"Skipping advisor #{i}: missing required fields (id, name)")
+                        skipped_count += 1
+                        continue
+
                     profile = AdvisorProfile.from_dict(advisor_data)
                     self.advisors[profile.id] = profile
-            logger.info(f"Loaded {len(data)} advisors from {self.storage_path}")
+                    loaded_count += 1
+                except Exception as e:
+                    logger.warning(f"Skipping advisor #{i} ({advisor_data.get('id', 'unknown')}): {e}")
+                    skipped_count += 1
+
+            logger.info(f"Loaded {loaded_count} advisors from {self.storage_path}")
+            if skipped_count > 0:
+                logger.warning(f"Skipped {skipped_count} malformed advisor entries")
+
+        except json.JSONDecodeError as e:
+            logger.error(f"Advisor file is not valid JSON: {e}")
+            self._backup_and_warn("invalid_json")
+        except PermissionError:
+            logger.error(f"Permission denied reading advisor file: {self.storage_path}")
         except Exception as e:
             logger.error(f"Failed to load advisors: {e}")
+
+    def _backup_and_warn(self, reason: str):
+        """Backup corrupted advisor file and warn user."""
+        import shutil
+        from datetime import datetime
+
+        backup_path = f"{self.storage_path}.{reason}.{datetime.now().strftime('%Y%m%d_%H%M%S')}.bak"
+        try:
+            shutil.copy2(self.storage_path, backup_path)
+            logger.warning(f"Backed up corrupted advisor file to: {backup_path}")
+        except Exception as e:
+            logger.error(f"Failed to backup corrupted file: {e}")
 
     def save_advisors(self):
         """Save advisors to storage."""
@@ -167,3 +228,74 @@ class AdvisorRegistry:
             return self.advisors.get("researcher", self.advisors["generalist"])
         else:
             return self.advisors.get("generalist", list(self.advisors.values())[0])
+
+    # ========== Advisor-Node Association Methods ==========
+
+    def link_node_to_advisor(self, advisor_id: str, node_id: str) -> bool:
+        """
+        Link a ThoughtNode to an advisor's knowledge base.
+
+        Args:
+            advisor_id: The advisor's ID
+            node_id: The ThoughtNode ID to link
+
+        Returns:
+            True if linked successfully
+        """
+        advisor = self.get_advisor(advisor_id)
+        if not advisor:
+            logger.warning(f"Advisor '{advisor_id}' not found")
+            return False
+
+        if node_id not in advisor.knowledge_node_ids:
+            advisor.knowledge_node_ids.append(node_id)
+            self.save_advisors()
+            logger.info(f"Linked node '{node_id}' to advisor '{advisor_id}'")
+            return True
+        return False
+
+    def unlink_node_from_advisor(self, advisor_id: str, node_id: str) -> bool:
+        """Remove a node from an advisor's knowledge base."""
+        advisor = self.get_advisor(advisor_id)
+        if not advisor:
+            return False
+
+        if node_id in advisor.knowledge_node_ids:
+            advisor.knowledge_node_ids.remove(node_id)
+            self.save_advisors()
+            logger.info(f"Unlinked node '{node_id}' from advisor '{advisor_id}'")
+            return True
+        return False
+
+    def link_pattern_to_advisor(self, advisor_id: str, pattern_id: str) -> bool:
+        """Link a Manifold pattern to an advisor for specialized retrieval."""
+        advisor = self.get_advisor(advisor_id)
+        if not advisor:
+            return False
+
+        if pattern_id not in advisor.manifold_pattern_ids:
+            advisor.manifold_pattern_ids.append(pattern_id)
+            self.save_advisors()
+            logger.info(f"Linked pattern '{pattern_id}' to advisor '{advisor_id}'")
+            return True
+        return False
+
+    def get_advisor_knowledge(self, advisor_id: str) -> Dict[str, List[str]]:
+        """
+        Get all knowledge associations for an advisor.
+
+        Returns:
+            Dict with 'node_ids' and 'pattern_ids' lists
+        """
+        advisor = self.get_advisor(advisor_id)
+        if not advisor:
+            return {"node_ids": [], "pattern_ids": []}
+
+        return {
+            "node_ids": advisor.knowledge_node_ids,
+            "pattern_ids": advisor.manifold_pattern_ids
+        }
+
+    def get_all_advisors(self) -> List[AdvisorProfile]:
+        """Return all registered advisors."""
+        return list(self.advisors.values())

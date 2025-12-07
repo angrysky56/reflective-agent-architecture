@@ -91,9 +91,14 @@ data/embeddings/*.zip
 
 # Databases
 *.db
-chroma_db/
+.chroma/
+chroma_data/
+src/chroma_data/
 raa_history.db
 test_*.db
 
 src/dashboard/chat_history/
+
+# User-specific configs (ship .example versions instead)
+src/config/advisors.json
 

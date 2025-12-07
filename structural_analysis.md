@@ -73,6 +73,7 @@ Bridges CWD and RAA, enabling bidirectional communication.
 - **`continuity_field.py`**: Implements the "Identity Manifold" as a Fiber Bundle to prevent drift.
 - **`continuity_service.py`**: Service layer for interacting with the Continuity Field.
 - **`agent_factory.py`**: **System 3** - Spawns specialized ephemeral agents based on topological needs.
+- **`swarm_controller.py`**: **Swarm Intelligence** - Orchestrates "Hive Mind" dynamics with multiple advisors running in parallel and synthesizing via Hegelian dialectics.
 - **`sleep_cycle.py`**: Implements "Night Mode" for offline learning and crystallization.
 - **`embedding_mapper.py`**: Aligns CWD graph representations with RAA embeddings.
 - **`entropy_calculator.py`**: Converts CWD results into entropy signals.
@@ -90,6 +91,8 @@ Implements "Stereoscopic" cognitive architecture.
 - **`generative_function.py`**: "Ground of Being" - Converts LLM outputs to intervention vectors.
 - **`curiosity.py`**: **Intrinsic Motivation** - Drives exploration based on information gaps or novelty.
 - **`system_guide.py`**: **Guidance System** - Provides high-level architectural guidance.
+- **`grok_lang.py`**: **Empathetic Alignment** - Implements Grok-Depth scoring across six cognitive levels (Signal, Symbol, Syntax, Semantics, Pragmatics, Meta) for measuring inter-agent alignment.
+- **`working_memory.py`**: **Short-term Context** - Maintains a sliding window of recent cognitive operations (deconstruct, synthesize, hypothesize, etc.) for LLM continuity. Injects context into all LLM calls for coherent multi-step reasoning.
 
 ### `src/manifold`
 
@@ -163,6 +166,15 @@ Empirical Validation Suite (Diamond Proof).
 - **`network_robustness_sim.py`**: Exp 7 (Robustness).
 - **`gradient_of_intelligence.py`**: Exp 8 (Gradient).
 
+### `Topological_Active_Inference/`
+
+Theoretical foundations for Topological Active Inference (TAI) and Theory of Mind (ToM) integration.
+
+- **`category_theory_proof.md`**: Formal proof that ToM embeds faithfully in TAI (but not isomorphism). False beliefs → β₀ fractures, Hidden emotions → β₁ cycles.
+- **`topological_tomography_analysis.md`**: Methodology for discovering "unknown unknowns" via discordance pattern reconstruction (Conceptual Splatting → Multiple Angles → Inverse Problem Solution).
+- **`white_paper.md`**: Core TAI theory.
+- **`tom_synthesis.md`**, **`theoretical_assessment.md`**: Supporting analysis.
+
 ### `formal_proofs/`
 
 Formal Verification (Prover9/Mace4).
@@ -175,8 +187,9 @@ Formal Verification (Prover9/Mace4).
 2.  **Reasoning Loop**: `CognitiveWorkspace` -> `integration/raa_loop.py` -> `compass/compass_framework.py`.
 3.  **Decision Making**: `Compass` -> `Director` (via `substrate/director_integration.py` for energy gating).
 4.  **Swarm Consensus**: `Compass` -> `swarm.py` (ConsensusEngine) -> `advisors/registry.py`.
-5.  **Resource Tracking**: All operations -> `substrate/ledger.py`.
-6.  **Memory Access**: `Compass`/`Director` -> `manifold/hopfield_network.py` & `manifold/patterns.py`.
+5.  **Synthesis Auto-Resolution**: `synthesize` -> Critique Classification -> If ACTIONABLE: `Director.process_task_with_time_gate()` -> COMPASS.
+6.  **Resource Tracking**: All operations -> `substrate/ledger.py`.
+7.  **Memory Access**: `Compass`/`Director` -> `manifold/hopfield_network.py` & `manifold/patterns.py`.
 
 ## Dependencies
 

@@ -117,6 +117,7 @@ RAA synthesizes three active research frontiers:
 1.  **Modern Hopfield Networks**: Exponential-capacity associative memory (2024 Nobel Prize in Physics context).
 2.  **Entropy-Based Metacognition**: Detection of model uncertainty through predictive entropy monitoring.
 3.  **Sheaf Cohomology**: Topological analysis of network learning dynamics via cellular sheaf theory.
+4.  **Topological Active Inference (TAI)**: Category-theoretic framework where Theory of Mind (ToM) embeds faithfully—false beliefs map to β₀ fractures, hidden emotions map to β₁ cycles.
 
 ### Core Components
 
@@ -153,8 +154,16 @@ RAA synthesizes three active research frontiers:
 
 - **Adaptive Agents**: A "Topological Immune System" that dynamically spawns specialized agents (e.g., Debaters, Explorers) to resolve structural obstructions detected by Sheaf Diagnostics.
 - **COMPASS Integration**: Native integration with the COMPASS framework, allowing bidirectional tool use and delegation of complex planning tasks via `consult_compass`.
+- **Synthesis Auto-Resolution**: When synthesis critiques are "ACTIONABLE" (not requiring external data), the system automatically delegates to Director/COMPASS with `force_time_gate: True` to resolve issues using available tools (`explore_for_utility`, `hypothesize`, `deconstruct`, `inspect_knowledge_graph`).
 
 Delegate a complex task to the COMPASS cognitive framework. Use this for tasks requiring multi-step reasoning, planning, or metacognitive analysis.
+
+#### 6. Grok-Lang (Empathetic Alignment)
+
+- **Tool**: `compute_grok_depth`
+- **Function**: Quantifies empathetic alignment ("grok success") between two mind-states across six cognitive levels.
+- **Levels**: Signal (somatic), Symbol (lexical), Syntax (structural), Semantics (perspective), Pragmatics (functional), Meta (joint attention).
+- **Applications**: Inter-agent communication analysis, ToM modeling, discordance measurement for Topological Tomography.
 
 #### 6. Operator C (Belief Revision)
 

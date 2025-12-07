@@ -35,7 +35,7 @@ from collections import Counter
 from collections.abc import Sequence
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import chromadb
 import numpy as np
@@ -52,6 +52,7 @@ from src.cognition.curiosity import CuriosityModule
 from src.cognition.grok_lang import AffectVector, GrokDepthCalculator, Intent, MindState, Utterance
 from src.cognition.meta_validator import MetaValidator
 from src.cognition.system_guide import SystemGuideNodes
+from src.cognition.working_memory import WorkingMemory
 from src.compass.orthogonal_dimensions import OrthogonalDimensionsAnalyzer
 from src.director import Director, DirectorConfig
 from src.director.simple_gp import SimpleGP
@@ -176,9 +177,11 @@ class CognitiveWorkspace:
             config.neo4j_uri, auth=(config.neo4j_user, config.neo4j_password)
         )
 
-        # Initialize Chroma
-        self.chroma_client = chromadb.Client(
-            Settings(persist_directory=config.chroma_path, anonymized_telemetry=False)
+        # Initialize Chroma with persistence
+        # Use PersistentClient for data to survive restarts
+        self.chroma_client = chromadb.PersistentClient(
+            path=config.chroma_path,
+            settings=Settings(anonymized_telemetry=False)
         )
 
         # Initialize LLM Provider
@@ -228,9 +231,14 @@ class CognitiveWorkspace:
             logger.error(f"Failed to initialize embedding provider: {e}")
             raise
 
-        # Create Chroma collection
+        # Create Chroma collections
         self.collection = self.chroma_client.get_or_create_collection(
             name="thought_nodes", metadata={"description": "Cognitive workspace thought-nodes"}
+        )
+
+        # Collection for Manifold patterns (persistent memory across restarts)
+        self.manifold_patterns_collection = self.chroma_client.get_or_create_collection(
+            name="manifold_patterns", metadata={"description": "Hopfield network patterns for associative memory"}
         )
 
         # Gen 3 Enhancement: Active goals for utility-guided exploration
@@ -269,6 +277,9 @@ class CognitiveWorkspace:
 
         # Initialize Curiosity Module (Intrinsic Motivation)
         self.curiosity = CuriosityModule(self)
+
+        # Initialize Working Memory (Short-term context for LLM continuity)
+        self.working_memory = WorkingMemory(max_entries=20, max_context_chars=8000)
 
         # Tool Usage Tracking for Entropy
         self.tool_usage_buffer: List[str] = []
@@ -646,6 +657,9 @@ class CognitiveWorkspace:
             "created_at": time.time(),
         }
 
+        # Update working memory focus
+        self.working_memory.set_focus(goal=goal_description)
+
         logger.info(f"Goal set: {goal_description} (weight: {utility_weight})")
         return goal_id
 
@@ -975,6 +989,23 @@ class CognitiveWorkspace:
             candidates.sort(key=lambda x: x["combined_score"], reverse=True)
             top_candidates = candidates[:max_candidates]
 
+            # Record in working memory
+            top_ids = [c["node_id"] for c in top_candidates[:5]]
+            self.working_memory.record(
+                operation="explore_for_utility",
+                input_data={"focus_area": focus_area, "max_candidates": max_candidates},
+                output_data={"count": len(top_candidates), "top_score": top_candidates[0]["combined_score"] if top_candidates else 0},
+                node_ids=top_ids
+            )
+
+            # Persist to SQLite history
+            self.history.log_operation(
+                operation="explore_for_utility",
+                params={"focus_area": focus_area, "max_candidates": max_candidates},
+                result={"count": len(top_candidates), "top_ids": top_ids},
+                cognitive_state=self.working_memory.current_goal or "Unknown"
+            )
+
             return {
                 "candidates": top_candidates,
                 "count": len(top_candidates),
@@ -1011,15 +1042,68 @@ class CognitiveWorkspace:
                 result = list(embedding)
             return result  # type: ignore[return-value]
 
-    def _llm_generate(self, system_prompt: str, user_prompt: str, max_tokens: int = 16000) -> str:
+    def _llm_generate(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        max_tokens: int = 16000,
+        include_memory: bool = True,
+        operation_name: str = None
+    ) -> str:
         """
         Generate text using the configured LLM provider.
+
+        Automatically injects working memory context for continuity
+        across operations unless include_memory=False.
+
+        Args:
+            system_prompt: System context for the LLM
+            user_prompt: User/task prompt
+            max_tokens: Maximum response tokens
+            include_memory: Whether to inject working memory context
+            operation_name: Name of operation for memory tracking
         """
         try:
-            return self.llm_provider.generate(system_prompt, user_prompt, max_tokens=max_tokens)
+            # Inject working memory context into system prompt
+            if include_memory and hasattr(self, 'working_memory') and self.working_memory:
+                memory_context = self.working_memory.get_context()
+                if memory_context:
+                    system_prompt = f"{system_prompt}\n\n{memory_context}"
+
+            response = self.llm_provider.generate(system_prompt, user_prompt, max_tokens=max_tokens)
+            return response
         except Exception as e:
             logger.error(f"LLM generation error: {e}", exc_info=True)
             return f"[LLM unavailable: {str(e)[:100]}...]"
+
+    def _llm_generate_and_record(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        operation_name: str,
+        input_data: Any = None,
+        node_ids: List[str] = None,
+        max_tokens: int = 16000
+    ) -> str:
+        """
+        Generate text AND record the operation in working memory.
+
+        Use this for significant cognitive operations that should
+        maintain context continuity (synthesize, hypothesize, etc.)
+        """
+        response = self._llm_generate(
+            system_prompt, user_prompt, max_tokens, include_memory=True
+        )
+
+        # Record in working memory for future context
+        self.working_memory.record(
+            operation=operation_name,
+            input_data=input_data or user_prompt[:500],
+            output_data=response[:1000],
+            node_ids=node_ids or []
+        )
+
+        return response
 
     def _create_thought_node(
         self,
@@ -1149,11 +1233,29 @@ class CognitiveWorkspace:
             # Get decomposition tree
             tree = self._get_decomposition_tree(session, root_id)
 
-            return {
+            result = {
                 "root_id": root_id,
                 "tree": tree,
                 "components": [{"id": cid, "content": c} for cid, c in zip(component_ids, components)]
             }
+
+            # Record in working memory for context continuity
+            self.working_memory.record(
+                operation="deconstruct",
+                input_data={"problem": problem[:500]},
+                output_data={"components": len(components), "root_id": root_id},
+                node_ids=[root_id] + component_ids[:5]
+            )
+
+            # Persist to SQLite history for long-term recall
+            self.history.log_operation(
+                operation="deconstruct",
+                params={"problem": problem[:500], "max_depth": max_depth},
+                result=result,
+                cognitive_state=self.working_memory.current_goal or "Unknown"
+            )
+
+            return result
 
     def get_node_context(self, node_id: str, depth: int = 1) -> Dict[str, Any]:
         """
@@ -1398,6 +1500,22 @@ class CognitiveWorkspace:
                     hyp_id=hyp_id,
                     tool_id=tool_id,
                 )
+
+            # Record in working memory for context continuity
+            self.working_memory.record(
+                operation="hypothesize",
+                input_data={"node_a": node_a_id, "node_b": node_b_id, "context": context},
+                output_data={"hypothesis": hypothesis_text[:500], "quality": float(hypothesis_quality)},
+                node_ids=[node_a_id, node_b_id, hyp_id]
+            )
+
+            # Persist to SQLite history
+            self.history.log_operation(
+                operation="hypothesize",
+                params={"node_a": node_a_id, "node_b": node_b_id, "context": context},
+                result={"hypothesis_id": hyp_id, "quality": float(hypothesis_quality), "similarity": float(similarity_score)},
+                cognitive_state=self.working_memory.current_goal or "Unknown"
+            )
 
             return {
                 "hypothesis_id": hyp_id,
@@ -1647,6 +1765,22 @@ class CognitiveWorkspace:
                     synth_id=synth_id,
                 )
 
+            # Record in working memory for context continuity
+            self.working_memory.record(
+                operation="synthesize",
+                input_data={"goal": goal, "node_count": len(node_ids)},
+                output_data={"synthesis": synthesis_text[:500], "quadrant": meta_stats['quadrant']},
+                node_ids=node_ids[:5] + [synth_id]
+            )
+
+            # Persist to SQLite history
+            self.history.log_operation(
+                operation="synthesize",
+                params={"goal": goal, "node_count": len(node_ids), "node_ids": node_ids[:5]},
+                result={"synthesis_id": synth_id, "quadrant": meta_stats['quadrant'], "unified_score": meta_stats['unified_score']},
+                cognitive_state=self.working_memory.current_goal or "Unknown"
+            )
+
             return {
                 "synthesis_id": synth_id,
                 "synthesis": synthesis_text,
@@ -1775,6 +1909,22 @@ class CognitiveWorkspace:
                 id=node_id,
                 score=float(avg_score),
                 satisfied=all_satisfied,
+            )
+
+            # Record in working memory for context continuity
+            self.working_memory.record(
+                operation="constrain",
+                input_data={"node_id": node_id, "rules": rules},
+                output_data={"score": float(avg_score), "satisfied": all_satisfied},
+                node_ids=[node_id]
+            )
+
+            # Persist to SQLite history
+            self.history.log_operation(
+                operation="constrain",
+                params={"node_id": node_id, "rules": rules},
+                result={"score": float(avg_score), "satisfied": all_satisfied},
+                cognitive_state=self.working_memory.current_goal or "Unknown"
             )
 
             return {
@@ -2045,6 +2195,87 @@ class RAAServerContext:
             "precuneus": self.precuneus,
         }
 
+        # Wire Manifold → Chroma sync callback
+        self._setup_manifold_chroma_sync(manifold)
+
+        # Cold start: Load patterns from Chroma into Manifold
+        self._load_manifold_patterns_from_chroma()
+
+    def _setup_manifold_chroma_sync(self, manifold: Manifold) -> None:
+        """Wire Manifold to automatically sync patterns to Chroma."""
+        pattern_counter = {"state": 0, "agent": 0, "action": 0}
+
+        def on_pattern_stored(pattern, domain: str, metadata: Optional[dict]) -> None:
+            """Callback to sync pattern to Chroma when stored in Manifold."""
+            try:
+                idx = pattern_counter[domain]
+                pattern_counter[domain] += 1
+                pattern_id = f"manifold_{domain}_{idx}"
+
+                # Convert pattern to list for Chroma
+                if hasattr(pattern, "cpu"):
+                    embedding = pattern.cpu().tolist()
+                    if isinstance(embedding[0], list):
+                        embedding = embedding[0]  # Handle unsqueezed
+                else:
+                    embedding = list(pattern)
+
+                # Prepare metadata
+                meta = {"domain": domain, "index": idx}
+                if metadata:
+                    meta.update({k: str(v)[:500] for k, v in metadata.items()})
+
+                self.workspace.manifold_patterns_collection.add(
+                    ids=[pattern_id],
+                    embeddings=[embedding],
+                    documents=[f"Manifold pattern {domain}:{idx}"],
+                    metadatas=[meta]
+                )
+                logger.debug(f"Synced pattern {pattern_id} to Chroma")
+            except Exception as e:
+                logger.warning(f"Failed to sync pattern to Chroma: {e}")
+
+        manifold.set_on_pattern_stored_callback(on_pattern_stored)
+        logger.info("Wired Manifold → Chroma pattern sync callback")
+
+    def _load_manifold_patterns_from_chroma(self) -> None:
+        """Cold start: Load persisted patterns from Chroma into Manifold."""
+        import torch
+
+        manifold = self.get_manifold()
+        total_loaded = 0
+
+        for domain in ["state", "agent", "action"]:
+            try:
+                results = self.workspace.manifold_patterns_collection.get(
+                    where={"domain": domain},
+                    include=["embeddings", "metadatas"]
+                )
+
+                if not results["ids"]:
+                    continue
+
+                # Get the appropriate memory
+                if domain == "state":
+                    memory = manifold.state_memory
+                elif domain == "agent":
+                    memory = manifold.agent_memory
+                else:
+                    memory = manifold.action_memory
+
+                for embedding, metadata in zip(results["embeddings"], results["metadatas"]):
+                    pattern = torch.tensor(embedding, device=manifold.state_memory.device)
+                    clean_meta = {k: v for k, v in metadata.items() if k not in ["domain", "index"]}
+                    # Directly store to avoid triggering callback (already in Chroma)
+                    memory.store_pattern(pattern, metadata=clean_meta)
+                    total_loaded += 1
+
+            except Exception as e:
+                logger.warning(f"Failed to load {domain} patterns from Chroma: {e}")
+
+        if total_loaded > 0:
+            logger.info(f"Cold start: Loaded {total_loaded} patterns from Chroma into Manifold")
+
     def cleanup(self):
         """Cleanup resources"""
         if self.workspace:
@@ -2071,6 +2302,110 @@ class RAAServerContext:
         if not self.raa_context:
             raise RuntimeError("RAA context not initialized")
         return self.raa_context["manifold"]
+
+    def sync_manifold_to_chroma(self, domain: str = "state") -> int:
+        """
+        Sync Manifold patterns to Chroma for persistence.
+
+        Args:
+            domain: Which Manifold domain to sync ('state', 'agent', 'action')
+
+        Returns:
+            Number of patterns synced
+        """
+        manifold = self.get_manifold()
+
+        # Get the appropriate memory based on domain
+        if domain == "state":
+            memory = manifold.state_memory
+        elif domain == "agent":
+            memory = manifold.agent_memory
+        elif domain == "action":
+            memory = manifold.action_memory
+        else:
+            memory = manifold.state_memory
+
+        patterns = memory.get_patterns()
+        if patterns.numel() == 0:
+            return 0
+
+        synced = 0
+        for i, pattern in enumerate(patterns):
+            pattern_id = f"manifold_{domain}_{i}"
+            metadata = memory.get_pattern_metadata(i)
+
+            # Check if already exists
+            try:
+                existing = self.workspace.manifold_patterns_collection.get(ids=[pattern_id])
+                if existing["ids"]:
+                    continue  # Already synced
+            except Exception:
+                pass
+
+            # Store in Chroma
+            try:
+                self.workspace.manifold_patterns_collection.add(
+                    ids=[pattern_id],
+                    embeddings=[pattern.cpu().tolist()],
+                    documents=[f"Manifold pattern {domain}:{i}"],
+                    metadatas=[{"domain": domain, "index": i, **{k: str(v) for k, v in metadata.items()}}]
+                )
+                synced += 1
+            except Exception as e:
+                logger.warning(f"Failed to sync pattern {pattern_id}: {e}")
+
+        logger.info(f"Synced {synced} patterns from Manifold {domain} to Chroma")
+        return synced
+
+    def load_manifold_from_chroma(self, domain: str = "state") -> int:
+        """
+        Load patterns from Chroma into Manifold (cold start).
+
+        Args:
+            domain: Which Manifold domain to load ('state', 'agent', 'action')
+
+        Returns:
+            Number of patterns loaded
+        """
+        import torch
+
+        manifold = self.get_manifold()
+
+        # Get the appropriate memory based on domain
+        if domain == "state":
+            memory = manifold.state_memory
+        elif domain == "agent":
+            memory = manifold.agent_memory
+        elif domain == "action":
+            memory = manifold.action_memory
+        else:
+            memory = manifold.state_memory
+
+        # Query Chroma for patterns in this domain
+        try:
+            results = self.workspace.manifold_patterns_collection.get(
+                where={"domain": domain},
+                include=["embeddings", "metadatas"]
+            )
+        except Exception as e:
+            logger.warning(f"Failed to query Chroma for patterns: {e}")
+            return 0
+
+        if not results["ids"]:
+            return 0
+
+        loaded = 0
+        for i, (pattern_id, embedding, metadata) in enumerate(zip(
+            results["ids"], results["embeddings"], results["metadatas"]
+        )):
+            pattern = torch.tensor(embedding, device=manifold.state_memory.device)
+            # Convert metadata back from strings
+            clean_metadata = {k: v for k, v in metadata.items() if k not in ["domain", "index"]}
+            memory.store_pattern(pattern, metadata=clean_metadata)
+            loaded += 1
+
+        logger.info(f"Loaded {loaded} patterns from Chroma into Manifold {domain}")
+        return loaded
 
     def get_agent_factory(self) -> AgentFactory:
         if not self.raa_context:
@@ -2946,6 +3281,38 @@ RAA_TOOLS = [
         inputSchema={"type": "object", "properties": {}, "required": []},
     ),
     Tool(
+        name="link_advisor_knowledge",
+        description="Link a ThoughtNode to an advisor's knowledge base, giving them persistent memory.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "advisor_id": {
+                    "type": "string",
+                    "description": "ID of the advisor (e.g., 'socrates', 'researcher')"
+                },
+                "node_id": {
+                    "type": "string",
+                    "description": "ID of the ThoughtNode to link"
+                }
+            },
+            "required": ["advisor_id", "node_id"]
+        },
+    ),
+    Tool(
+        name="get_advisor_knowledge",
+        description="Get all knowledge associations (linked nodes and patterns) for an advisor.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "advisor_id": {
+                    "type": "string",
+                    "description": "ID of the advisor to query"
+                }
+            },
+            "required": ["advisor_id"]
+        },
+    ),
+    Tool(
         name="inspect_graph",
         description="Inspect the graph using dynamic queries. Search for nodes by label or traverse relationships.",
         inputSchema={
@@ -3174,6 +3541,102 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
                 )
                 result["critique"] = critique
 
+                # === Director-Orchestrated Synthesis Resolution ===
+                # Classify the critique to determine if Director should intervene
+                classification = workspace._llm_generate(
+                    system_prompt="""Classify this synthesis critique into exactly one category:
+- MISSING_DATA: Requires external facts, specific information, or user input to proceed
+- ACTIONABLE: Can be improved through reasoning, adding context, or deeper analysis
+- ACCEPTABLE: Minor issues or no significant problems
+Respond with only the category name.""",
+                    user_prompt=f"Critique: {critique}"
+                ).strip().upper()
+
+                # Normalize classification
+                if classification not in ("MISSING_DATA", "ACTIONABLE", "ACCEPTABLE"):
+                    classification = "ACCEPTABLE"
+
+                result["critique_classification"] = classification
+
+                # If ACTIONABLE, delegate to Director for resolution via existing tools
+                if classification == "ACTIONABLE":
+                    director = ctx.get_director()
+                    if director and director.compass:
+                        # Energy cost for Director escalation
+                        if workspace.ledger:
+                            workspace.ledger.record_transaction(MeasurementCost(
+                                energy=EnergyToken(Decimal("5.0"), "joules"),
+                                operation_name="synthesis_director_resolution"
+                            ))
+
+                        # Build resolution task for COMPASS
+                        resolution_task = f"""Resolve this synthesis critique using available cognitive tools.
+
+ORIGINAL SYNTHESIS:
+{synthesis_text}
+
+CRITIQUE:
+{critique}
+
+GOAL: {arguments.get('goal', 'None')}
+
+NODE IDS AVAILABLE: {arguments.get('node_ids', [])}
+
+AVAILABLE RESOLUTION STRATEGIES:
+1. Use 'explore_for_utility' to find related high-value nodes to incorporate
+2. Use 'hypothesize' to find novel connections between existing nodes
+3. Use 'deconstruct' to break down missing concepts into new nodes
+4. Use 'inspect_knowledge_graph' to find neighboring concepts
+
+Provide an improved synthesis that addresses the critique by using these tools to gather additional context and connections."""
+
+                        try:
+                            # Use Director's Time Gate for System 2 processing
+                            resolution_result = await director.process_task_with_time_gate(
+                                resolution_task,
+                                {
+                                    "node_ids": arguments.get("node_ids", []),
+                                    "goal": arguments.get("goal"),
+                                    "force_time_gate": True  # Force System 2 engagement
+                                }
+                            )
+
+                            # Extract improved synthesis from COMPASS result
+                            if resolution_result.get("success", False):
+                                improved_synthesis = resolution_result.get(
+                                    "final_report",
+                                    resolution_result.get("solution", synthesis_text)
+                                )
+                                result["synthesis"] = improved_synthesis
+                                result["auto_resolved"] = True
+                                result["resolution_method"] = "Director/COMPASS"
+                                result["compass_score"] = resolution_result.get("score", 0.0)
+
+                                # Re-critique the improved synthesis
+                                new_critique = workspace._llm_generate(
+                                    system_prompt="You are a critical reviewer of AI-generated syntheses.",
+                                    user_prompt=f"Critique for goal '{arguments.get('goal', 'None')}': {improved_synthesis}"
+                                )
+                                result["critique"] = new_critique
+
+                                # Re-classify
+                                new_classification = workspace._llm_generate(
+                                    system_prompt="Classify: MISSING_DATA, ACTIONABLE, or ACCEPTABLE. Respond with only the category.",
+                                    user_prompt=f"Critique: {new_critique}"
+                                ).strip().upper()
+                                if new_classification not in ("MISSING_DATA", "ACTIONABLE", "ACCEPTABLE"):
+                                    new_classification = "ACCEPTABLE"
+                                result["critique_classification"] = new_classification
+                            else:
+                                result["resolution_attempted"] = True
+                                result["resolution_status"] = resolution_result.get("status", "failed")
+
+                        except Exception as e:
+                            logger.warning(f"Director resolution failed: {e}")
+                            result["resolution_error"] = str(e)
+                    else:
+                        result["resolution_skipped"] = "Director/COMPASS not available"
+
         elif name == "constrain":
             # Metabolic Cost: Constraint is Validation (2.0)
             if workspace.ledger:
@@ -3311,9 +3774,34 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
                 result_lines.append(f"- {advisor.name} ({advisor.id}): {advisor.role}")
                 result_lines.append(f"  Description: {advisor.description}")
                 result_lines.append(f"  Tools: {', '.join(advisor.tools)}")
+                if advisor.knowledge_node_ids:
+                    result_lines.append(f"  Knowledge Nodes: {len(advisor.knowledge_node_ids)} linked")
                 result_lines.append("")
 
             return [TextContent(type="text", text="\n".join(result_lines))]
+        elif name == "link_advisor_knowledge":
+            director = ctx.get_director()
+            if not director or not director.compass:
+                return [TextContent(type="text", text="Error: COMPASS framework not initialized")]
+
+            advisor_id = arguments["advisor_id"]
+            node_id = arguments["node_id"]
+
+            success = director.compass.advisor_registry.link_node_to_advisor(advisor_id, node_id)
+            if success:
+                msg = f"Linked node '{node_id}' to advisor '{advisor_id}'"
+            else:
+                msg = f"Failed to link: advisor '{advisor_id}' not found or node already linked"
+            return [TextContent(type="text", text=msg)]
+        elif name == "get_advisor_knowledge":
+            director = ctx.get_director()
+            if not director or not director.compass:
+                return [TextContent(type="text", text="Error: COMPASS framework not initialized")]
+
+            advisor_id = arguments["advisor_id"]
+            knowledge = director.compass.advisor_registry.get_advisor_knowledge(advisor_id)
+            return [TextContent(type="text", text=json.dumps(knowledge, indent=2))]
+
         elif name == "recall_work":
             results = bridge.history.search_history(
                 query=arguments.get("query"),
@@ -3774,6 +4262,22 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
                         else "K-NN retrieved pattern from existing memory"
                     )
                 }
+
+                # Record in working memory
+                workspace.working_memory.record(
+                    operation="revise",
+                    input_data={"belief": belief_text[:300], "evidence": evidence_text[:300]},
+                    output_data={"revised": waypoint_description[:500], "strategy": result.strategy.value},
+                    node_ids=[revised_id]
+                )
+
+                # Persist to SQLite history
+                workspace.history.log_operation(
+                    operation="revise",
+                    params={"belief": belief_text[:300], "evidence": evidence_text[:300]},
+                    result={"revised_node_id": revised_id, "strategy": result.strategy.value},
+                    cognitive_state=workspace.working_memory.current_goal or "Unknown"
+                )
             else:
                 response = {
                     "status": "failure",

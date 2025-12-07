@@ -61,6 +61,9 @@ class Manifold:
     def __init__(self, config: HopfieldConfig):
         self.config = config
 
+        # Callback for Chroma sync (set by RAA context)
+        self._on_pattern_stored = None
+
         # 1. State Memory (vmPFC) - Broad associations
         state_config = HopfieldConfig(
             embedding_dim=config.embedding_dim,
@@ -96,6 +99,14 @@ class Manifold:
         else:
             # Default to state if unknown
             self.state_memory.store_pattern(pattern, metadata)
+
+        # Notify callback for Chroma sync if registered
+        if self._on_pattern_stored:
+            self._on_pattern_stored(pattern, domain, metadata)
+
+    def set_on_pattern_stored_callback(self, callback):
+        """Register callback to be called when a pattern is stored."""
+        self._on_pattern_stored = callback
 
     def get_pattern_metadata(self, index: int, domain: str = "state") -> dict:
         """Get metadata for a specific pattern index."""
