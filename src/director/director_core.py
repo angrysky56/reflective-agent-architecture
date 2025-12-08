@@ -62,7 +62,8 @@ class DirectorConfig:
     # Entropy monitoring
     entropy_threshold_percentile: float = 0.75
     entropy_history_size: int = 100
-    default_entropy_threshold: float = 2.0
+    default_entropy_threshold: float = 0.8  # Increased from 0.2 to reduce false positives
+    enable_system2: bool = True  # Master switch for Time Dilation / GP
 
     # Reflexive Closure
     enable_reflexive_closure: bool = True
@@ -556,18 +557,70 @@ class DirectorMVP:
             logger.info(f"Director: force_time_gate: {context.get('force_time_gate')}")
 
         # 3. Temporal Decision
-        # Threshold: 0.2 bits (approx 0.95 confidence)
+        # 2.9 Cognitive State Check (Proprioception)
+        # We consult the agent's internal state to decide on System 2 usage.
+        should_engage_system2 = False
+        cognitive_state_label = "Unknown"
+
+        if self.config.enable_system2:
+            try:
+                # Call internal tool to get state
+                # We assume self.compass.mcp_client can call internal tools
+                # Or we use the context's tool execution capability if available
+                # ideally: state = await self.compass.mcp_client.call_tool("mcp_check_cognitive_state", {})
+                # For safety, we wrap this in a try/except or skip if client not ready
+                pass
+                # actually, better to rely on simpler logic for now or implement direct call if possible.
+                # Given strict instructions to "call mcp_check_cognitive_state in Director", we need access.
+                # Director has self.compass.mcp_client (RAAMCPClient)
+                if self.compass and self.compass.mcp_client:
+                     state_result = await self.compass.mcp_client.call_tool("mcp_check_cognitive_state", {})
+                     # Parse result: "State: Focused (Stability: 0.8)"
+                     state_str = str(state_result)
+                     if "Looping" in state_str or "Stuck" in state_str:
+                         should_engage_system2 = True
+                         cognitive_state_label = "Looping/Stuck"
+                         logger.info(f"Director: Cognitive State is {cognitive_state_label}. FORCING System 2.")
+                     elif "Focused" in state_str or "Flow" in state_str:
+                         cognitive_state_label = "Focused/Flow"
+
+            except Exception as e:
+                logger.warning(f"Director: Failed to check cognitive state: {e}")
+
+        # 3. Temporal Decision
+        # Threshold: 0.8 bits
         # Check for forced Time Gate in context
         force_gate = context.get("force_time_gate", False) if context else False
 
-        if entropy_score < 0.2 and not force_gate:
+        # Logic:
+        # 1. If System 2 Disabled -> System 1
+        # 2. If Forced -> System 2
+        # 3. If Cognitive State says STUCK -> System 2
+        # 4. If Entropy High (>0.8) AND NOT Focused -> System 2
+        # 5. If Entropy SUPER High (>0.95) -> System 2 (even if Focused)
+
+        engage_reason = None
+
+        if not self.config.enable_system2 and not force_gate:
+             logger.info(f"Director: High Entropy ({entropy_score:.2f}) but System 2 disabled. Using System 1.")
+             return result
+
+        if force_gate:
+            engage_reason = "Forced by User"
+        elif should_engage_system2:
+            engage_reason = f"Cognitive State ({cognitive_state_label})"
+        elif entropy_score >= 0.95:
+             engage_reason = f"Critical Entropy ({entropy_score:.2f})"
+        elif entropy_score >= 0.8 and cognitive_state_label != "Focused/Flow":
+             engage_reason = f"High Entropy ({entropy_score:.2f})"
+
+        if not engage_reason:
             logger.info("Director: Low Entropy. Trusting System 1 (Fast Time).")
             return result
 
         else:
-            reason = "High Entropy" if entropy_score >= 0.2 else "Forced by User"
             # High Entropy: Distort Time. Enter the "Temporal Buffer".
-            logger.info(f"Director: {reason} ({entropy_score:.2f}) detected. Engaging System 2 (Time Dilation).")
+            logger.info(f"Director: {engage_reason} detected. Engaging System 2 (Time Dilation).")
 
             # --- NEW: Intervention Check ---
             should_continue = await self.intervene(entropy_score, task)

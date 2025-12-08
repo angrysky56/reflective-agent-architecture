@@ -22,7 +22,8 @@ from .omcd_controller import oMCDController
 from .procedural_toolkit import ProceduralToolkit
 from .representation_selector import RepresentationSelector
 from .self_discover_engine import SelfDiscoverEngine
-from .shape_processor import SHAPEProcessor
+
+# from .shape_processor import SHAPEProcessor
 from .slap_pipeline import SLAPPipeline
 from .smart_planner import SMARTPlanner
 from .utils import COMPASSLogger, Trajectory
@@ -58,7 +59,7 @@ class COMPASS:
 
         # Initialize components
         # Pass LLM provider to SHAPE for intelligent analysis
-        self.shape_processor = SHAPEProcessor(self.config.shape, self.logger, llm_provider=self.llm_provider)
+        # self.shape_processor = SHAPEProcessor(self.config.shape, self.logger, llm_provider=self.llm_provider) # REMOVED: SHAPE is for inter-agent shorthand, not user input.
         self.smart_planner = SMARTPlanner(self.config.smart, self.logger)
         self.slap_pipeline = SLAPPipeline(self.config.slap, self.logger, llm_provider=self.llm_provider)
         self.omcd_controller = oMCDController(self.config.omcd, self.logger)
@@ -96,11 +97,17 @@ class COMPASS:
         try:
             self.logger.info(f"Processing task: {task_description[:50]}...")
 
-            # 1. SHAPE Input Processing
-            self.logger.info("Phase 1: SHAPE Input Processing")
-            # Now async and LLM-powered
-            shape_result = await self.shape_processor.process_user_input(task_description)
-            task_text = shape_result.get("original", task_description)  # Use original text
+            # 1. Input Processing
+            # SHAPE is for inter-agent shorthand. For user input, we skip expensive processing.
+            self.logger.info("Phase 1: Input Processing")
+            # Create minimal context for Advisor/Downstream
+            shape_result = {
+                "original": task_description,
+                "intent": "general",
+                "concepts": []
+            }
+            task_text = task_description
+            task_text = task_description
 
             # 2. Constraint Governor Validation (Input)
             self.logger.info("Phase 2: Constraint Validation")
@@ -108,10 +115,15 @@ class COMPASS:
                 self.logger.warning("Input validation failed constraints")
                 # Continue but note violation
 
+            import time
+            t0 = time.perf_counter()
+
             # 3. Advisor Selection (Phase 2.5)
             # Executive Controller selects the best Advisor based on SHAPE analysis
             self.logger.info("Phase 2.5: Advisor Selection")
             advisor_profile = self.executive_controller.select_advisor(task_text, shape_result)
+            t1 = time.perf_counter()
+            self.logger.info(f"PERF: Advisor Selection took {t1-t0:.4f}s")
 
             # Configure Integrated Intelligence to embody this Advisor
             self.integrated_intelligence.configure_advisor(advisor_profile)
@@ -119,6 +131,8 @@ class COMPASS:
             # 3. SMART Objectives
             self.logger.info("Phase 3: SMART Objectives")
             objectives = self.smart_planner.create_objectives_from_task(task_text, context)
+            t2 = time.perf_counter()
+            self.logger.info(f"PERF: SMART Objectives took {t2-t1:.4f}s")
             self.logger.info(f"Created {len(objectives)} SMART objectives")
 
             # 4. Executive Control Loop (replaces direct calls to Self-Discover/oMCD)
@@ -145,9 +159,13 @@ class COMPASS:
                 self.logger.info(f"Iteration {i+1}/{max_iter}")
                 current_state["iteration"] = i
 
+                t_start_iter = time.perf_counter()
+
                 # A. Meta-Cognitive Coordination
                 # Executive Controller decides strategy and resources
                 control_decision = self.executive_controller.coordinate_iteration(task_text, current_state, context)
+                t_exec_ctrl = time.perf_counter()
+                self.logger.info(f"PERF: Executive Control took {t_exec_ctrl - t_start_iter:.4f}s")
 
                 # Update state with decision
                 current_state["strategy"] = control_decision["strategy"]
@@ -161,7 +179,10 @@ class COMPASS:
                 # C. Reasoning Plan Generation
                 # SLAP generates plan based on selected representation
                 self.logger.info(f"Creating SLAP reasoning plan (Type: {representation.current_type})")
+                t_slap_start = time.perf_counter()
                 reasoning_plan = await self.slap_pipeline.create_reasoning_plan(task_text, objectives, representation_type=representation.current_type)
+                t_slap_end = time.perf_counter()
+                self.logger.info(f"PERF: SLAP Pipeline took {t_slap_end - t_slap_start:.4f}s")
                 self.logger.info(f"SLAP plan created with advancement score: {reasoning_plan.get('advancement', 0.0):.3f}")
 
                 # D. Procedural Operations (Optional)
@@ -194,6 +215,7 @@ class COMPASS:
                     }
                 )
 
+                t_exec_start = time.perf_counter()
                 decision = await self._execute_reasoning_step(
                     task_text,
                     reasoning_plan,
@@ -201,6 +223,9 @@ class COMPASS:
                     control_decision["resources"],
                     execution_context,  # Updated context with history
                 )
+                t_exec_end = time.perf_counter()
+                self.logger.info(f"PERF: Integrated Intelligence took {t_exec_end - t_exec_start:.4f}s")
+
                 solution = decision.get("action", "")
                 score = decision.get("confidence", 0.0)
                 final_score = score

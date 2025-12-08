@@ -8,6 +8,7 @@ Based on:
 - Semantic Energy: Detecting LLM Hallucination Beyond Entropy (2025)
 """
 
+import math
 from typing import List
 
 import torch
@@ -136,6 +137,9 @@ class EntropyMonitor:
             entropy_value = entropy.item()
 
         # Check for clash
+        if math.isnan(entropy_value) or math.isinf(entropy_value):
+            entropy_value = 0.0
+
         is_clash_detected = self.is_clash(entropy_value)
 
         return is_clash_detected, entropy_value

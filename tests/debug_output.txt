@@ -1,0 +1,228 @@
+INFO:src.integration.external_mcp_client:debug: found 3 servers in config: ['desktop-commander', 'brave-search', 'docker-mcp']
+INFO:src.integration.external_mcp_client:Connecting to MCP server: desktop-commander
+INFO:src.integration.external_mcp_client:Connecting to MCP server: brave-search
+INFO:src.integration.external_mcp_client:Connecting to MCP server: docker-mcp
+INFO:src.integration.external_mcp_client:debug: listing tools for docker-mcp...
+INFO:src.integration.external_mcp_client:debug: docker-mcp returned 4 tools: ['create-container', 'deploy-compose', 'get-logs', 'list-containers']
+INFO:src.integration.external_mcp_client:Connected to docker-mcp, loaded 4 tools
+Brave Search MCP Server running on stdio
+INFO:src.integration.external_mcp_client:debug: listing tools for brave-search...
+INFO:src.integration.external_mcp_client:debug: brave-search returned 2 tools: ['brave_web_search', 'brave_local_search']
+INFO:src.integration.external_mcp_client:Connected to brave-search, loaded 2 tools
+INFO:src.integration.external_mcp_client:debug: listing tools for desktop-commander...
+INFO:src.integration.external_mcp_client:debug: desktop-commander returned 25 tools: ['get_config', 'set_config_value', 'read_file', 'read_multiple_files', 'write_file', 'create_directory', 'list_directory', 'move_file', 'start_search', 'get_more_search_results', 'stop_search', 'list_searches', 'get_file_info', 'edit_block', 'start_process', 'read_process_output', 'interact_with_process', 'force_terminate', 'list_sessions', 'list_processes', 'kill_process', 'get_usage_stats', 'get_recent_tool_calls', 'give_feedback_to_desktop_commander', 'get_prompts']
+INFO:src.integration.external_mcp_client:Connected to desktop-commander, loaded 25 tools
+INFO:src.integration.external_mcp_client:Calling external tool 'brave_web_search' on server 'brave-search'
+INFO:src.integration.external_mcp_client:Closing external MCP connections...
+Config path: /home/ty/Repositories/ai_workspace/reflective-agent-architecture/compass_mcp_config.json
+Initializing MCP Manager...
+
+Available Tools:
+- create-container
+- deploy-compose
+- get-logs
+- list-containers
+- brave_web_search
+- brave_local_search
+- get_config
+- set_config_value
+- read_file
+- read_multiple_files
+- write_file
+- create_directory
+- list_directory
+- move_file
+- start_search
+- get_more_search_results
+- stop_search
+- list_searches
+- get_file_info
+- edit_block
+- start_process
+- read_process_output
+- interact_with_process
+- force_terminate
+- list_sessions
+- list_processes
+- kill_process
+- get_usage_stats
+- get_recent_tool_calls
+- give_feedback_to_desktop_commander
+- get_prompts
+
+Testing brave_web_search...
+Calling brave_web_search with query 'Ethereum price'...
+Result: meta=None content=[TextContent(type='text', text='Title: Ethereum price today, ETH to USD live price, marketcap and chart | CoinMarketCap\nDescription: The live Ethereum price today is <strong>$3,037.42 USD</strong> with a 24-hour trading volume of $10,152,831,911.25 USD. We update our ETH to USD price in real-time.\nURL: https://coinmarketcap.com/currencies/ethereum/\n\nTitle: Ethereum ETH (ETH-USD) Live Price, News, Chart & Price History - Yahoo Finance\nDescription: Ethereum (ETH) is a cryptocurrency . Ethereum has a current supply of 120,695,413.63348152. The last known price of Ethereum is <strong>3,038.59333292 USD</strong> and is down -1.89 over the last 24 hours. It is currently trading on 11234 active market(s) with $21,601,101,048.73 traded over the last 24 hours.\nURL: https://finance.yahoo.com/quote/ETH-USD/\n\nTitle: ETHUSD — Ethereum Price Chart — TradingView\nDescription: The current price of Ethereum (ETH) is <strong>3,050.6 USD</strong> — it has risen 0.17% in the past 24 hours.\nURL: https://www.tradingview.com/symbols/ETHUSD/\n\nTitle: Ethereum price today - ETH price chart & live trends\nDescription: Ethereum price today is $3,057.33. In the last 24 hours Ethereum&#x27;s price moved +0.20%. The current ETH to USD conversion rate is <strong>$3,057.33 per ETH</strong>. The circulating supply of Ethereum is 119,768,074 ETH and the current Ethereum market cap is $366,170,524,421. 5,012,953 ETH was purchased today ...\nURL: https://www.kraken.com/prices/ethereum\n\nTitle: Ethereum Price is $3,117.33 today. See ETH price chart and stats\nDescription: Price of Ethereum is <strong>$3,117.33 today</strong>. See ETH/USD live price, price chart, price history, market cap, circulating supply and learn more about Ethereum coin\nURL: https://metamask.io/price/ethereum\n\nTitle: Ethereum Price: ETH Live Price Chart, Market Cap & News Today | CoinGecko\nDescription: ... Binance has updated its December Reserve Audit, with a BTC reserve rate of 102.11% and a USDT reserve rate of 109.16%. ... Every U.S. Crypto ETF You Need to Know About in 2025 ... The price of Ethereum (ETH) is <strong>BTC0.03410 today</strong> with a 24-hour trading volume of $10,687,385,640.82.\nURL: https://www.coingecko.com/en/coins/ethereum\n\nTitle: Ethereum Price | ETH to USD Converter, Chart and News\nDescription: Live price of Ethereum is $3,323.11 with a market cap of <strong>$400.37B USD</strong>. Discover current price, trading volume, chart history, and more.\nURL: https://www.binance.com/en/price/ethereum\n\nTitle: Buy Ethereum - ETH Price Today, Live Charts and News\nDescription: The price of Ethereum is <strong>$0.00</strong>. Buy Ethereum - ETH with $1. Invest in ETH cryptocurrency with Robinhood in the easiest and fastest way.\nURL: https://robinhood.com/us/en/crypto/ETH/\n\nTitle: Ethereum Price, ETH Price, Live Charts, and Marketcap: ethereum price, ethereum, ethereum coin price now\nDescription: Ethereum (ETH) Price USD Today is <strong>$3,039.35.</strong> News, predictions, charts, market cap, buy, sell, convert, and invest on the most trusted platform for crypto.\nURL: https://www.coinbase.com/price/ethereum\n\nTitle: Ethereum Price Chart (ETH/USD) | Ethereum Value | bitFlyer USA\nDescription: Ethereum Price Chart (ETH/USD) 3,033.01*USD · +0.07 % *The reference price is calculated using the mid-price at the current point in time. The actual execution price may differ. Bitcoin · BTC/USD · -0.41 % <strong>89,321.41 USD</strong> · Bitcoin Cash · BCH/USD · -0.39 % 580.57 USD ·\nURL: https://bitflyer.com/en-us/ethereum-chart', annotations=None, meta=None)] structuredContent=None isError=False
+  + Exception Group Traceback (most recent call last):
+  |   File "/home/ty/Repositories/ai_workspace/reflective-agent-architecture/.venv/lib/python3.13/site-packages/anyio/_backends/_asyncio.py", line 781, in __aexit__
+  |     raise BaseExceptionGroup(
+  |         "unhandled errors in a TaskGroup", self._exceptions
+  |     ) from None
+  | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+  +-+---------------- 1 ----------------
+    | Exception Group Traceback (most recent call last):
+    |   File "/home/ty/Repositories/ai_workspace/reflective-agent-architecture/.venv/lib/python3.13/site-packages/anyio/_backends/_asyncio.py", line 781, in __aexit__
+    |     raise BaseExceptionGroup(
+    |         "unhandled errors in a TaskGroup", self._exceptions
+    |     ) from None
+    | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+    +-+---------------- 1 ----------------
+      | Exception Group Traceback (most recent call last):
+      |   File "/home/ty/Repositories/ai_workspace/reflective-agent-architecture/.venv/lib/python3.13/site-packages/anyio/_backends/_asyncio.py", line 781, in __aexit__
+      |     raise BaseExceptionGroup(
+      |         "unhandled errors in a TaskGroup", self._exceptions
+      |     ) from None
+      | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+      +-+---------------- 1 ----------------
+        | Exception Group Traceback (most recent call last):
+        |   File "/home/ty/Repositories/ai_workspace/reflective-agent-architecture/.venv/lib/python3.13/site-packages/anyio/_backends/_asyncio.py", line 781, in __aexit__
+        |     raise BaseExceptionGroup(
+        |         "unhandled errors in a TaskGroup", self._exceptions
+        |     ) from None
+        | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+        +-+---------------- 1 ----------------
+          | Exception Group Traceback (most recent call last):
+          |   File "/home/ty/Repositories/ai_workspace/reflective-agent-architecture/.venv/lib/python3.13/site-packages/anyio/_backends/_asyncio.py", line 781, in __aexit__
+          |     raise BaseExceptionGroup(
+          |         "unhandled errors in a TaskGroup", self._exceptions
+          |     ) from None
+          | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+          +-+---------------- 1 ----------------
+            | Traceback (most recent call last):
+            |   File "/home/ty/Repositories/ai_workspace/reflective-agent-architecture/.venv/lib/python3.13/site-packages/mcp/client/stdio/__init__.py", line 189, in stdio_client
+            |     yield read_stream, write_stream
+            |   File "/home/ty/.local/share/uv/python/cpython-3.13.2-linux-x86_64-gnu/lib/python3.13/contextlib.py", line 751, in __aexit__
+            |     cb_suppress = await cb(*exc_details)
+            |                   ^^^^^^^^^^^^^^^^^^^^^^
+            |   File "/home/ty/Repositories/ai_workspace/reflective-agent-architecture/.venv/lib/python3.13/site-packages/mcp/shared/session.py", line 220, in __aexit__
+            |     return await self._task_group.__aexit__(exc_type, exc_val, exc_tb)
+            |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            |   File "/home/ty/Repositories/ai_workspace/reflective-agent-architecture/.venv/lib/python3.13/site-packages/anyio/_backends/_asyncio.py", line 792, in __aexit__
+            |     return self.cancel_scope.__exit__(exc_type, exc_val, exc_tb)
+            |            ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            |   File "/home/ty/Repositories/ai_workspace/reflective-agent-architecture/.venv/lib/python3.13/site-packages/anyio/_backends/_asyncio.py", line 459, in __exit__
+            |     raise RuntimeError(
+            |     ...<2 lines>...
+            |     )
+            | RuntimeError: Attempted to exit cancel scope in a different task than it was entered in
+            +------------------------------------
+          | 
+          | During handling of the above exception, another exception occurred:
+          | 
+          | Traceback (most recent call last):
+          |   File "/home/ty/.local/share/uv/python/cpython-3.13.2-linux-x86_64-gnu/lib/python3.13/contextlib.py", line 751, in __aexit__
+          |     cb_suppress = await cb(*exc_details)
+          |                   ^^^^^^^^^^^^^^^^^^^^^^
+          |   File "/home/ty/.local/share/uv/python/cpython-3.13.2-linux-x86_64-gnu/lib/python3.13/contextlib.py", line 235, in __aexit__
+          |     await self.gen.athrow(value)
+          |   File "/home/ty/Repositories/ai_workspace/reflective-agent-architecture/.venv/lib/python3.13/site-packages/mcp/client/stdio/__init__.py", line 183, in stdio_client
+          |     anyio.create_task_group() as tg,
+          |     ~~~~~~~~~~~~~~~~~~~~~~~^^
+          |   File "/home/ty/Repositories/ai_workspace/reflective-agent-architecture/.venv/lib/python3.13/site-packages/anyio/_backends/_asyncio.py", line 787, in __aexit__
+          |     if self.cancel_scope.__exit__(type(exc), exc, exc.__traceback__):
+          |        ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          |   File "/home/ty/Repositories/ai_workspace/reflective-agent-architecture/.venv/lib/python3.13/site-packages/anyio/_backends/_asyncio.py", line 459, in __exit__
+          |     raise RuntimeError(
+          |     ...<2 lines>...
+          |     )
+          | RuntimeError: Attempted to exit cancel scope in a different task than it was entered in
+        | 
+        | During handling of the above exception, another exception occurred:
+        | 
+        | Traceback (most recent call last):
+        |   File "/home/ty/Repositories/ai_workspace/reflective-agent-architecture/.venv/lib/python3.13/site-packages/mcp/client/stdio/__init__.py", line 189, in stdio_client
+        |     yield read_stream, write_stream
+        |   File "/home/ty/.local/share/uv/python/cpython-3.13.2-linux-x86_64-gnu/lib/python3.13/contextlib.py", line 751, in __aexit__
+        |     cb_suppress = await cb(*exc_details)
+        |                   ^^^^^^^^^^^^^^^^^^^^^^
+        |   File "/home/ty/Repositories/ai_workspace/reflective-agent-architecture/.venv/lib/python3.13/site-packages/mcp/shared/session.py", line 220, in __aexit__
+        |     return await self._task_group.__aexit__(exc_type, exc_val, exc_tb)
+        |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        |   File "/home/ty/Repositories/ai_workspace/reflective-agent-architecture/.venv/lib/python3.13/site-packages/anyio/_backends/_asyncio.py", line 787, in __aexit__
+        |     if self.cancel_scope.__exit__(type(exc), exc, exc.__traceback__):
+        |        ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        |   File "/home/ty/Repositories/ai_workspace/reflective-agent-architecture/.venv/lib/python3.13/site-packages/anyio/_backends/_asyncio.py", line 459, in __exit__
+        |     raise RuntimeError(
+        |     ...<2 lines>...
+        |     )
+        | RuntimeError: Attempted to exit cancel scope in a different task than it was entered in
+      | 
+      | During handling of the above exception, another exception occurred:
+      | 
+      | Traceback (most recent call last):
+      |   File "/home/ty/.local/share/uv/python/cpython-3.13.2-linux-x86_64-gnu/lib/python3.13/contextlib.py", line 751, in __aexit__
+      |     cb_suppress = await cb(*exc_details)
+      |                   ^^^^^^^^^^^^^^^^^^^^^^
+      |   File "/home/ty/.local/share/uv/python/cpython-3.13.2-linux-x86_64-gnu/lib/python3.13/contextlib.py", line 235, in __aexit__
+      |     await self.gen.athrow(value)
+      |   File "/home/ty/Repositories/ai_workspace/reflective-agent-architecture/.venv/lib/python3.13/site-packages/mcp/client/stdio/__init__.py", line 183, in stdio_client
+      |     anyio.create_task_group() as tg,
+      |     ~~~~~~~~~~~~~~~~~~~~~~~^^
+      |   File "/home/ty/Repositories/ai_workspace/reflective-agent-architecture/.venv/lib/python3.13/site-packages/anyio/_backends/_asyncio.py", line 787, in __aexit__
+      |     if self.cancel_scope.__exit__(type(exc), exc, exc.__traceback__):
+      |        ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+      |   File "/home/ty/Repositories/ai_workspace/reflective-agent-architecture/.venv/lib/python3.13/site-packages/anyio/_backends/_asyncio.py", line 459, in __exit__
+      |     raise RuntimeError(
+      |     ...<2 lines>...
+      |     )
+      | RuntimeError: Attempted to exit cancel scope in a different task than it was entered in
+    | 
+    | During handling of the above exception, another exception occurred:
+    | 
+    | Traceback (most recent call last):
+    |   File "/home/ty/Repositories/ai_workspace/reflective-agent-architecture/.venv/lib/python3.13/site-packages/mcp/client/stdio/__init__.py", line 189, in stdio_client
+    |     yield read_stream, write_stream
+    |   File "/home/ty/.local/share/uv/python/cpython-3.13.2-linux-x86_64-gnu/lib/python3.13/contextlib.py", line 751, in __aexit__
+    |     cb_suppress = await cb(*exc_details)
+    |                   ^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/home/ty/Repositories/ai_workspace/reflective-agent-architecture/.venv/lib/python3.13/site-packages/mcp/shared/session.py", line 220, in __aexit__
+    |     return await self._task_group.__aexit__(exc_type, exc_val, exc_tb)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/home/ty/Repositories/ai_workspace/reflective-agent-architecture/.venv/lib/python3.13/site-packages/anyio/_backends/_asyncio.py", line 787, in __aexit__
+    |     if self.cancel_scope.__exit__(type(exc), exc, exc.__traceback__):
+    |        ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/home/ty/Repositories/ai_workspace/reflective-agent-architecture/.venv/lib/python3.13/site-packages/anyio/_backends/_asyncio.py", line 459, in __exit__
+    |     raise RuntimeError(
+    |     ...<2 lines>...
+    |     )
+    | RuntimeError: Attempted to exit cancel scope in a different task than it was entered in
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/ty/Repositories/ai_workspace/reflective-agent-architecture/debug_mcp_tool.py", line 52, in <module>
+    asyncio.run(main())
+    ~~~~~~~~~~~^^^^^^^^
+  File "/home/ty/.local/share/uv/python/cpython-3.13.2-linux-x86_64-gnu/lib/python3.13/asyncio/runners.py", line 195, in run
+    return runner.run(main)
+           ~~~~~~~~~~^^^^^^
+  File "/home/ty/.local/share/uv/python/cpython-3.13.2-linux-x86_64-gnu/lib/python3.13/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/home/ty/.local/share/uv/python/cpython-3.13.2-linux-x86_64-gnu/lib/python3.13/asyncio/base_events.py", line 725, in run_until_complete
+    return future.result()
+           ~~~~~~~~~~~~~^^
+  File "/home/ty/Repositories/ai_workspace/reflective-agent-architecture/debug_mcp_tool.py", line 49, in main
+    await manager.cleanup()
+  File "/home/ty/Repositories/ai_workspace/reflective-agent-architecture/src/integration/external_mcp_client.py", line 104, in cleanup
+    await self.stack.aclose()
+  File "/home/ty/.local/share/uv/python/cpython-3.13.2-linux-x86_64-gnu/lib/python3.13/contextlib.py", line 705, in aclose
+    await self.__aexit__(None, None, None)
+  File "/home/ty/.local/share/uv/python/cpython-3.13.2-linux-x86_64-gnu/lib/python3.13/contextlib.py", line 768, in __aexit__
+    raise exc
+  File "/home/ty/.local/share/uv/python/cpython-3.13.2-linux-x86_64-gnu/lib/python3.13/contextlib.py", line 751, in __aexit__
+    cb_suppress = await cb(*exc_details)
+                  ^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ty/.local/share/uv/python/cpython-3.13.2-linux-x86_64-gnu/lib/python3.13/contextlib.py", line 235, in __aexit__
+    await self.gen.athrow(value)
+  File "/home/ty/Repositories/ai_workspace/reflective-agent-architecture/.venv/lib/python3.13/site-packages/mcp/client/stdio/__init__.py", line 183, in stdio_client
+    anyio.create_task_group() as tg,
+    ~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/home/ty/Repositories/ai_workspace/reflective-agent-architecture/.venv/lib/python3.13/site-packages/anyio/_backends/_asyncio.py", line 787, in __aexit__
+    if self.cancel_scope.__exit__(type(exc), exc, exc.__traceback__):
+       ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ty/Repositories/ai_workspace/reflective-agent-architecture/.venv/lib/python3.13/site-packages/anyio/_backends/_asyncio.py", line 459, in __exit__
+    raise RuntimeError(
+    ...<2 lines>...
+    )
+RuntimeError: Attempted to exit cancel scope in a different task than it was entered in

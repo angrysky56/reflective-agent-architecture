@@ -28,11 +28,12 @@ def test_sleep_cycle():
     results = sleep.dream(epochs=1)
 
     # Verify Replay
-    assert results["replay"]["steps"] > 0
-    assert results["replay"]["avg_loss"] > 0
+    epoch_result = results["sleep_cycle_results"][0]
+    assert epoch_result["replay"]["steps"] > 0
+    assert epoch_result["replay"]["avg_loss"] > 0
 
     # Verify Crystallization
-    assert "new_tools_created" in results["crystallization"]
+    assert "new_tools_created" in epoch_result["crystallization"]
 
 if __name__ == "__main__":
     test_sleep_cycle()

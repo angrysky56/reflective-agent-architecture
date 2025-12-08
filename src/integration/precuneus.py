@@ -109,7 +109,19 @@ class PrecuneusIntegrator(nn.Module):
         integrated = self.fusion(concatenated)
         integrated = self.layer_norm(integrated + self.default_mode_bias)
 
-        return integrated
+        # 5. Compute Coherence Info (for self-awareness)
+        coherence_info = {
+            "context_weight": float(state_w),    # How much State contributes
+            "perspective_weight": float(agent_w), # How much Agent contributes
+            "operation_weight": float(action_w),  # How much Action contributes
+            "balance": 1.0 - float(torch.std(torch.tensor([state_w, agent_w, action_w]))),  # High = balanced
+            "dominant_stream": max(
+                [("context", float(state_w)), ("perspective", float(agent_w)), ("operation", float(action_w))],
+                key=lambda x: x[1]
+            )[0]
+        }
+
+        return integrated, coherence_info
 
     def _energy_to_gate(self, energy: float, distinctiveness: float = 5.0) -> float:
         """

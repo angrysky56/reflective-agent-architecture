@@ -16,6 +16,11 @@ class TestRuminator(unittest.TestCase):
 
         self.sleep_cycle = SleepCycle(workspace=self.mock_workspace)
 
+        # Fix config mock
+        self.mock_workspace.config = MagicMock()
+        self.mock_workspace.config.ruminator_enabled = True
+        self.mock_workspace.config.ruminator_delay = 0.0
+
     @patch("src.integration.sleep_cycle.time.sleep")
     def test_ruminate_on_codebase(self, mock_sleep):
         # Mock scan result
@@ -38,7 +43,7 @@ class TestRuminator(unittest.TestCase):
         self.mock_workspace.ruminator_provider.model_name = "test-ruminator"
 
         # Run rumination
-        result = self.sleep_cycle._ruminate_on_codebase()
+        result = self.sleep_cycle._ruminate_on_self_code()
 
         # Verify
         self.assertEqual(result["status"], "active")
@@ -53,7 +58,7 @@ class TestRuminator(unittest.TestCase):
         self.mock_workspace.system_guide.scan_codebase.return_value = "Scanned."
         self.mock_session.run.return_value = [] # No results
 
-        result = self.sleep_cycle._ruminate_on_codebase()
+        result = self.sleep_cycle._ruminate_on_self_code()
 
         self.assertEqual(result["status"], "idle")
         self.assertEqual(result["message"], "No undocumented code found.")

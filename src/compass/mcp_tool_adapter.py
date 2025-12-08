@@ -21,9 +21,7 @@ def _validate_schema(schema: Dict) -> bool:
 
         # 3. Check for specific problematic patterns
         # Some MCP tools might use "anyOf" or "oneOf" at top level which Ollama struggles with
-        if "anyOf" in schema or "oneOf" in schema:
-            # Simple check - if it's complex, skip for now to be safe
-            return False
+        return True
 
         return True
     except Exception:
@@ -67,7 +65,7 @@ async def get_available_tools_for_llm(mcp_client: Any) -> List[Dict]:
 
 
         else:
-            logger.warning("MCP Tool Adapter: external_mcp not available")
+            logger.warning("MCP Tool Adapter: external_mcp not available or is None on client")
 
 
         llm_tools = []

@@ -45,7 +45,7 @@ from dotenv import load_dotenv
 from mcp.server import Server
 from mcp.types import TextContent, Tool
 from neo4j import GraphDatabase
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from src.cognition.curiosity import CuriosityModule
@@ -162,6 +162,16 @@ class CWDConfig(BaseSettings):
     confidence_threshold: float = Field(default=0.7)  # Lower to .3 for asymmetric embeddings
     device: str = Field(default="cuda" if torch.cuda.is_available() else "cpu", description="Device for tensor operations")
 
+    @model_validator(mode='after')
+    def resolve_relative_paths(self):
+        """Ensure paths are absolute relative to project root."""
+        if self.chroma_path and not Path(self.chroma_path).is_absolute():
+            # Resolve relative to project root (parent of parent of this file)
+            # This ensures consistent behavior regardless of CWD (e.g., running from src/ vs root)
+            root = Path(__file__).parent.parent
+            self.chroma_path = str((root / self.chroma_path).resolve())
+        return self
+
 
 class CognitiveWorkspace:
     """
@@ -173,6 +183,8 @@ class CognitiveWorkspace:
 
     def __init__(self, config: CWDConfig):
         self.config = config
+        self.device = config.device
+        self.manifold = None
 
         # Initialize Neo4j
         self.neo4j_driver = GraphDatabase.driver(
@@ -301,6 +313,11 @@ class CognitiveWorkspace:
             "inspect_codebase": self._inspect_codebase,
             "get_cognitive_state": self._get_cognitive_state,
         }
+
+    def get_manifold(self):
+        if self.manifold:
+            return self.manifold
+        raise RuntimeError("Manifold not injected into Workspace")
 
     def _get_cognitive_state(self) -> str:
         """
@@ -1318,41 +1335,128 @@ class CognitiveWorkspace:
                 session, problem, "problem", parent_problem=None, confidence=1.0
             )
 
-            # Simple decomposition (in production, use LLM)
-            components = self._simple_decompose(problem)
-            component_ids = []
+            # 1. Advanced Tripartite Decomposition (System 2 Analysis)
+            # We break the problem into three orthogonal domains:
+            # - STATE (vmPFC): Context/Environment
+            # - AGENT (amPFC): Persona/Intent
+            # - ACTION (dmPFC): Verbs/Transitions
 
-            for comp in components:
+            system_prompt = """You are the Prefrontal Cortex Decomposition Engine.
+Input: A user prompt or situation.
+Task: Fragment the input into three orthogonal domains.
+
+1. STATE (vmPFC): Where are we? What is the static context? (e.g., "Python CLI", "Philosophical Debate", "Error Log")
+2. AGENT (amPFC): Who is involved? What is the intent/persona? (e.g., "Frustrated User", "Socratic Teacher", "Debugger")
+3. ACTION (dmPFC): What is the transition/verb? (e.g., "Refactor", "Summarize", "Search")
+
+Output JSON:
+{
+  "state_fragment": "...",
+  "agent_fragment": "...",
+  "action_fragment": "..."
+}"""
+            user_prompt = f"Deconstruct this problem: {problem}"
+
+            llm_output = self._llm_generate(system_prompt, user_prompt, max_tokens=1000)
+            clean_response = llm_output.replace("```json", "").replace("```", "").strip()
+
+            try:
+                fragments = json.loads(clean_response)
+            except json.JSONDecodeError:
+                logger.error(f"Failed to parse deconstruction JSON: {clean_response}")
+                # Fallback
+                fragments = {
+                    "state_fragment": "Unknown Context",
+                    "agent_fragment": "Unknown Agent",
+                    "action_fragment": problem
+                }
+
+            # 2. Persist Fragments as ThoughtNodes
+            component_ids = []
+            fragment_map = {
+                "State": fragments.get("state_fragment", ""),
+                "Agent": fragments.get("agent_fragment", ""),
+                "Action": fragments.get("action_fragment", "")
+            }
+            embeddings_map = {}
+
+            for label in ["State", "Agent", "Action"]:
+                content = fragment_map.get(label)
+                if not content:
+                   # Default fallback if LLM misses a domain
+                   content = "Unknown" if label != "Action" else problem
+
+                # Create node with specific label
                 comp_id = self._create_thought_node(
-                    session, comp, "sub_problem", parent_problem=root_id, confidence=0.8
+                    session,
+                    content,
+                    cognitive_type=label.lower(), # type: state, agent, action
+                    parent_problem=root_id,
+                    confidence=0.9
                 )
                 component_ids.append(comp_id)
 
-                # Create decomposition relationship
+                # Create specific relationship based on type
+                rel_type = "HAS_STATE" if label == "State" else "HAS_AGENT" if label == "Agent" else "REQUIRES_ACTION"
+
                 session.run(
-                    """
-                    MATCH (parent:ThoughtNode {id: $parent_id})
-                    MATCH (child:ThoughtNode {id: $child_id})
-                    CREATE (parent)-[:DECOMPOSES_INTO]->(child)
+                    f"""
+                    MATCH (parent:ThoughtNode {{id: $parent_id}})
+                    MATCH (child:ThoughtNode {{id: $child_id}})
+                    MERGE (parent)-[:{rel_type}]->(child)
+                    MERGE (parent)-[:DECOMPOSES_INTO]->(child)
+                    SET child:{label}
                     """,
                     parent_id=root_id,
                     child_id=comp_id,
                 )
 
+                # Store embedding in Manifold for retrieval
+                vec = self._embed_text(content)
+                vec_tensor = torch.tensor(vec, dtype=torch.float32, device=self.device)
+                self.get_manifold().store_pattern(vec_tensor, domain=label.lower())
+                # CRITICAL: Precuneus expects lower-case keys: 'state', 'agent', 'action'
+                embeddings_map[label.lower()] = vec_tensor
+
+
             # Get decomposition tree
             tree = self._get_decomposition_tree(session, root_id)
 
+            # Reconstruct components list for response
+            # Note: We iterate strictly in State, Agent, Action order if available
+            final_components = []
+            ordered_labels = ["State", "Agent", "Action"]
+            current_idx = 0
+
+            for label in ordered_labels:
+                content = fragment_map.get(label)
+                if content:
+                    # component_ids matches the order of processing above
+                    cid = component_ids[current_idx]
+                    final_components.append({"id": cid, "content": content, "type": label})
+                    current_idx += 1
+
+            # 3. Construct Result
+            # Keep tensor embeddings for internal processing (Manifold retrieval)
+            # Also provide serializable version for JSON output
+            embeddings_serializable = {
+                k: v.cpu().tolist() if isinstance(v, torch.Tensor) else v
+                for k, v in embeddings_map.items()
+            }
+
             result = {
                 "root_id": root_id,
-                "tree": tree,
-                "components": [{"id": cid, "content": c} for cid, c in zip(component_ids, components)]
+                "components": final_components,
+                "decomposition_tree": tree,
+                "embeddings": embeddings_map,  # Internal: tensors for Manifold
+                "embeddings_serializable": embeddings_serializable  # Output: lists for JSON
             }
 
             # Record in working memory for context continuity
             self.working_memory.record(
                 operation="deconstruct",
                 input_data={"problem": problem[:500]},
-                output_data={"components": len(components), "root_id": root_id},
+                output_data={"components": len(final_components), "root_id": root_id},
                 node_ids=[root_id] + component_ids[:5]
             )
 
@@ -1367,6 +1471,7 @@ class CognitiveWorkspace:
             return result
 
     def get_node_context(self, node_id: str, depth: int = 1) -> Dict[str, Any]:
+
         """
         Get the local context (neighbors) of a node.
         """
@@ -1427,67 +1532,7 @@ class CognitiveWorkspace:
             logger.error(f"Failed to get node context: {e}")
             return {"error": str(e)}
 
-    def _simple_decompose(self, text: str) -> list[str]:
-        """
-        Break problem into 2-50 logical sub-components using LLM.
 
-        The LLM handles decomposition logic while graph/vector ops handle the reasoning.
-        """
-        system_prompt = (
-            "You decompose complex problems into 2-50 logical sub-components. "
-            "Output ONLY the components as a numbered list (1., 2., 3., etc.). "
-            "Each component should be a clear, actionable sub-problem. "
-            "No explanations, no reasoning - just the list."
-        )
-        user_prompt = (
-            f"Decompose this problem into 2-50 logical sub-components:\n\n{text}\n\nComponents:"
-        )
-
-        llm_output = self._llm_generate(system_prompt, user_prompt, max_tokens=16000)
-
-        # Parse numbered list into components
-        components = []
-        for line in llm_output.split("\n"):
-            line = line.strip()
-            # Remove numbering like "1.", "1)", "•", etc.
-            if line and len(line) > 3:
-                # Strip common prefixes
-                for prefix in [
-                    "1.",
-                    "2.",
-                    "3.",
-                    "4.",
-                    "5.",
-                    "6.",
-                    "7.",
-                    "1)",
-                    "2)",
-                    "3)",
-                    "4)",
-                    "5)",
-                    "6)",
-                    "7)",
-                    "•",
-                    "-",
-                    "*",
-                    "→",
-                    "►",
-                ]:
-                    if line.startswith(prefix):
-                        line = line[len(prefix) :].strip()
-                        break
-                if line and not line.startswith(("Ok", "Here", "The", "I ")):
-                    components.append(line)
-
-        # Ensure at least 2 components; fallback to simple sentence/phrase split
-        if len(components) < 2:
-            # Basic phrase/sentence split
-            sentences = [
-                s.strip() for s in re.split(r"[\.;:]+|\band_b|\bthen\b", text) if s.strip()
-            ]
-            components = sentences[:50] if len(sentences) >= 2 else (components or [text])
-
-        return components[:50]  # Cap at 50 components
 
     def _get_decomposition_tree(self, session, root_id: str) -> dict[str, Any]:
         """Retrieve decomposition tree"""
@@ -2427,6 +2472,7 @@ class RAAServerContext:
             device=device,
         )
         manifold = Manifold(hopfield_cfg)
+        self.workspace.manifold = manifold
 
         pointer_cfg = PointerConfig(
             embedding_dim=embedding_dim,
@@ -2788,13 +2834,13 @@ class RAAServerContext:
             raise RuntimeError("RAA context not initialized")
         return self.raa_context["device"]
 
-    def get_available_tools(self) -> list[Tool]:
+    def get_available_tools(self, include_external: bool = True) -> list[Tool]:
         """Get list of available tools."""
         dynamic_tools = self.get_agent_factory().get_dynamic_tools()
 
         # External tools
         external_tools = []
-        if self.external_mcp:
+        if self.external_mcp and include_external:
             external_tools = self.external_mcp.get_tools()
 
         # Access global RAA_TOOLS
@@ -2813,66 +2859,33 @@ class RAAServerContext:
                 operation_name="deconstruct"
             ))
 
-        # 1. Tripartite Fragmentation (LLM)
-        system_prompt = """You are the Prefrontal Cortex Decomposition Engine.
-Input: A user prompt or situation.
-Task: Fragment the input into three orthogonal domains.
-
-1. STATE (vmPFC): Where are we? What is the static context? (e.g., "Python CLI", "Philosophical Debate", "Error Log")
-2. AGENT (amPFC): Who is involved? What is the intent/persona? (e.g., "Frustrated User", "Socratic Teacher", "Debugger")
-3. ACTION (dmPFC): What is the transition/verb? (e.g., "Refactor", "Summarize", "Search")
-
-Output JSON:
-{
-  "state_fragment": "...",
-  "agent_fragment": "...",
-  "action_fragment": "..."
-}"""
-        user_prompt = f"Deconstruct this problem: {problem}"
-
-        # 0. Persist to Graph (Neo4j) via Bridge
+        # 1. Execute Core Deconstruction (Workspace + Graph Persistence)
+        # This now handles Tripartite Decomposition, Embeddings, and Persistence
         bridge = self.get_bridge()
-        graph_result = bridge.execute_monitored_operation("deconstruct", {"problem": problem})
-        if isinstance(graph_result, list):
-            graph_result = graph_result[0] if graph_result else {}
+        result = bridge.execute_monitored_operation("deconstruct", {"problem": problem})
 
-        response = self.workspace._llm_generate(system_prompt, user_prompt)
-        clean_response = response.replace("```json", "").replace("```", "").strip()
+        # Handle list result (sometimes bridge returns list)
+        if isinstance(result, list):
+            result = result[0] if result else {}
 
-        try:
-            fragments = json.loads(clean_response)
-        except json.JSONDecodeError:
-            logger.error(f"Failed to parse deconstruction JSON: {clean_response}")
-            # Fallback to a simple split if JSON fails
-            fragments = {
-                "state_fragment": "Unknown Context",
-                "agent_fragment": "Unknown Agent",
-                "action_fragment": problem
-            }
+        # 2. Retrieve Energies for Paradox Detection
+        embeddings = result.get("embeddings", {})
+        energies = {}
+        vectors = {}
 
-        # 2. Embed Fragments
-        mapper = bridge.embedding_mapper
-        embeddings = {}
-        for key, text in fragments.items():
-            domain = key.split("_")[0]
-            with torch.no_grad():
-                vec = mapper.embedding_model.encode(text, convert_to_tensor=True, device=self.device).float()
-                vec = torch.nn.functional.normalize(vec, p=2, dim=0)
-                embeddings[domain] = vec
-                self.get_manifold().store_pattern(vec, domain=domain)
+        if embeddings:
+            # Re-retrieve to get energies (surprise/novelty)
+            retrieval_results = self.get_manifold().retrieve(embeddings)
+            vectors = {k: v[0] for k, v in retrieval_results.items()}
+            energies = {k: v[1] for k, v in retrieval_results.items()}
 
-        # 3. Tripartite Retrieval
-        retrieval_results = self.get_manifold().retrieve(embeddings)
-        vectors = {k: v[0] for k, v in retrieval_results.items()}
-        energies = {k: v[1] for k, v in retrieval_results.items()}
-
-        # 4. Precuneus Fusion
+        # 3. Precuneus Fusion (now returns coherence info)
         director = self.get_director()
         cognitive_state = director.latest_cognitive_state
-        unified_context = self.get_precuneus()(vectors, energies, cognitive_state=cognitive_state)
+        unified_context, coherence_info = self.get_precuneus()(vectors, energies, cognitive_state=cognitive_state)
 
-        # 5. Gödel Detector
-        is_paradox = all(e == float('inf') for e in energies.values())
+        # 4. Gödel Detector
+        is_paradox = all(e == float('inf') for e in energies.values()) if energies else False
 
         fusion_status = "Integrated"
         advice = None
@@ -2883,17 +2896,28 @@ Output JSON:
             advice = "Query contains self-referential contradiction or total novelty. Consider: (1) Reframe question, (2) Accept undecidability, (3) Escalate to System 3 (Philosopher)."
             escalation = "ConsultParadoxResolver"
 
-        result = {
-            "fragments": fragments,
-            "energies": {k: float(v) for k, v in energies.items()},
-            "fusion_status": fusion_status,
-            "unified_context_norm": float(torch.norm(unified_context)),
-            "graph_data": graph_result
-        }
+        # Classify novelty from energies (interpretable summary)
+        def classify_energy(e):
+            if e < -0.7:
+                return "familiar"
+            if e < -0.3:
+                return "moderate"
+            return "novel"
 
-        if is_paradox:
-            result["advice"] = advice
-            result["escalation"] = escalation
+        novelty_summary = {k: classify_energy(v) for k, v in energies.items()} if energies else {}
+
+        # Enhance result with meta-cognitive insights (cleaned up)
+        result.update({
+             "pattern_match": novelty_summary,  # Interpretable novelty
+             "coherence": coherence_info,       # Stream weights and balance
+             "fusion_status": fusion_status,
+             "unified_context_norm": float(torch.norm(unified_context)) if unified_context is not None else 0.0,
+        })
+
+        if advice:
+             result["advice"] = advice
+        if escalation:
+             result["escalation"] = escalation
 
         return result
 
@@ -3931,6 +3955,20 @@ Syntax: Same as prove tool - use Prover9 FOL format.""",
             "required": ["concept"]
         },
     ),
+    Tool(
+        name="consult_ruminator",
+        description="""Consult the Category-Theoretic Ruminator to perform 'Diagram Chasing' on the knowledge graph.
+
+        It identifies 'open triangles' (non-commutative diagrams) starting from a focus node and uses an LLM (acting as a Functor) to propose missing relationships (morphisms) to make the diagram commute.""",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "focus_node_id": {"type": "string", "description": "Optional: The ID of the node to focus rumination on. If omitted, the system selects a node with 'structural tension'."},
+                "mode": {"type": "string", "description": "Operational mode (currently only 'diagram_chasing')", "enum": ["diagram_chasing"], "default": "diagram_chasing"}
+            },
+            "required": []
+        },
+    ),
 ]
 
 
@@ -4011,9 +4049,22 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
                 ))
             try:
                 result = ctx.execute_deconstruct(arguments["problem"])
+                # Clean up output: remove raw embeddings (internal use only)
+                result.pop("embeddings", None)
+                result.pop("embeddings_serializable", None)
+                # Rename component types to friendlier labels
+                if "components" in result:
+                    for comp in result["components"]:
+                        if comp.get("type") == "State":
+                            comp["type"] = "context"
+                        elif comp.get("type") == "Agent":
+                            comp["type"] = "perspective"
+                        elif comp.get("type") == "Action":
+                            comp["type"] = "operation"
                 return [TextContent(type="text", text=json.dumps(result, indent=2))]
             except Exception as e:
-                return [TextContent(type="text", text=f"Deconstruction failed: {str(e)}")]
+                import traceback
+                return [TextContent(type="text", text=f"Deconstruction failed: {str(e)}\n\n{traceback.format_exc()}")]
         elif name == "hypothesize":
             # Metabolic Cost: Hypothesis is a Search operation (1.0)
             if workspace.ledger:
@@ -4379,6 +4430,31 @@ Provide an improved synthesis that addresses the critique by using these tools t
             director = ctx.get_director()
             vis = director.visualize_last_thought()
             return [TextContent(type="text", text=vis)]
+        elif name == "consult_ruminator":
+            # Metabolic Cost: Rumination (3.0)
+            if workspace.ledger:
+                from decimal import Decimal
+
+                from src.substrate.energy import EnergyToken, MeasurementCost
+
+                workspace.ledger.record_transaction(MeasurementCost(
+                    energy=EnergyToken(Decimal("3.0"), "joules"),
+                    operation_name="consult_ruminator"
+                ))
+
+            sleep_cycle = ctx.sleep_cycle
+            if not sleep_cycle:
+                 return [TextContent(type="text", text="Error: Sleep Cycle component not initialized")]
+
+            # Run in executor
+            loop = asyncio.get_running_loop()
+            result = await loop.run_in_executor(
+                None,
+                sleep_cycle.diagrammatic_ruminator,
+                arguments.get("focus_node_id")
+            )
+            return [TextContent(type="text", text=json.dumps(result, indent=2))]
+
         elif name == "run_sleep_cycle":
             # Use shared Sleep Cycle instance
             sleep_cycle = ctx.sleep_cycle
@@ -5083,7 +5159,7 @@ async def main():
         logger.info(f"External MCP tools loaded: {list(server_context.external_mcp.tools_map.keys())}")
 
         # Test get_available_tools
-        all_tools = server_context.get_available_tools()
+        all_tools = server_context.get_available_tools(include_external=True)
         external_count = len(server_context.external_mcp.get_tools()) if server_context.external_mcp.is_initialized else 0
         logger.info(f"Total tools available: {len(all_tools)} (External: {external_count}, Internal: {len(all_tools) - external_count})")
 

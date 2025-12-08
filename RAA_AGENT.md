@@ -324,7 +324,7 @@ constrain(node_id="...", mode="consistency",
 
 **Tool**: `consult_compass`
 
-- **When**: The task is too complex for a single step or requires multi-modal reasoning (SHAPE, SMART, SLAP).
+- **When**: The task is too complex for a single step or requires multi-modal reasoning (SMART, SLAP).
 - **Action**: Call `consult_compass(task="...")`.
 - **Mechanism**: Delegates the task to the full COMPASS architecture, which performs input analysis, objective planning, and reasoning before executing.
 
@@ -362,3 +362,15 @@ constrain(node_id="...", mode="consistency",
   - `acip`: Get ACIP consciousness integration mapping.
   - `regulation`: Get emotional regulation strategies (reappraisal, mindfulness, etc.).
 - **Applications**: Understanding user emotional state, crafting empathic responses, ethical AI interaction design.
+
+## 11. Diagrammatic Reasoning (The Ruminator)
+
+**Tool**: `consult_ruminator`
+
+- **When**: You need to rigorous check the Knowledge Graph for consistency or find missing connections between related concepts ("Diagram Chasing").
+- **Action**: Call `consult_ruminator(focus_node_id="...")`.
+- **Mechanism**:
+  1.  **Topological Scan**: Finds "Open Triangles" (A->B, A->C, no B-C) starting from the focus node.
+  2.  **Functorial Mapping**: Maps the graph diagram to a semantic prompt.
+  3.  **Inference**: Uses the LLM to infer if a morphism (relationship) exists between B and C to make the diagram commute.
+- **Output**: Returns the operation result ("diagram_completion" or "diagram_verified") and the inferred relationship.

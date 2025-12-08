@@ -659,7 +659,7 @@ with tab_internal:
     import pandas as pd
     if st.session_state.energy_history:
         df = pd.DataFrame(st.session_state.energy_history)
-        st.line_chart(df.set_index("time")[["energy", "entropy"]])
+        st.line_chart(df.set_index("time")[["energy", "entropy"]].fillna(0.0))
     else:
         st.info("No history data yet. Metrics will appear after system activity.")
 

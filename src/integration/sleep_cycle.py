@@ -7,16 +7,13 @@ It performs two key functions:
 2. Crystallization (Deep Sleep): Identifies frequent graph patterns and converts them into Tools.
 """
 
-import json
 import logging
-import os
-import time
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import torch
 import torch.optim as optim
 
+from src.cognition.category_theory_engine import CategoryTheoryEngine
 from src.persistence.work_history import WorkHistory
 from src.processor.transformer_decoder import ProcessorConfig, TransformerDecoder
 
@@ -69,8 +66,8 @@ class SleepCycle:
             # 2. Crystallization (Tool Creation)
             cryst_result = self._crystallize_patterns()
 
-            # 3. Ruminate on Graph Connections (Priority)
-            graph_result = self._ruminate_on_graph_connections()
+            # 3. Ruminate on Graph Connections (Diagrammatic)
+            graph_result = self.diagrammatic_ruminator()
 
             # 4. Ruminate on Codebase (Self-Documentation) - Lower Priority
             code_result = self._ruminate_on_self_code()
@@ -232,123 +229,193 @@ class SleepCycle:
         except Exception as e:
             logger.error(f"Crystallization failed: {e}")
             return {"error": str(e)}
-    def _ruminate_on_graph_connections(self) -> Dict[str, Any]:
+    def diagrammatic_ruminator(self, focus_node_id: Optional[str] = None) -> Dict[str, Any]:
         """
-        Ruminator: Find and connect lonely nodes in the graph.
-        Prioritizes graph connectivity over code documentation.
+        Category-Theoretic Ruminator (Diagram Chasing).
+
+        Treats the knowledge graph as a diagram category.
+        Finds 'open' diagrams (e.g., non-commutative triangles) where:
+        A -> B and A -> C exist, but the relationship between B and C is undefined.
+
+        Acts as a Functor mapping this structural diagram to the LLM (Semantic Category)
+        to deduce the missing morphism (relationship) that makes the diagram commute.
         """
         if not self.workspace:
              return {"status": "skipped", "reason": "No workspace"}
 
-        # Check if enabled (reuse ruminator config)
-        if not getattr(self.workspace.config, "ruminator_enabled", False):
-             return {"status": "skipped", "reason": "Ruminator disabled"}
-
-        ruminator_delay = getattr(self.workspace.config, "ruminator_delay", 2.0)
-
-        logger.info("Ruminating on graph connections...")
-
-        connections_made = 0
+        logger.info(f"Ruminating on diagram topology (Focus: {focus_node_id})...")
 
         try:
-            # 1. Find lonely nodes (degree 0 or 1)
-            lonely_nodes = []
+            # 1. Select Focus Node (Object A)
+            if not focus_node_id:
+                with self.workspace.neo4j_driver.session() as session:
+                    # Find potential 'span' roots: nodes with out-degree >= 2
+                    result = session.run(
+                        """
+                        MATCH (n:ConceptNode)
+                        WITH n, size((n)-->()) as out_degree
+                        WHERE out_degree >= 2
+                        RETURN n.id as id, n.name as name
+                        ORDER BY rand()
+                        LIMIT 1
+                        """
+                    ).single()
+
+                    if not result:
+                        return {"status": "idle", "message": "No suitable focus nodes found (graph too sparse)."}
+
+                    focus_node_id = result["id"]
+                    focus_name = result["name"]
+            else:
+                with self.workspace.neo4j_driver.session() as session:
+                    result = session.run(
+                        "MATCH (n:ConceptNode {id: $id}) RETURN n.name as name",
+                        id=focus_node_id
+                    ).single()
+                    if not result:
+                        return {"status": "error", "message": f"Focus node {focus_node_id} not found."}
+                    focus_name = result["name"]
+
+            # 2. Find Open Triangle (The 'Span': B <- A -> C)
+            # Find neighbors B and C that are NOT connected to each other
+            span_query = """
+                MATCH (a:ConceptNode {id: $focus_id})-[:RELATES_TO|Involves|IS_A]->(b:ConceptNode)
+                MATCH (a)-[:RELATES_TO|Involves|IS_A]->(c:ConceptNode)
+                WHERE b.id < c.id  // Avoid duplicates
+                AND NOT (b)--(c)   // The crucial 'Open' condition
+                RETURN b.id as b_id, b.name as b_name, b.content as b_content,
+                       c.id as c_id, c.name as c_name, c.content as c_content
+                LIMIT 1
+            """
+
             with self.workspace.neo4j_driver.session() as session:
-                result = session.run(
-                    """
-                    MATCH (n:ConceptNode)
-                    OPTIONAL MATCH (n)--(m)
-                    WITH n, count(m) as degree
-                    WHERE degree < 2
-                    RETURN n.id as id, n.name as name, n.content as content
-                    LIMIT 5
-                    """
-                )
-                lonely_nodes = [record for record in result]
+                span_result = session.run(span_query, focus_id=focus_node_id).single()
 
-            if not lonely_nodes:
-                return {"status": "idle", "message": "No lonely nodes found."}
+            if not span_result:
+                return {"status": "idle", "message": f"No open triangles found for {focus_name} (Diagram commutes)."}
 
-            for record in lonely_nodes:
-                node_id = record["id"]
-                name = record["name"]
-                content = record["content"] or name
+            b_data = {"id": span_result["b_id"], "name": span_result["b_name"], "content": span_result["b_content"]}
+            c_data = {"id": span_result["c_id"], "name": span_result["c_name"], "content": span_result["c_content"]}
 
-                # 2. Find similar nodes via Chroma
+            # 3. Functorial Mapping (LLM Query)
+            prompt = (
+                f"Perform a diagram chase on these concepts:\n"
+                f"Object A (Source): {focus_name}\n"
+                f"Object B: {b_data['name']} ({b_data['content']})\n"
+                f"Object C: {c_data['name']} ({c_data['content']})\n\n"
+                f"Topology: A -> B and A -> C.\n"
+                f"Analysis: Does a direct relationship exist between B and C?\n"
+                f"If yes, specify TYPE and DIRECTION.\n"
+                f"Format: RELATION: <Yes/No> | TYPE: <type> | DIRECTION: <B->C or C->B> | REASON: <text>"
+            )
+
+            # Use dream/ruminator provider
+            response = self.workspace.ruminator_provider.generate(
+                system_prompt="You are a Category Theoretic Reasoner.",
+                user_prompt=prompt
+            )
+
+            # 4. Parse Response (The Morphism)
+            if "RELATION: Yes" in response:
+                parts = response.split("|")
+                rel_type = "RELATED_TO"
+                direction = "B->C"
+                reason = "Inferred via diagram chasing"
+
+                for part in parts:
+                    if "TYPE:" in part:
+                        t = part.split(":")[1].strip().upper().replace(" ", "_")
+                        if t.isalnum() or "_" in t:
+                            rel_type = t
+                    if "DIRECTION:" in part:
+                         if "C->B" in part:
+                             direction = "C->B"
+                    if "REASON:" in part:
+                        reason = part.split(":")[1].strip()
+
+                # 5. Formal Verification (Categorical Engine)
+                verification_result = {"result": "skipped"}
                 try:
-                    # We need an embedding. If not cached, we might need to generate one.
-                    # Ideally, ConceptNodes have embeddings in Chroma.
-                    # Let's query Chroma by text.
+                    cat_engine = CategoryTheoryEngine()
 
-                    results = self.workspace.collection.query(
-                        query_texts=[content],
-                        n_results=3
+                    # Assume simplistic relationship types for A->B and A->C for the prototype
+                    # In production, these should be fetched from the 'span_query' result
+                    # For now, we assume 'RELATED_TO' to test the engine flow
+
+                    # Determine source/target for verification based on direction
+                    v_source = b_data['id'] if direction == "B->C" else c_data['id']
+                    v_target = c_data['id'] if direction == "B->C" else b_data['id']
+
+                    verification_result = cat_engine.verify_triangle_commutativity(
+                        a_id=focus_node_id,
+                        b_id=v_source,
+                        c_id=v_target,
+                        path_ab_type="RELATED_TO", # Placeholder: would need actual type from graph
+                        path_ac_type="RELATED_TO", # Placeholder
+                        path_bc_type=rel_type
+                    )
+                    logger.info(f"Formal Verification Result: {verification_result.get('result')}")
+                except Exception as ve:
+                    logger.warning(f"Verification failed: {ve}")
+                    verification_result = {"result": "error", "reason": str(ve)}
+
+                # 6. Apply the Morphism (Update Graph)
+                source_id = b_data['id'] if direction == "B->C" else c_data['id']
+                target_id = c_data['id'] if direction == "B->C" else b_data['id']
+
+                with self.workspace.neo4j_driver.session() as session:
+                    session.run(
+                        f"""
+                        MATCH (s:ConceptNode {{id: $sid}}), (t:ConceptNode {{id: $tid}})
+                        MERGE (s)-[r:{rel_type}]->(t)
+                        SET r.basis = 'diagram_chasing',
+                            r.reason = $reason,
+                            r.verified = $verified,
+                            r.timestamp = timestamp()
+                        """,
+                        sid=source_id, tid=target_id, reason=reason,
+                        verified=str(verification_result.get('result') == 'proved')
                     )
 
-                    # results['ids'][0] is a list of ids
-                    candidate_ids = results['ids'][0] if results['ids'] else []
-                    candidate_docs = results['documents'][0] if results['documents'] else []
+                # 7. Generate Categorical Report (Prototype)
+                # To do this correctly, we'd gather all open triangles, but here we report on the one we processed
+                triangle_info = {
+                     "b_name": b_data['name'],
+                     "c_name": c_data['name'],
+                     "ab_type": "RELATED_TO", # Placeholder
+                     "ac_type": "RELATED_TO", # Placeholder
+                     "inferred": f"{direction} : {rel_type}",
+                     "verification": verification_result
+                }
 
-                    for i, candidate_id in enumerate(candidate_ids):
-                        if candidate_id == node_id:
-                            continue
-
-                        candidate_content = candidate_docs[i] if i < len(candidate_docs) else candidate_id
-
-                        # Check if already connected
-                        with self.workspace.neo4j_driver.session() as session:
-                            exists = session.run(
-                                """
-                                MATCH (a:ConceptNode {id: $id1}), (b:ConceptNode {id: $id2})
-                                RETURN exists((a)--(b)) as connected
-                                """,
-                                id1=node_id, id2=candidate_id
-                            ).single()
-
-                            if exists and exists["connected"]:
-                                continue
-
-                        # 3. Ask Ruminator
-                        prompt = (
-                            f"Do these two concepts have a meaningful relationship?\n"
-                            f"Concept A: {name} ({content})\n"
-                            f"Concept B: {candidate_id} ({candidate_content})\n"
-                            f"If yes, state the relationship type (e.g., RELATES_TO, CAUSES, IS_A). If no, say NO."
-                        )
-
-                        response = self.workspace.ruminator_provider.generate(
-                            system_prompt="You are a knowledge graph curator.",
-                            user_prompt=prompt
-                        )
-
-                        if "NO" in response.upper() or "ERROR" in response.upper():
-                            continue
-
-                        # Extract relationship type (simplified)
-                        rel_type = "RELATES_TO" # Default
-                        # (In a real implementation, we'd parse the response better)
-
-                        # 4. Create relationship
-                        with self.workspace.neo4j_driver.session() as session:
-                            session.run(
-                                f"""
-                                MATCH (a:ConceptNode {{id: $id1}}), (b:ConceptNode {{id: $id2}})
-                                MERGE (a)-[:{rel_type}]->(b)
-                                """,
-                                id1=node_id, id2=candidate_id
-                            )
-
-                        connections_made += 1
-                        time.sleep(ruminator_delay)
-                        break # Move to next lonely node after one connection
-
+                cat_report = "Categorical Report Generated."
+                try:
+                    cat_report = cat_engine.generate_commutativity_report(
+                        focus_node={"id": focus_node_id, "name": focus_name},
+                        open_triangles=[triangle_info]
+                    )
                 except Exception as e:
-                    logger.warning(f"Failed to connect node {node_id}: {e}")
+                    logger.warning(f"Report generation failed: {e}")
+                    pass
 
-            return {"status": "active", "connections_made": connections_made}
+                return {
+                    "status": "success",
+                    "operation": "diagram_completion",
+                    "triangle": f"{focus_name} -> ({b_data['name']}, {c_data['name']})",
+                    "inferred_morphism": f"{direction} : {rel_type}",
+                    "reason": reason,
+                    "verification": verification_result.get('result'),
+                    "report": cat_report
+                }
+
+            return {
+                "status": "success",
+                "operation": "diagram_verified",
+                "message": "No direct morphism found."
+            }
 
         except Exception as e:
-            logger.error(f"Graph rumination failed: {e}")
+            logger.error(f"Diagrammatic rumination failed: {e}")
             return {"status": "error", "reason": str(e)}
 
 

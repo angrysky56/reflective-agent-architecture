@@ -279,7 +279,9 @@ class IntegratedIntelligence:
                     from .mcp_tool_adapter import get_available_tools_for_llm
 
                     tools = await get_available_tools_for_llm(self.mcp_client)
-                    self.logger.info(f"Successfully fetched {len(tools)} tools: {[t['function']['name'] for t in tools] if tools else 'none'}")
+                    self.logger.info(f"IntegratedIntelligence: Successfully fetched {len(tools)} tools converted for LLM.")
+                    if tools:
+                        self.logger.debug(f"Tools list: {[t['function']['name'] for t in tools]}")
 
 
                 except ImportError as e:
@@ -365,14 +367,15 @@ class IntegratedIntelligence:
             # We need to handle both text chunks and tool call chunks
             # Filter tools based on Advisor profile if active
             tools_to_use = tools
-            if self.current_advisor and self.current_advisor.tools:
-                # Only allow tools listed in the advisor's profile
-                # Note: If profile.tools is empty, we might want to allow ALL or NONE.
-                # For now, if list is present, we filter. If empty/None, we allow all (or default).
-                # Let's assume if tools are specified, we restrict.
-                allowed_names = set(self.current_advisor.tools)
-                tools_to_use = [t for t in tools if t['function']['name'] in allowed_names]
-                self.logger.info(f"Advisor restricted tools to: {[t['function']['name'] for t in tools_to_use]}")
+            # DISABLED: User requested that agents inherit all tools.
+            # if self.current_advisor and self.current_advisor.tools:
+            #     # Only allow tools listed in the advisor's profile
+            #     # Note: If profile.tools is empty, we might want to allow ALL or NONE.
+            #     # For now, if list is present, we filter. If empty/None, we allow all (or default).
+            #     # Let's assume if tools are specified, we restrict.
+            #     allowed_names = set(self.current_advisor.tools)
+            #     tools_to_use = [t for t in tools if t['function']['name'] in allowed_names]
+            #     self.logger.info(f"Advisor restricted tools to: {[t['function']['name'] for t in tools_to_use]}")
 
             tools_to_use = tools_to_use if (tools_to_use and self.config.enable_tools) else None
 
@@ -442,9 +445,15 @@ class IntegratedIntelligence:
                         # Format result
                         content_str = ""
                         if isinstance(result, dict) and "content" in result:
+                            # Handle dictionary response (legacy or serialized)
                             content_list = result.get("content", [])
                             text_parts = [item.get("text", "") for item in content_list if item.get("type") == "text"]
-                            content_str = "\\n".join(text_parts)
+                            content_str = "\n".join(text_parts)
+                        elif hasattr(result, "content"):
+                            # Handle MCP CallToolResult object
+                            content_list = result.content
+                            text_parts = [item.text for item in content_list if hasattr(item, "type") and item.type == "text"]
+                            content_str = "\n".join(text_parts)
                         else:
                             content_str = str(result)
 

@@ -74,7 +74,7 @@ class OpenRouterProvider(BaseLLMProvider):
                 import json
                 try:
                     args = json.loads(tool_call.function.arguments)
-                except:
+                except Exception:
                     args = tool_call.function.arguments
 
                 simulated_block = (
@@ -114,6 +114,11 @@ class OpenRouterProvider(BaseLLMProvider):
         max_tokens: int = 16000,
         tools: Optional[List[Dict]] = None
     ) -> AsyncGenerator[str, None]:
+        if tools:
+            logger.debug(f"OpenRouterProvider: Received {len(tools)} tools for chat completion.")
+            # logger.debug(f"Tool names: {[t['function']['name'] for t in tools]}")
+        else:
+            logger.debug("OpenRouterProvider: No tools provided for chat completion.")
 
         extra_headers = {}
         if self.site_url:
@@ -130,29 +135,57 @@ class OpenRouterProvider(BaseLLMProvider):
         openai_messages = [{"role": m.role, "content": m.content} for m in messages]
 
         try:
+            # Respect the stream parameter
             response = await client.chat.completions.create(
                 model=self.model_name,
                 messages=openai_messages,
                 temperature=temperature,
                 max_tokens=max_tokens,
                 tools=tools if tools else None,
-                stream=True
+                stream=stream
             )
 
-            async for chunk in response:
-                delta = chunk.choices[0].delta
-                content = delta.content
-                tool_calls = delta.tool_calls
+            if stream:
+                async for chunk in response:
+                    delta = chunk.choices[0].delta
+                    content = delta.content
+                    tool_calls = delta.tool_calls
+
+                    if content:
+                        yield content
+
+                    # TODO: Implement proper streaming tool call aggregation if needed later
+                    # Currently we rely on non-streaming for robust tool usage
+            else:
+                # Non-streaming response
+                message = response.choices[0].message
+                content = message.content
+                tool_calls = message.tool_calls
 
                 if content:
                     yield content
 
                 if tool_calls:
-                    # OpenRouter streams tool calls in parts similar to OpenAI
-                    # For now, we'll use the same simplified approach as OpenAI provider
-                    pass
+                    # Serialize tool calls to the format IntegratedIntelligence expects
+                    import json
+                    # Convert OpenAI ToolCall objects to dicts
+                    tool_calls_dict = []
+                    for tc in tool_calls:
+                        tool_calls_dict.append({
+                            "id": tc.id,
+                            "type": tc.type,
+                            "function": {
+                                "name": tc.function.name,
+                                "arguments": tc.function.arguments
+                            }
+                        })
+
+                    yield json.dumps({"tool_calls": tool_calls_dict})
 
         except (RateLimitError, APIConnectionError, APITimeoutError):
-            raise  # Re-raise for tenacity to handle
+            raise
         except Exception as e:
+            import traceback
+            trace = traceback.format_exc()
+            logger.error(f"OpenRouter chat_completion error: {e}\n{trace}")
             yield f"Error: {str(e)}"

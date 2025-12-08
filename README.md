@@ -118,6 +118,7 @@ RAA synthesizes three active research frontiers:
 2.  **Entropy-Based Metacognition**: Detection of model uncertainty through predictive entropy monitoring.
 3.  **Sheaf Cohomology**: Topological analysis of network learning dynamics via cellular sheaf theory.
 4.  **Topological Active Inference (TAI)**: Category-theoretic framework where Theory of Mind (ToM) embeds faithfully—false beliefs map to β₀ fractures, hidden emotions map to β₁ cycles.
+5.  **Diagrammatic Reasoning**: Category-theoretic "Diagram Chasing" to infer semantic relationships via functorial mapping (Refactoring-Diagram Isomorphism).
 
 ### Core Components
 
@@ -137,7 +138,13 @@ RAA synthesizes three active research frontiers:
 - **Key Innovation**: Entropy-triggered associative search for goal reframing.
 - **Multi-Signal Cognitive State** (Dec 2025): Combines Hopfield state, entropy trends, metabolic energy, and looping detection for comprehensive self-awareness.
 
-#### 3. The Precuneus (Integrator)
+#### 3. The Ruminator (Diagrammatic Reasoner)
+
+- **Implementation**: Category-Theoretic "Diagram Chaser" (LLM as Functor).
+- **Function**: Identifies "Open Triangles" (non-commutative diagrams) in the Knowledge Graph and infers missing morphisms to restore semantic consistency.
+- **Key Innovation**: Shifts from random "connection finding" to rigorous topological completion.
+
+#### 4. The Precuneus (Integrator)
 
 - **Implementation**: Energy-gated fusion layer with Continuity Field modulation.
 - **Function**: Fuses the three Manifold streams (State, Agent, Action) into a unified experience.
@@ -145,7 +152,7 @@ RAA synthesizes three active research frontiers:
   - **Energy Gating**: "Silence the Confusion". High energy (confusion) -> low weight.
   - **Continuity Field**: Modulates weights based on "Causal Signatures" (historical impact), ensuring stable identity over time.
 
-#### 4. The Pointer (Goal Controller)
+#### 5. The Pointer (Goal Controller)
 
 - **Implementation**: RNN or State-Space Model (S4/Mamba).
 - **Function**: Maintains current goal representation as persistent state.

@@ -1,0 +1,28 @@
+2025-12-07 23:02:22,210 - asyncio - DEBUG - Using selector: EpollSelector
+Config path: /home/ty/Repositories/ai_workspace/reflective-agent-architecture/compass_mcp_config.json
+Initializing MCP Manager...
+2025-12-07 23:02:22,210 - src.integration.external_mcp_client - INFO - debug: found 2 servers in config: ['brave-search', 'docker-mcp']
+2025-12-07 23:02:22,210 - src.integration.external_mcp_client - INFO - Connecting to MCP server: brave-search
+2025-12-07 23:02:22,213 - src.integration.external_mcp_client - INFO - Connecting to MCP server: docker-mcp
+2025-12-07 23:02:22,889 - src.integration.external_mcp_client - INFO - debug: listing tools for docker-mcp...
+2025-12-07 23:02:22,891 - src.integration.external_mcp_client - INFO - debug: docker-mcp returned 4 tools: ['create-container', 'deploy-compose', 'get-logs', 'list-containers']
+2025-12-07 23:02:22,891 - src.integration.external_mcp_client - INFO - Connected to docker-mcp, loaded 4 tools
+Brave Search MCP Server running on stdio
+2025-12-07 23:02:23,749 - src.integration.external_mcp_client - INFO - debug: listing tools for brave-search...
+2025-12-07 23:02:23,751 - src.integration.external_mcp_client - INFO - debug: brave-search returned 2 tools: ['brave_web_search', 'brave_local_search']
+2025-12-07 23:02:23,751 - src.integration.external_mcp_client - INFO - Connected to brave-search, loaded 2 tools
+
+Available Tools:
+- create-container
+- deploy-compose
+- get-logs
+- list-containers
+- brave_web_search
+- brave_local_search
+
+Testing brave_web_search...
+Calling brave_web_search with query 'Ethereum price'...
+2025-12-07 23:02:23,751 - src.integration.external_mcp_client - INFO - Calling external tool 'brave_web_search' on server 'brave-search'
+Result: meta=None content=[TextContent(type='text', text='Title: Ethereum price today, ETH to USD live price, marketcap and chart | CoinMarketCap\nDescription: The live Ethereum price today is <strong>$3,037.42 USD</strong> with a 24-hour trading volume of $10,152,831,911.25 USD. We update our ETH to USD price in real-time.\nURL: https://coinmarketcap.com/currencies/ethereum/\n\nTitle: Ethereum ETH (ETH-USD) Live Price, News, Chart & Price History - Yahoo Finance\nDescription: Ethereum (ETH) is a cryptocurrency . Ethereum has a current supply of 120,695,413.63348152. The last known price of Ethereum is <strong>3,038.59333292 USD</strong> and is down -1.89 over the last 24 hours. It is currently trading on 11234 active market(s) with $21,601,101,048.73 traded over the last 24 hours.\nURL: https://finance.yahoo.com/quote/ETH-USD/\n\nTitle: ETHUSD — Ethereum Price Chart — TradingView\nDescription: The current price of Ethereum (ETH) is <strong>3,050.6 USD</strong> — it has risen 0.17% in the past 24 hours.\nURL: https://www.tradingview.com/symbols/ETHUSD/\n\nTitle: Ethereum price today - ETH price chart & live trends\nDescription: Ethereum price today is $3,057.33. In the last 24 hours Ethereum&#x27;s price moved +0.20%. The current ETH to USD conversion rate is <strong>$3,057.33 per ETH</strong>. The circulating supply of Ethereum is 119,768,074 ETH and the current Ethereum market cap is $366,170,524,421. 5,012,953 ETH was purchased today ...\nURL: https://www.kraken.com/prices/ethereum\n\nTitle: Ethereum Price is $3,117.33 today. See ETH price chart and stats\nDescription: Price of Ethereum is <strong>$3,117.33 today</strong>. See ETH/USD live price, price chart, price history, market cap, circulating supply and learn more about Ethereum coin\nURL: https://metamask.io/price/ethereum\n\nTitle: Ethereum Price: ETH Live Price Chart, Market Cap & News Today | CoinGecko\nDescription: ... Binance has updated its December Reserve Audit, with a BTC reserve rate of 102.11% and a USDT reserve rate of 109.16%. ... Every U.S. Crypto ETF You Need to Know About in 2025 ... The price of Ethereum (ETH) is <strong>BTC0.03410 today</strong> with a 24-hour trading volume of $10,687,385,640.82.\nURL: https://www.coingecko.com/en/coins/ethereum\n\nTitle: Ethereum Price | ETH to USD Converter, Chart and News\nDescription: Live price of Ethereum is $3,323.11 with a market cap of <strong>$400.37B USD</strong>. Discover current price, trading volume, chart history, and more.\nURL: https://www.binance.com/en/price/ethereum\n\nTitle: Buy Ethereum - ETH Price Today, Live Charts and News\nDescription: The price of Ethereum is <strong>$0.00</strong>. Buy Ethereum - ETH with $1. Invest in ETH cryptocurrency with Robinhood in the easiest and fastest way.\nURL: https://robinhood.com/us/en/crypto/ETH/\n\nTitle: Ethereum Price, ETH Price, Live Charts, and Marketcap: ethereum price, ethereum, ethereum coin price now\nDescription: Ethereum (ETH) Price USD Today is <strong>$3,039.35.</strong> News, predictions, charts, market cap, buy, sell, convert, and invest on the most trusted platform for crypto.\nURL: https://www.coinbase.com/price/ethereum\n\nTitle: Ethereum Price Chart (ETH/USD) | Ethereum Value | bitFlyer USA\nDescription: Ethereum Price Chart (ETH/USD) 3,033.01*USD · +0.07 % *The reference price is calculated using the mid-price at the current point in time. The actual execution price may differ. Bitcoin · BTC/USD · -0.41 % <strong>89,321.41 USD</strong> · Bitcoin Cash · BCH/USD · -0.39 % 580.57 USD ·\nURL: https://bitflyer.com/en-us/ethereum-chart', annotations=None, meta=None)] structuredContent=None isError=False
+2025-12-07 23:02:24,152 - src.integration.external_mcp_client - INFO - Closing external MCP connections...
+Cleanup error ignored: Attempted to exit cancel scope in a different task than it was entered in

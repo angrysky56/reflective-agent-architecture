@@ -16,8 +16,8 @@ class RAALLMProvider:
     """
     def __init__(self, model_name: Optional[str] = None):
         import os
-        self.model_name = model_name or os.getenv("COMPASS_MODEL", "kimi-k2-thinking:cloud")
-        self.provider_name = os.getenv("COMPASS_PROVIDER", os.getenv("LLM_PROVIDER", "ollama"))
+        self.model_name = model_name or os.getenv("COMPASS_MODEL", "google/gemini-3-pro-preview")
+        self.provider_name = os.getenv("COMPASS_PROVIDER", os.getenv("LLM_PROVIDER", "openrouter"))
         # Use factory to get provider. COMPASS might use a different model/provider if configured.
         self.provider = LLMFactory.create_provider(provider_name=self.provider_name, model_name=self.model_name)
         self.dynamic_temperature_fn: Optional[Callable[[], float]] = None

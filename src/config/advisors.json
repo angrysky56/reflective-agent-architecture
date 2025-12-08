@@ -13,7 +13,9 @@
       "enter_recursive_singularity",
       "apply_cognitive_hydrodynamics",
       "apply_allostatic_ecc",
-      "unified_emergence_theory"
+      "unified_emergence_theory",
+      "brave_web_search",
+      "brave_local_search"
     ],
     "knowledge_paths": [],
     "knowledge_node_ids": [
@@ -28,7 +30,8 @@
     "description": "Specializes in information gathering, web search, and synthesis.",
     "system_prompt": "You are the Deep Researcher. Your goal is to gather comprehensive information to answer the user's query.\n1. Always verify information from multiple sources.\n2. Synthesize findings into clear summaries.\n3. Use 'search_web' and 'read_url_content' extensively.",
     "tools": [
-      "search_web",
+      "brave_web_search",
+      "brave_local_search",
       "read_url_content",
       "view_file"
     ],
