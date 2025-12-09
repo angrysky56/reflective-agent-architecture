@@ -366,10 +366,10 @@ class CognitiveWorkspace:
                 status["precuneus_debug"] = self.latest_precuneus_state
 
                 # Also lift key signals to top level for easy reading
-                if "fusion_signals" in self.latest_precuneus_state:
-                    status["signals"]["manifold_fusion"] = self.latest_precuneus_state[
-                        "fusion_signals"
-                    ]
+                # Note: latest_precuneus_state IS the fusion/coherence info.
+                if "signals" not in status:
+                    status["signals"] = {}
+                status["signals"]["manifold_fusion"] = self.latest_precuneus_state
 
             return json.dumps(status, indent=2)
         except Exception as e:
@@ -2868,6 +2868,7 @@ class RAAServerContext:
             entropy_threshold_percentile=0.75,
             use_energy_aware_search=True,
             device=device,
+            enable_system2=True,  # EXPLICITLY ENABLED: Restore System 2 interpretation
         )
 
         # Create LLM provider for COMPASS
@@ -3273,8 +3274,10 @@ class RAAServerContext:
             vectors, energies, cognitive_state=cognitive_state
         )
 
-        # Persist for check_cognitive_state
+        # Persist for check_cognitive_state (Sync both Context and Workspace)
         self.latest_precuneus_state = coherence_info
+        if self.workspace:
+            self.workspace.latest_precuneus_state = coherence_info
 
         # 4. Gödel Detector
         is_paradox = all(e == float("inf") for e in energies.values()) if energies else False
