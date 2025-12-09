@@ -1646,7 +1646,7 @@ Output JSON:
 }"""
             user_prompt = f"Deconstruct this problem: {problem}"
 
-            llm_output = self._llm_generate(system_prompt, user_prompt, max_tokens=1000)
+            llm_output = self._llm_generate(system_prompt, user_prompt, max_tokens=4000)
             clean_response = llm_output.replace("```json", "").replace("```", "").strip()
 
             try:
@@ -2152,7 +2152,7 @@ Output JSON:
             f"Content:\n{content[:4000]}\n\n" f"Rule: {rule}\n\n" f"Perform Chain of Verification:"
         )
 
-        llm_output = self._llm_generate(system_prompt, user_prompt, max_tokens=1000)
+        llm_output = self._llm_generate(system_prompt, user_prompt, max_tokens=16000)
 
         # Parse LLM response
         try:
@@ -2173,7 +2173,7 @@ Output JSON:
                 return (False, 0.8)
 
             # Ambiguous response
-            logger.warning(f"Ambiguous Logic Validator response: {response[:50]}...")
+            logger.warning(f"Ambiguous Logic Validator response: {response[:500]}...")
             return (False, 0.5)
 
         except Exception as e:
@@ -2307,7 +2307,10 @@ Output JSON:
             self.working_memory.record(
                 operation="synthesize",
                 input_data={"goal": goal, "node_count": len(node_ids)},
-                output_data={"synthesis": synthesis_text[:500], "quadrant": meta_stats["quadrant"]},
+                output_data={
+                    "synthesis": synthesis_text[:5000],
+                    "quadrant": meta_stats["quadrant"],
+                },
                 node_ids=node_ids[:5] + [synth_id],
             )
 
