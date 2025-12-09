@@ -259,12 +259,14 @@ class SleepCycle:
             if not focus_node_id:
                 with self.workspace.neo4j_driver.session() as session:
                     # Find potential 'span' roots: nodes with out-degree >= 2
+                    # Relaxed to include ThoughtNodes
                     result = session.run(
                         """
-                        MATCH (n:ConceptNode)
+                        MATCH (n)
+                        WHERE (n:ConceptNode OR n:ThoughtNode)
                         WITH n, size((n)-->()) as out_degree
                         WHERE out_degree >= 2
-                        RETURN n.id as id, n.name as name
+                        RETURN n.id as id, n.name as name, n.content as content
                         ORDER BY rand()
                         LIMIT 1
                         """
@@ -277,26 +279,35 @@ class SleepCycle:
                         }
 
                     focus_node_id = result["id"]
-                    focus_name = result["name"]
+                    focus_name = result["name"] or result["content"] or "Unnamed Node"
             else:
                 with self.workspace.neo4j_driver.session() as session:
+                    # Generic match for ID
                     result = session.run(
-                        "MATCH (n:ConceptNode {id: $id}) RETURN n.name as name", id=focus_node_id
+                        """
+                        MATCH (n)
+                        WHERE n.id = $id
+                        RETURN n.name as name, n.content as content
+                        """,
+                        id=focus_node_id,
                     ).single()
+
                     if not result:
                         return {
                             "status": "error",
                             "message": f"Focus node {focus_node_id} not found.",
                         }
-                    focus_name = result["name"]
+                    focus_name = result["name"] or result["content"] or f"Node {focus_node_id}"
 
             # 2. Find Open Triangle (The 'Span': B <- A -> C)
             # Find neighbors B and C that are NOT connected to each other
             span_query = """
-                MATCH (a:ConceptNode {id: $focus_id})-[:RELATES_TO|Involves|IS_A]->(b:ConceptNode)
-                MATCH (a)-[:RELATES_TO|Involves|IS_A]->(c:ConceptNode)
+                MATCH (a {id: $focus_id})-[r1]->(b)
+                MATCH (a)-[r2]->(c)
                 WHERE b.id < c.id  // Avoid duplicates
                 AND NOT (b)--(c)   // The crucial 'Open' condition
+                AND (b:ConceptNode OR b:ThoughtNode)
+                AND (c:ConceptNode OR c:ThoughtNode)
                 RETURN b.id as b_id, b.name as b_name, b.content as b_content,
                        c.id as c_id, c.name as c_name, c.content as c_content
                 LIMIT 1
