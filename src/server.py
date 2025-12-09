@@ -360,6 +360,17 @@ class CognitiveWorkspace:
         """
         try:
             status = self.entropy_monitor.get_status()
+
+            # Inject Precuneus/Manifold debug info if available
+            if self.latest_precuneus_state:
+                status["precuneus_debug"] = self.latest_precuneus_state
+
+                # Also lift key signals to top level for easy reading
+                if "fusion_signals" in self.latest_precuneus_state:
+                    status["signals"]["manifold_fusion"] = self.latest_precuneus_state[
+                        "fusion_signals"
+                    ]
+
             return json.dumps(status, indent=2)
         except Exception as e:
             return f"Error getting cognitive state: {e}"
