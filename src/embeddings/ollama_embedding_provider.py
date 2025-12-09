@@ -16,7 +16,7 @@ class OllamaEmbeddingProvider(BaseEmbeddingProvider):
         self,
         model_name: str,
         base_url: str = "http://localhost:11434",
-        device: str = "cpu"  # Ollama manages device internally
+        device: str = "cpu",  # Ollama manages device internally
     ):
         """
         Initialize Ollama embedding provider.
@@ -39,7 +39,7 @@ class OllamaEmbeddingProvider(BaseEmbeddingProvider):
             logger.error(f"Failed to initialize Ollama embedding provider: {e}")
             raise
 
-    def _verify_ollama_connection(self):
+    def _verify_ollama_connection(self) -> None:
         """Verify Ollama server is accessible."""
         try:
             response = requests.get(f"{self.base_url}/api/tags", timeout=5)
@@ -53,7 +53,7 @@ class OllamaEmbeddingProvider(BaseEmbeddingProvider):
         batch_size: int = 32,
         show_progress_bar: bool = False,
         convert_to_numpy: bool = True,
-        **kwargs
+        **kwargs,
     ) -> Union[np.ndarray, List[np.ndarray]]:
         """
         Encode sentences using Ollama embeddings API.
@@ -78,11 +78,8 @@ class OllamaEmbeddingProvider(BaseEmbeddingProvider):
             try:
                 response = requests.post(
                     f"{self.base_url}/api/embeddings",
-                    json={
-                        "model": self.model_name,
-                        "prompt": sentence
-                    },
-                    timeout=30
+                    json={"model": self.model_name, "prompt": sentence},
+                    timeout=30,
                 )
                 response.raise_for_status()
                 embedding = response.json()["embedding"]

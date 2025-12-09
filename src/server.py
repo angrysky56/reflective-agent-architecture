@@ -61,6 +61,7 @@ from src.director import Director, DirectorConfig
 from src.director.simple_gp import SimpleGP
 from src.embeddings.base_embedding_provider import BaseEmbeddingProvider
 from src.embeddings.embedding_factory import EmbeddingFactory
+from src.embeddings.migration_trainer import train_projection
 from src.integration.agent_factory import AgentFactory
 from src.integration.continuity_field import ContinuityField
 from src.integration.continuity_service import ContinuityService
@@ -81,6 +82,7 @@ from src.substrate import (
 )
 from src.substrate.energy import EnergyDepletionError, MetabolicLedger
 from src.substrate.entropy import EntropyMonitor
+from src.vectordb_migrate import ChromaMigrator, MigrationDetector
 
 # Load environment variables from .env file
 load_dotenv()
@@ -261,16 +263,32 @@ class CognitiveWorkspace:
             logger.error(f"Failed to initialize embedding provider: {e}")
             raise
 
-        # Create Chroma collections
+        # Create Chroma collections with embedding model metadata
+        # This allows us to detect model changes and auto-train projections
+        collection_metadata = {
+            "description": "Cognitive workspace thought-nodes",
+            "embedding_provider": config.embedding_provider,
+            "embedding_model": config.embedding_model,
+            "embedding_dim": embedding_dim,
+        }
+
         self.collection = self.chroma_client.get_or_create_collection(
-            name="thought_nodes", metadata={"description": "Cognitive workspace thought-nodes"}
+            name="thought_nodes", metadata=collection_metadata
         )
 
         # Collection for Manifold patterns (persistent memory across restarts)
         self.manifold_patterns_collection = self.chroma_client.get_or_create_collection(
             name="manifold_patterns",
-            metadata={"description": "Hopfield network patterns for associative memory"},
+            metadata={
+                "description": "Hopfield network patterns for associative memory",
+                "embedding_provider": config.embedding_provider,
+                "embedding_model": config.embedding_model,
+                "embedding_dim": embedding_dim,
+            },
         )
+
+        # Auto-detect and migrate dimension mismatches (with auto-training if needed)
+        self._check_and_migrate_embeddings(embedding_dim)
 
         # Gen 3 Enhancement: Active goals for utility-guided exploration
         self.active_goals: dict[str, dict[str, Any]] = {}
@@ -393,7 +411,7 @@ class CognitiveWorkspace:
         """Search for text pattern in codebase using grep, excluding common junk."""
         self._track_tool_usage("search_codebase")
         try:
-            import subprocess
+            import subprocess  # noqa: S404  # trunk-ignore(bandit/B404)
 
             # Validation: Ensure path is safe and exists
             search_path = Path(path).resolve()
@@ -439,8 +457,11 @@ class CognitiveWorkspace:
             # Use '--' to delimit options from the query, protecting against queries starting with '-'
             cmd = [grep_path, "-r", "-n"] + excludes + ["--", query, str(search_path)]
 
-            # Add timeout to prevent hanging
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            # Security: Safe because shell=False (default) and cmd is a list of args.
+            # grep_path is resolved via shutil.which and search_path is validated.
+            result = subprocess.run(  # noqa: S603  # trunk-ignore(bandit/B603)
+                cmd, capture_output=True, text=True, timeout=30
+            )
 
             if result.returncode != 0 and result.returncode != 1:
                 return f"Error searching: {result.stderr}"
@@ -544,6 +565,206 @@ class CognitiveWorkspace:
         # OR we need to update generate() to return (content, tool_calls).
 
         return response
+
+    def _check_and_migrate_embeddings(self, expected_dim: int) -> None:
+        """
+        Check for embedding dimension mismatches and automatically migrate if needed.
+
+        Handles both:
+        - Collections with uniform wrong dimensions
+        - Collections with mixed dimensions (multiple models)
+
+        Args:
+            expected_dim: Expected embedding dimension from current model
+        """
+        try:
+            migrator = ChromaMigrator(self.config.chroma_path)
+            mismatches = migrator.check_dimensions(expected_dim)
+
+            if not mismatches:
+                logger.info("✓ All collections match current embedding dimension")
+                return
+
+            # Found mismatches - scan for mixed dimensions within collections
+            logger.warning(f"⚠ Detected {len(mismatches)} collection(s) with dimension mismatch")
+
+            # Group mismatches by collection and check for mixed dimensions
+            for mismatch in mismatches:
+                collection_name = mismatch["name"]
+                current_dim = mismatch["current_dim"]
+
+                # Scan collection for mixed dimensions
+                collection = self.chroma_client.get_collection(collection_name)
+                sample_results = collection.get(
+                    limit=min(100, mismatch["count"]), include=["embeddings", "metadatas"]
+                )
+
+                if len(sample_results["embeddings"]) == 0:
+                    continue
+
+                # Group by dimension
+                dim_groups = {}
+                for i, emb in enumerate(sample_results["embeddings"]):
+                    dim = len(emb)
+                    if dim not in dim_groups:
+                        dim_groups[dim] = {"count": 0, "metadatas": []}
+                    dim_groups[dim]["count"] += 1
+                    if sample_results["metadatas"]:
+                        dim_groups[dim]["metadatas"].append(sample_results["metadatas"][i])
+
+                if len(dim_groups) > 1:
+                    logger.warning(
+                        f"⚠ Collection '{collection_name}' has MIXED dimensions: {list(dim_groups.keys())}"
+                    )
+                    logger.warning(
+                        "⚠ Mixed-dimension collections require manual cleanup. "
+                        "Please filter and separate embeddings by dimension first."
+                    )
+                    continue  # Skip mixed collections for now
+
+                # Single dimension - proceed with migration
+                logger.warning(
+                    f"  - {collection_name}: {current_dim}D (expected {expected_dim}D, "
+                    f"{mismatch['count']} vectors)"
+                )
+
+            # Initialize migration detector
+            project_root = Path(__file__).parent.parent
+            projections_dir = project_root / "src" / "embeddings" / "projections"
+            detector = MigrationDetector(projections_dir)
+
+            # Attempt migration for each collection
+            for mismatch in mismatches:
+                current_dim = mismatch["current_dim"]
+                collection_name = mismatch["name"]
+
+                logger.info(f"Checking for projection: {current_dim}D → {expected_dim}D...")
+
+                projection_path = detector.find_projection(current_dim, expected_dim)
+
+                if projection_path:
+                    logger.info(f"✓ Found pre-trained projection, migrating {collection_name}...")
+                    logger.warning(
+                        "⚠ AUTO-MIGRATION: Automatic backup will be created. "
+                        "Some semantic accuracy may be lost (typically 5-20%)."
+                    )
+
+                    try:
+                        result = migrator.migrate_collection(
+                            collection_name=collection_name,
+                            projection_path=projection_path,
+                            auto_backup=True,
+                            verify=True,
+                        )
+
+                        logger.info(
+                            f"✓ Migration complete for {collection_name}: "
+                            f"{result['n_migrated']} vectors migrated"
+                        )
+                        logger.info(f"  Backup: {result['backup_path']}")
+
+                        if result.get("verification"):
+                            sim_corr = result["verification"]["similarity_correlation"]
+                            logger.info(f"  Semantic preservation: {sim_corr:.2%}")
+
+                    except Exception as migration_error:
+                        logger.error(f"✗ Migration failed for {collection_name}: {migration_error}")
+                        logger.error(
+                            "Database has been rolled back. "
+                            "Consider training a custom projection or using a fresh database."
+                        )
+                        raise
+                else:
+                    # No pre-trained projection found - attempt auto-training
+                    logger.warning(
+                        f"✗ No pre-trained projection found for {current_dim}D → {expected_dim}D"
+                    )
+
+                    # Try to get old embedding model info from collection metadata
+                    try:
+                        collection = self.chroma_client.get_collection(collection_name)
+                        old_provider = collection.metadata.get("embedding_provider")
+                        old_model = collection.metadata.get("embedding_model")
+
+                        if old_provider and old_model:
+                            logger.info(
+                                f"📚 Auto-training projection: {old_model} → {self.config.embedding_model}"
+                            )
+                            logger.warning(
+                                "⏳ This may take 1-3 minutes depending on sample size..."
+                            )
+
+                            # Train the projection automatically
+                            project_root = Path(__file__).parent.parent
+                            output_dir = project_root / "src" / "embeddings" / "projections"
+
+                            training_result = train_projection(
+                                source_provider=old_provider,
+                                source_model=old_model,
+                                target_provider=self.config.embedding_provider,
+                                target_model=self.config.embedding_model,
+                                n_samples=1000,  # Use 1000 samples for balance of speed/quality
+                                output_dir=str(output_dir),
+                                device=self.config.device,
+                            )
+
+                            projection_path = Path(training_result["projection_path"])
+                            metrics = training_result["metrics"]
+
+                            logger.info(
+                                f"✓ Projection trained successfully: "
+                                f"Similarity preservation: {metrics['similarity_preservation']:.2%}"
+                            )
+
+                            # Now migrate using the newly trained projection
+                            logger.info(
+                                f"🚀 Migrating {collection_name} with auto-trained projection..."
+                            )
+
+                            result = migrator.migrate_collection(
+                                collection_name=collection_name,
+                                projection_path=projection_path,
+                                auto_backup=True,
+                                verify=True,
+                            )
+
+                            logger.info(
+                                f"✓ Auto-migration complete for {collection_name}: "
+                                f"{result['n_migrated']} vectors migrated"
+                            )
+                            logger.info(f"  Backup: {result['backup_path']}")
+
+                            if result.get("verification"):
+                                sim_corr = result["verification"]["similarity_correlation"]
+                                logger.info(f"  Semantic preservation: {sim_corr:.2%}")
+
+                        else:
+                            # Fallback: No metadata available
+                            logger.warning(
+                                f"Collection '{collection_name}' missing embedding model metadata."
+                            )
+                            logger.warning(
+                                "Cannot auto-train projection. Manual options:\\n"
+                                f"  1. Train a projection: python -m src.embeddings.migration_trainer "
+                                f"--source-model <old_model> --target-model {self.config.embedding_model}\\n"
+                                "  2. Delete and recreate the collection (data loss)\\n"
+                                "  3. Revert to the previous embedding model"
+                            )
+
+                    except Exception as training_error:
+                        logger.error(f"✗ Auto-training failed: {training_error}")
+                        logger.warning(
+                            "Manual training required:\\n"
+                            f"  python -m src.embeddings.migration_trainer "
+                            f"--source-model <old_model> --target-model {self.config.embedding_model}"
+                        )
+
+                    # Don't raise - allow server to start but warn about incompatible collections
+
+        except Exception as e:
+            logger.error(f"Error during migration check: {e}")
+            # Don't fail server startup on migration errors
+            logger.warning("Continuing despite migration issues...")
 
     def close(self):
         """Cleanup connections"""

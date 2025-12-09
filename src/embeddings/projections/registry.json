@@ -1,0 +1,16 @@
+{
+  "_comment": "Registry of pre-trained embedding projections",
+  "_warning": "Migrations may result in 5-20% semantic drift. Always backup before migrating production data.",
+  "BAAI_bge-large-en-v1.5_to_openai_text-embedding-3-small": {
+    "source_provider": "sentence-transformers",
+    "source_model": "BAAI/bge-large-en-v1.5",
+    "source_dim": 1024,
+    "target_provider": "openrouter",
+    "target_model": "openai/text-embedding-3-small",
+    "target_dim": 1536,
+    "n_samples": 100,
+    "similarity_preservation": 0.8995010331261843,
+    "mse": 0.0004646419547498226,
+    "file": "BAAI_bge-large-en-v1.5_to_openai_text-embedding-3-small.pt"
+  }
+}
