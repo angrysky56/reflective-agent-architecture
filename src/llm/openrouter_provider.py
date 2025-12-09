@@ -15,6 +15,7 @@ from src.llm.provider import BaseLLMProvider, Message
 
 logger = logging.getLogger(__name__)
 
+
 class OpenRouterProvider(BaseLLMProvider):
     """OpenRouter implementation of LLM provider using OpenAI-compatible API."""
 
@@ -36,7 +37,13 @@ class OpenRouterProvider(BaseLLMProvider):
         stop=stop_after_attempt(5),
         before_sleep=before_sleep_log(logger, logging.WARNING),
     )
-    def generate(self, system_prompt: str, user_prompt: str, max_tokens: int = 16000, tools: Optional[List[Dict]] = None) -> str:
+    def generate(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        max_tokens: int = 16000,
+        tools: Optional[List[Dict]] = None,
+    ) -> str:
         try:
             extra_headers = {}
             if self.site_url:
@@ -44,10 +51,18 @@ class OpenRouterProvider(BaseLLMProvider):
             if self.app_name:
                 extra_headers["X-Title"] = self.app_name
 
+            import time
+
+            start_time = time.time()
+            prompt_len = len(system_prompt) + len(user_prompt)
+            logger.info(
+                f"OpenRouter Request: {self.model_name}, Input chars: {prompt_len} (~{prompt_len//4} tokens)"
+            )
+
             client = OpenAI(
                 api_key=self.api_key,
                 base_url=self.base_url,
-                default_headers=extra_headers
+                default_headers=extra_headers,
             )
 
             response = client.chat.completions.create(
@@ -58,11 +73,19 @@ class OpenRouterProvider(BaseLLMProvider):
                 ],
                 max_tokens=max_tokens,
                 temperature=0.7,
-                tools=tools if tools else None
+                tools=tools if tools else None,
+            )
+
+            end_time = time.time()
+            duration = end_time - start_time
+            logger.info(
+                f"OpenRouter Response: {duration:.2f}s, Finish Reason: {response.choices[0].finish_reason}"
             )
 
             if not response.choices:
-                logger.error(f"OpenRouter returned no choices. Raw response: {response.model_dump_json()}")
+                logger.error(
+                    f"OpenRouter returned no choices. Raw response: {response.model_dump_json()}"
+                )
                 return f"Error: No choices returned. Raw: {response.model_dump_json()}"
 
             message = response.choices[0].message
@@ -72,6 +95,7 @@ class OpenRouterProvider(BaseLLMProvider):
                 tool_call = message.tool_calls[0]
                 # Synthesize the markdown block expected by app.py
                 import json
+
                 try:
                     args = json.loads(tool_call.function.arguments)
                 except Exception:
@@ -96,6 +120,7 @@ class OpenRouterProvider(BaseLLMProvider):
             raise  # Re-raise for tenacity to handle
         except Exception as e:
             import traceback
+
             trace = traceback.format_exc()
             logger.error(f"OpenRouter generate error: {e}\n{trace}")
             return f"Error generating text: {e}\n\nTraceback:\n{trace}"
@@ -112,7 +137,7 @@ class OpenRouterProvider(BaseLLMProvider):
         stream: bool = False,
         temperature: float = 0.7,
         max_tokens: int = 16000,
-        tools: Optional[List[Dict]] = None
+        tools: Optional[List[Dict]] = None,
     ) -> AsyncGenerator[str, None]:
         if tools:
             logger.debug(f"OpenRouterProvider: Received {len(tools)} tools for chat completion.")
@@ -127,14 +152,18 @@ class OpenRouterProvider(BaseLLMProvider):
             extra_headers["X-Title"] = self.app_name
 
         client = AsyncOpenAI(
-            api_key=self.api_key,
-            base_url=self.base_url,
-            default_headers=extra_headers
+            api_key=self.api_key, base_url=self.base_url, default_headers=extra_headers
         )
 
         openai_messages = [{"role": m.role, "content": m.content} for m in messages]
 
         try:
+            import time
+
+            start_time = time.time()
+            prompt_len = sum(len(m.content) for m in messages)
+            logger.info(f"OpenRouter Async Request: {self.model_name}, Input chars: {prompt_len}")
+
             # Respect the stream parameter
             response = await client.chat.completions.create(
                 model=self.model_name,
@@ -142,8 +171,10 @@ class OpenRouterProvider(BaseLLMProvider):
                 temperature=temperature,
                 max_tokens=max_tokens,
                 tools=tools if tools else None,
-                stream=stream
+                stream=stream,
             )
+
+            logger.info(f"OpenRouter Async Response Initiated: {time.time() - start_time:.2f}s")
 
             if stream:
                 async for chunk in response:
@@ -168,17 +199,20 @@ class OpenRouterProvider(BaseLLMProvider):
                 if tool_calls:
                     # Serialize tool calls to the format IntegratedIntelligence expects
                     import json
+
                     # Convert OpenAI ToolCall objects to dicts
                     tool_calls_dict = []
                     for tc in tool_calls:
-                        tool_calls_dict.append({
-                            "id": tc.id,
-                            "type": tc.type,
-                            "function": {
-                                "name": tc.function.name,
-                                "arguments": tc.function.arguments
+                        tool_calls_dict.append(
+                            {
+                                "id": tc.id,
+                                "type": tc.type,
+                                "function": {
+                                    "name": tc.function.name,
+                                    "arguments": tc.function.arguments,
+                                },
                             }
-                        })
+                        )
 
                     yield json.dumps({"tool_calls": tool_calls_dict})
 
@@ -186,6 +220,7 @@ class OpenRouterProvider(BaseLLMProvider):
             raise
         except Exception as e:
             import traceback
+
             trace = traceback.format_exc()
             logger.error(f"OpenRouter chat_completion error: {e}\n{trace}")
             yield f"Error: {str(e)}"

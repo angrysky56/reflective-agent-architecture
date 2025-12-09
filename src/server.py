@@ -2187,6 +2187,9 @@ Output JSON:
         This is analogous to "latent transformations" in HRMs.
         """
         logger.info(f"Synthesizing {len(node_ids)} nodes")
+        import time
+
+        start_total = time.time()
 
         with self.neo4j_driver.session() as session:
             # Get all node contents AND their context (neighbors)
@@ -2241,7 +2244,9 @@ Output JSON:
             centroid = np.mean(embeddings, axis=0).tolist()
 
             # Generate synthesis (LLM merges input nodes + context)
+            t0 = time.time()
             synthesis_text = self._generate_synthesis(list(nodes_data.values()), goal)
+            logger.info(f"Synthesis Generation took {time.time() - t0:.2f}s")
 
             # Meta-Validator: Compute Metrics
             # 1. Coverage (C): Similarity between synthesis text and centroid of inputs
@@ -2253,9 +2258,11 @@ Output JSON:
             coverage_score = dot_product / (norm_a * norm_b) if norm_a > 0 and norm_b > 0 else 0.0
 
             # 2. Rigor (R): Epistemic rigor via MetaValidator
+            t1 = time.time()
             rigor_score = MetaValidator.compute_epistemic_rigor(
                 synthesis_text, lambda sys, user: self._llm_generate(sys, user, max_tokens=1000)
             )
+            logger.info(f"MetaValidator Rigor check took {time.time() - t1:.2f}s")
 
             # 3. Unified Score & Quadrant
             meta_stats = MetaValidator.calculate_unified_score(
@@ -2303,6 +2310,8 @@ Output JSON:
                 },
                 cognitive_state=self.working_memory.current_goal or "Unknown",
             )
+
+            logger.info(f"Total Synthesis operation took {time.time() - start_total:.2f}s")
 
             return {
                 "synthesis_id": synth_id,
