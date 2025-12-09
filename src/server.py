@@ -201,6 +201,7 @@ class CognitiveWorkspace:
         self.config = config
         self.device = config.device
         self.manifold = None
+        self.latest_precuneus_state: dict[str, Any] | None = None
 
         # Initialize Neo4j
         self.neo4j_driver = GraphDatabase.driver(
@@ -2311,6 +2312,60 @@ Output JSON:
                 cognitive_state=self.working_memory.current_goal or "Unknown",
             )
 
+            # --- 4. Precuneus Integration (Phase 10) ---
+            try:
+                # Construct Tripartite vectors
+                # State: The centroid of input nodes (context)
+                state_vec = torch.tensor(centroid, device=self.device)
+
+                # Action: The resulting synthesis (output)
+                action_vec = torch.tensor(real_embedding, device=self.device)
+
+                # Agent: The active goal/intent (or fallback to state if no goal)
+                # This represents "Who is synthesizing?" -> "The Goal"
+                agent_vec = state_vec  # Default fallback
+                if self.pointer:
+                    current_goal = self.pointer.get_current_goal()
+                    if current_goal is not None:
+                        agent_vec = current_goal
+
+                # Compute Energies (Surprise/Novelty)
+                manifold = self.get_manifold()
+                energies = {
+                    "state": manifold.energy(state_vec).item(),
+                    "agent": manifold.energy(agent_vec).item(),
+                    "action": manifold.energy(action_vec).item(),
+                }
+
+                vectors = {"state": state_vec, "agent": agent_vec, "action": action_vec}
+
+                # Fuse
+                director = self.get_director()
+
+                # Integration with Continuity Service (User Request)
+                causal_sig = None
+                if hasattr(self, "continuity_service") and self.continuity_service:
+                    try:
+                        causal_sig = self.continuity_service.get_causal_signature("Director")
+                        logger.debug("Retrieved Causal Signature for Director")
+                    except Exception as e:
+                        logger.warning(f"Failed to get causal signature: {e}")
+
+                _, coherence_info = self.get_precuneus()(
+                    vectors,
+                    energies,
+                    causal_signature=causal_sig,
+                    cognitive_state=director.latest_cognitive_state,
+                )
+                self.latest_precuneus_state = coherence_info
+
+                logger.info(f"Precuneus State Updated: {coherence_info}")
+                precuneus_debug = {"status": "success", "info": coherence_info}
+
+            except Exception as e:
+                logger.warning(f"Precuneus update failed in synthesize: {e}")
+                precuneus_debug = {"status": "error", "message": str(e)}
+
             logger.info(f"Total Synthesis operation took {time.time() - start_total:.2f}s")
 
             return {
@@ -2318,6 +2373,7 @@ Output JSON:
                 "synthesis": synthesis_text,
                 "source_count": len(node_ids),
                 "meta_validation": meta_stats,
+                "precuneus_debug": precuneus_debug,
                 "message": f"Synthesis created ({meta_stats['quadrant']})",
             }
 
@@ -2788,6 +2844,7 @@ class RAAServerContext:
             device=device,
         )
         pointer = GoalController(pointer_cfg)
+        self.workspace.pointer = pointer
 
         director_cfg = DirectorConfig(
             search_k=5,
@@ -2817,6 +2874,7 @@ class RAAServerContext:
             llm_provider=llm_provider,
             work_history=self.workspace.history,
         )
+        self.workspace.director = director
 
         # Wire Adaptive Temperature Control
         # Allow LLM provider to query Director for energy-based temperature
@@ -2897,6 +2955,7 @@ class RAAServerContext:
 
         # Initialize Precuneus Integrator
         self.precuneus = PrecuneusIntegrator(dim=embedding_dim).to(device)
+        self.latest_precuneus_state: dict[str, Any] | None = None
 
         self.raa_context = {
             "embedding_dim": embedding_dim,
@@ -2908,6 +2967,7 @@ class RAAServerContext:
             "bridge": bridge,
             "agent_factory": self.agent_factory,
             "precuneus": self.precuneus,
+            "workspace": self,  # Allow tools to access workspace state
         }
 
         # Wire Manifold → Chroma sync callback
@@ -3195,6 +3255,9 @@ class RAAServerContext:
         unified_context, coherence_info = self.get_precuneus()(
             vectors, energies, cognitive_state=cognitive_state
         )
+
+        # Persist for check_cognitive_state
+        self.latest_precuneus_state = coherence_info
 
         # 4. Gödel Detector
         is_paradox = all(e == float("inf") for e in energies.values()) if energies else False
@@ -4726,8 +4789,24 @@ Provide an improved synthesis that addresses the critique by using these tools t
                         except Exception as e:
                             logger.warning(f"Director resolution failed: {e}")
                             result["resolution_error"] = str(e)
-                    else:
                         result["resolution_skipped"] = "Director/COMPASS not available"
+
+            # --- AGGRESSIVE DEBUGGING ---
+            # 1. Check if key exists in result
+            if isinstance(result, dict):
+                if "precuneus_debug" not in result:
+                    result["precuneus_debug_missing_check"] = "TRUE"
+
+            # 2. Check workspace state directly from this context
+            # This confirms if synthesize updated the object THIS context holds
+            direct_state = getattr(workspace, "latest_precuneus_state", "ATTR_MISSING")
+            # Inject this check into the result so I can see it in client
+            if isinstance(result, dict):
+                result["debug_workspace_check"] = {
+                    "id": str(id(workspace)),
+                    "has_state": direct_state is not None and direct_state != "ATTR_MISSING",
+                    "state_preview": str(direct_state)[:100] if direct_state else "None",
+                }
 
             # Return the result (either success or error)
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
@@ -5141,6 +5220,10 @@ Provide an improved synthesis that addresses the critique by using these tools t
         elif name == "check_cognitive_state":
             # ==== MULTI-SIGNAL COGNITIVE STATE (Phase 8) ====
             director = ctx.get_director()
+            pointer = ctx.get_pointer()  # Assign pointer to workspace
+            workspace.director = director  # Assign director to workspace
+            workspace.pointer = pointer  # Assign pointer to workspace
+
             hopfield_state, hopfield_energy = director.latest_cognitive_state
 
             # --- Signal 1: Entropy from WorkHistory ---
@@ -5198,7 +5281,7 @@ Provide an improved synthesis that addresses the critique by using these tools t
 
             if avg_entropy > 2.0:
                 warnings.append(
-                    f"HIGH ENTROPY ({avg_entropy:.2f}): System shows confusion/uncertainty."
+                    f"HIGH ENTROPY ({avg_entropy:.2f}): System state represents significant disorder."
                 )
             elif avg_entropy < 0.5 and len(entropy_history) > 5:
                 warnings.append(
@@ -5259,6 +5342,9 @@ Provide a brief first-person reflection on your cognitive state. Are you making 
                 max_tokens=500,
             )
 
+            # --- Signal 5: Precuneus Fusion ---
+            fusion_data = workspace.latest_precuneus_state or {}
+
             result = {
                 "signals": {
                     "hopfield": {"state": hopfield_state, "energy": float(hopfield_energy)},
@@ -5274,6 +5360,7 @@ Provide a brief first-person reflection on your cognitive state. Are you making 
                         "op_counts": op_counts,
                     },
                     "goal": active_goal,
+                    "manifold_fusion": fusion_data,
                 },
                 "composite_state": (
                     "Looping"
