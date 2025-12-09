@@ -141,6 +141,7 @@ Abstraction layer for Large Language Models.
 - [`huggingface_provider.py`](src/llm/huggingface_provider.py): HuggingFace integration.
 - [`openrouter_provider.py`](src/llm/openrouter_provider.py): OpenRouter integration.
 
+
 ### `src/persistence/`
 
 Data persistence layer.
@@ -170,6 +171,16 @@ Vector embedding providers.
 - [`ollama_embedding_provider.py`](src/embeddings/ollama_embedding_provider.py): Ollama embeddings.
 - [`lmstudio_embedding_provider.py`](src/embeddings/lmstudio_embedding_provider.py): LM Studio embeddings.
 - [`sentence_transformer_provider.py`](src/embeddings/sentence_transformer_provider.py): Local SentenceTransformers.
+- [`openrouter_embedding_provider.py`](src/embeddings/openrouter_embedding_provider.py): OpenRouter embeddings.
+- [`forensics.py`](src/embeddings/forensics.py): **Forensics** - Diagnostic tools for embedding distributions and health.
+- [`migration_trainer.py`](src/embeddings/migration_trainer.py): **Training** - Trains projection matrices for embedding migration.
+
+### `src/vectordb_migrate/`
+
+Standalone package for Vector DB Migration and Alignment.
+
+- [`migration.py`](src/vectordb_migrate/migration.py): **Core Migration** - Handles reading, projecting, and writing vectors between models.
+- [`loss_functions.py`](src/vectordb_migrate/loss_functions.py): **Loss Functions** - Implements `HybridMigrationLoss` (MSE + Cosine + Triplet) for alignment.
 
 ### `src/dashboard/`
 
