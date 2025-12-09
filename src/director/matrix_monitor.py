@@ -12,8 +12,8 @@ Mechanism:
 """
 
 import logging
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from dataclasses import dataclass
+from typing import Any, Dict, Tuple
 
 import torch
 import torch.nn as nn
@@ -23,14 +23,17 @@ from ..manifold import HopfieldConfig, ModernHopfieldNetwork
 
 logger = logging.getLogger(__name__)
 
+
 @dataclass
 class MatrixMonitorConfig:
     """Configuration for Matrix Monitor."""
+
     num_heads: int = 8
     embedding_dim: int = 512
     thumbnail_size: int = 8  # Downsample attention to 8x8 grid
     beta: float = 50.0  # High beta for sharp state classification
     device: str = "cpu"
+
 
 class MatrixMonitor(nn.Module):
     """
@@ -45,9 +48,7 @@ class MatrixMonitor(nn.Module):
         # 1. The "Self-State" Manifold
         # Stores patterns representing known cognitive states
         hopfield_config = HopfieldConfig(
-            embedding_dim=config.embedding_dim,
-            beta=config.beta,
-            device=config.device
+            embedding_dim=config.embedding_dim, beta=config.beta, device=config.device
         )
         self.self_manifold = ModernHopfieldNetwork(hopfield_config)
 
@@ -63,7 +64,7 @@ class MatrixMonitor(nn.Module):
             nn.Linear(input_dim, config.embedding_dim),
             nn.LayerNorm(config.embedding_dim),
             nn.ReLU(),
-            nn.Linear(config.embedding_dim, config.embedding_dim)
+            nn.Linear(config.embedding_dim, config.embedding_dim),
         ).to(self.device)
 
         # Fixed-size pooling to handle variable sequence lengths
@@ -132,8 +133,10 @@ class MatrixMonitor(nn.Module):
         looping = torch.zeros((1, heads, 16, 16), device=self.device)
         for i in range(16):
             # Attend to i-1, i-2 (looping back)
-            if i > 0: looping[0, :, i, i-1] = 1.0
-            if i > 1: looping[0, :, i, i-2] = 0.5
+            if i > 0:
+                looping[0, :, i, i - 1] = 1.0
+            if i > 1:
+                looping[0, :, i, i - 2] = 0.5
         looping = looping + 0.1 * torch.rand_like(looping)
         looping = looping / (looping.sum(dim=-1, keepdim=True) + 1e-6)
         self.register_state(looping, "Looping")
@@ -169,7 +172,9 @@ class MatrixMonitor(nn.Module):
 
             # DEBUG: Log statistics to diagnose matching issues
             if logger.isEnabledFor(logging.DEBUG):
-                logger.debug(f"Attention Stats: Mean={attention_weights.mean():.4f}, Std={attention_weights.std():.4f}")
+                logger.debug(
+                    f"Attention Stats: Mean={attention_weights.mean():.4f}, Std={attention_weights.std():.4f}"
+                )
                 logger.debug(f"Query Norm: {torch.norm(query_state):.4f}")
                 logger.debug(f"Similarities: {similarities.tolist()}")
 
@@ -189,7 +194,7 @@ class MatrixMonitor(nn.Module):
                 "attention_std": float(attention_weights.std()),
                 "query_norm": float(torch.norm(query_state)),
                 "similarities": similarities.tolist(),
-                "best_match_score": float(best_score)
+                "best_match_score": float(best_score),
             }
 
             return label, energy, diagnostics
@@ -201,7 +206,7 @@ class MatrixMonitor(nn.Module):
         # Average over heads for visualization
         # Shape: (Batch, Seq, Seq) -> (Batch, 1, 8, 8)
         avg_attn = attention_weights.mean(dim=1, keepdim=True)
-        thumbnail = self.pool(avg_attn).squeeze() # 8x8 tensor
+        thumbnail = self.pool(avg_attn).squeeze()  # 8x8 tensor
 
         # Simple ASCII map
         chars = " .:-=+*#%@"
@@ -209,8 +214,8 @@ class MatrixMonitor(nn.Module):
         for row in thumbnail:
             line = ""
             for val in row:
-                idx = int(val.item() * 9 * 10) # Scale up contrast
-                idx = min(max(idx, 0), len(chars)-1)
+                idx = int(val.item() * 9 * 10)  # Scale up contrast
+                idx = min(max(idx, 0), len(chars) - 1)
                 line += chars[idx] + " "
             result += line + "\n"
         return result

@@ -59,7 +59,7 @@ class InterventionRecord:
         return data
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'InterventionRecord':
+    def from_dict(cls, data: Dict[str, Any]) -> "InterventionRecord":
         """Create from dictionary."""
         if data.get("outcome"):
             data["outcome"] = InterventionOutcome(**data["outcome"])
@@ -78,7 +78,7 @@ class InterventionTracker:
         self,
         persistence_path: Optional[Path] = None,
         max_memory: int = 1000,
-        autosave_interval: int = 10
+        autosave_interval: int = 10,
     ):
         """
         Initialize tracker.
@@ -88,7 +88,9 @@ class InterventionTracker:
             max_memory: Maximum number of records to keep in memory
             autosave_interval: Save to disk after this many updates
         """
-        self.persistence_path = persistence_path or Path.home() / ".raa" / "intervention_history.json"
+        self.persistence_path = (
+            persistence_path or Path.home() / ".raa" / "intervention_history.json"
+        )
         self.max_memory = max_memory
         self.autosave_interval = autosave_interval
 
@@ -111,7 +113,7 @@ class InterventionTracker:
         intervention_type: str,
         intervention_source: str,
         threshold: float,
-        parameters: Optional[Dict[str, Any]] = None
+        parameters: Optional[Dict[str, Any]] = None,
     ) -> InterventionRecord:
         """
         Record the start of an intervention.
@@ -140,7 +142,7 @@ class InterventionTracker:
             intervention_type=intervention_type,
             intervention_source=intervention_source,
             entropy_threshold_used=threshold,
-            parameters=parameters or {}
+            parameters=parameters or {},
         )
 
         with self._lock:
@@ -157,7 +159,7 @@ class InterventionTracker:
         energy_after: float,
         task_success: bool,
         outcome_quality: float,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> Optional[InterventionRecord]:
         """
         Record the outcome of an intervention.
@@ -192,7 +194,7 @@ class InterventionTracker:
                 outcome_quality=outcome_quality,
                 entropy_delta=entropy_delta,
                 convergence_time=convergence_time,
-                metadata=metadata or {}
+                metadata=metadata or {},
             )
 
             record.outcome = outcome
@@ -206,9 +208,7 @@ class InterventionTracker:
             return self._history.get(episode_id)
 
     def get_recent_interventions(
-        self,
-        limit: int = 100,
-        min_quality: Optional[float] = None
+        self, limit: int = 100, min_quality: Optional[float] = None
     ) -> List[InterventionRecord]:
         """
         Get recent interventions, optionally filtered.
@@ -228,10 +228,7 @@ class InterventionTracker:
 
         # Filter
         if min_quality is not None:
-            records = [
-                r for r in records
-                if r.outcome and r.outcome.outcome_quality >= min_quality
-            ]
+            records = [r for r in records if r.outcome and r.outcome.outcome_quality >= min_quality]
 
         return records[:limit]
 
@@ -244,17 +241,22 @@ class InterventionTracker:
             if completed == 0:
                 return {"total": total, "completed": 0, "success_rate": 0.0}
 
-            successes = sum(1 for r in self._history.values() if r.outcome and r.outcome.task_success)
-            avg_quality = sum(r.outcome.outcome_quality for r in self._history.values() if r.outcome) / completed
+            successes = sum(
+                1 for r in self._history.values() if r.outcome and r.outcome.task_success
+            )
+            avg_quality = (
+                sum(r.outcome.outcome_quality for r in self._history.values() if r.outcome)
+                / completed
+            )
 
             return {
                 "total": total,
                 "completed": completed,
                 "success_rate": successes / completed,
-                "avg_quality": avg_quality
+                "avg_quality": avg_quality,
             }
 
-    def _prune_history(self):
+    def _prune_history(self) -> None:
         """Remove old records if exceeding max_memory."""
         if len(self._history) > self.max_memory:
             # Sort by timestamp
@@ -265,13 +267,13 @@ class InterventionTracker:
             for i in range(to_remove):
                 del self._history[sorted_ids[i]]
 
-    def _mark_change(self):
+    def _mark_change(self) -> None:
         """Mark a change and potentially save."""
         self._unsaved_changes += 1
         if self._unsaved_changes >= self.autosave_interval:
             self._save_history()
 
-    def _save_history(self):
+    def _save_history(self) -> None:
         """Save history to disk."""
         if not self.persistence_path:
             return
@@ -280,10 +282,10 @@ class InterventionTracker:
             data = {
                 "version": "1.0",
                 "timestamp": time.time(),
-                "records": [r.to_dict() for r in self._history.values()]
+                "records": [r.to_dict() for r in self._history.values()],
             }
 
-            with open(self.persistence_path, 'w') as f:
+            with open(self.persistence_path, "w") as f:
                 json.dump(data, f, indent=2)
 
             self._unsaved_changes = 0
@@ -292,13 +294,13 @@ class InterventionTracker:
         except Exception as e:
             logger.error(f"Failed to save intervention history: {e}")
 
-    def _load_history(self):
+    def _load_history(self) -> None:
         """Load history from disk."""
         if not self.persistence_path or not self.persistence_path.exists():
             return
 
         try:
-            with open(self.persistence_path, 'r') as f:
+            with open(self.persistence_path, "r") as f:
                 data = json.load(f)
 
             for record_data in data.get("records", []):

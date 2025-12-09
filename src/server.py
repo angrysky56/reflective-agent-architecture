@@ -2368,7 +2368,7 @@ Output JSON:
 
             logger.info(f"Total Synthesis operation took {time.time() - start_total:.2f}s")
 
-            return {
+            result_dict = {
                 "synthesis_id": synth_id,
                 "synthesis": synthesis_text,
                 "source_count": len(node_ids),
@@ -2376,6 +2376,7 @@ Output JSON:
                 "precuneus_debug": precuneus_debug,
                 "message": f"Synthesis created ({meta_stats['quadrant']})",
             }
+            return result_dict
 
     def _generate_synthesis(self, nodes_data: list[dict[str, Any]], goal: str | None) -> str:
         """
@@ -2385,35 +2386,40 @@ Output JSON:
         Provides richer context and clearer instructions for better synthesis.
         """
         system_prompt = (
-            "You are acting as a synthesis engine that unifies multiple related concepts into a "
-            "coherent insight. Identify the common themes, complementary aspects, and "
-            "emergent patterns across all concepts. Focus on integration and synergy, "
-            "not just summary. Provide a comprehensive synthesis that captures the unified understanding "
-            "with sufficient depth and operational detail."
+            "You are a rigorous epistemological engine designed to synthesize conflicting or disparate "
+            "concepts into a higher-order unified insight (Hegelian Synthesis). "
+            "DO NOT merely summarize. Your goal is to:\n"
+            "1. Identify the structural tension (Thesis vs. Antithesis) between the inputs.\n"
+            "2. Propose a Synthesis that resolves this tension without compromising the core truth of either side.\n"
+            "3. Operationalize the insight: Connect abstract concepts to concrete system mechanics/logic.\n"
+            "4. Utilize the provided 'Context' fields to ground your synthesis in the specific environment or constraints.\n"
+            "Output must be structured, dense, and actionable."
         )
 
         # Prepare full concepts with context
         concept_list = []
-        for i, data in enumerate(nodes_data[:100], 1):  # Cap at 100 for token management
-            text = f"{i}. {data['content']}"
+        for i, data in enumerate(nodes_data[:5000], 1):  # Cap at 5000 for token management
+            text = f"Concept {i}: {data['content']}"
             if data["context"]:
-                # Add context as a sub-bullet or note
+                # Add context as a constraint or background
                 context_str = "; ".join(data["context"])
-                text += f"\n   [Context: {context_str}]"
+                text += f"\n   [System Context / Constraints: {context_str}]"
             concept_list.append(text)
 
-        goal_text = f"\n\nTarget Goal: {goal}" if goal else ""
+        goal_text = f"\n\nTarget Goal of Synthesis: {goal}" if goal else ""
 
         user_prompt = (
-            f"Synthesize these {len(nodes_data)} concepts into a unified insight:{goal_text}\n\n"
-            "Concepts to integrate:\n" + "\n\n".join(concept_list) + "\n\nProvide a synthesis that:"
-            "\n- Identifies the common thread or pattern"
-            "\n- Shows how concepts complement or build on each other"
-            "\n- Captures emergent insights from the combination"
-            "\n\nSynthesis:"
+            f"Perform a rigorous synthesis of the following {len(nodes_data)} concepts to achieve the Goal.{goal_text}\n\n"
+            "--- INPUT CONCEPTS ---\n" + "\n\n".join(concept_list) + "\n\n"
+            "--- SYNTHESIS CHECKLIST ---\n"
+            "1. Deconstruct: What is the underlying conflict or gap between these concepts?\n"
+            "2. Integrate: How does the new synthesis bridge this gap?\n"
+            "3. Apply: How does this new insight advance the System Context provided?\n"
+            "4. Predict: What is the primary risk or edge case of this new synthesis?\n\n"
+            "Failures of logic or vague platitudes are untolerated."
         )
 
-        return self._llm_generate(system_prompt, user_prompt, max_tokens=16000)
+        return self._llm_generate(system_prompt, user_prompt, max_tokens=32000)
 
     # ========================================================================
     # Cognitive Primitive 4: Constrain
@@ -4789,7 +4795,12 @@ Provide an improved synthesis that addresses the critique by using these tools t
                         except Exception as e:
                             logger.warning(f"Director resolution failed: {e}")
                             result["resolution_error"] = str(e)
-                        result["resolution_skipped"] = "Director/COMPASS not available"
+                            result["resolution_skipped"] = "Director/COMPASS execution failed"
+
+                        else:
+                            # If we get here, director ran successfully
+                            # (resolution_result logic above handles the rest)
+                            pass
 
             # Return the result (either success or error)
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
@@ -5353,7 +5364,7 @@ Provide a brief first-person reflection on your cognitive state. Are you making 
                 "warnings": warnings,
                 "advice": dynamic_advice,
                 "meta_commentary": meta_commentary,
-                "message": f"Multi-signal state: Hopfield={hopfield_state}, Entropy={avg_entropy:.2f}, Metabolic={metabolic_pct:.0f}%, Looping={is_looping}",
+                "message": f"[TRACING] Multi-signal state: Hopfield={hopfield_state}, Entropy={avg_entropy:.2f}, Metabolic={metabolic_pct:.0f}%, Looping={is_looping}",
             }
             return [TextContent(type="text", text=json.dumps(result, indent=2, default=str))]
 

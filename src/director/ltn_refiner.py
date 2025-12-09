@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 import torch
 import torch.nn.functional as f
@@ -41,29 +41,28 @@ class LTNConfig:
     # Loss weights (must sum to 1.0)
     weight_distance: float = 0.2  # L_dist: Minimal change from current
     weight_evidence: float = 0.5  # L_ev: fit with target evidence
-    weight_energy: float = 0.2    # L_energy: Stay in low-energy regions
+    weight_energy: float = 0.2  # L_energy: Stay in low-energy regions
     weight_constraints: float = 0.1  # L_cons: Satisfy fuzzy constraints
 
     # Validation thresholds
     max_energy_barrier: float = 5.0  # Maximum energy increase allowed
-    min_similarity: float = 0.05     # Minimum movement required (escape basin)
-    max_similarity: float = 0.95     # Maximum similarity (must actually move)
+    min_similarity: float = 0.05  # Minimum movement required (escape basin)
+    max_similarity: float = 0.95  # Maximum similarity (must actually move)
 
     # Device
     device: str = "cpu"
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate configuration."""
         total_weight = (
-            self.weight_distance +
-            self.weight_evidence +
-            self.weight_energy +
-            self.weight_constraints
+            self.weight_distance
+            + self.weight_evidence
+            + self.weight_energy
+            + self.weight_constraints
         )
         if abs(total_weight - 1.0) > 1e-6:
             raise ValueError(
-                f"Loss weights must sum to 1.0, got {total_weight}. "
-                f"Adjust weight_* parameters."
+                f"Loss weights must sum to 1.0, got {total_weight}. " f"Adjust weight_* parameters."
             )
 
 
@@ -75,7 +74,7 @@ class FuzzyConstraintEvaluator(nn.Module):
     Constraints are embedded once and reused across gradient steps.
     """
 
-    def __init__(self, embedding_fn: callable):
+    def __init__(self, embedding_fn: Callable) -> None:
         """
         Initialize evaluator.
 
@@ -93,11 +92,7 @@ class FuzzyConstraintEvaluator(nn.Module):
             self.constraint_cache[constraint] = embedding
         return self.constraint_cache[constraint]
 
-    def evaluate(
-        self,
-        candidate: torch.Tensor,
-        constraints: list[str]
-    ) -> torch.Tensor:
+    def evaluate(self, candidate: torch.Tensor, constraints: list[str]) -> torch.Tensor:
         """
         Evaluate how well candidate satisfies constraints (fuzzy logic).
 
@@ -119,9 +114,7 @@ class FuzzyConstraintEvaluator(nn.Module):
             # Similarity ∈ [-1, 1], map to violation ∈ [0, 1]
             # High similarity (→1) = low violation (→0)
             similarity = f.cosine_similarity(
-                candidate.unsqueeze(0),
-                constraint_emb.unsqueeze(0),
-                dim=1
+                candidate.unsqueeze(0), constraint_emb.unsqueeze(0), dim=1
             )
             violation = (1.0 - similarity) / 2.0  # Maps [1, -1] → [0, 1]
             violations.append(violation)
@@ -149,11 +142,7 @@ class LTNRefiner:
         )
     """
 
-    def __init__(
-        self,
-        embedding_fn: callable,
-        config: Optional[LTNConfig] = None
-    ):
+    def __init__(self, embedding_fn: Callable, config: Optional[LTNConfig] = None):
         """
         Initialize LTN Refiner.
 
@@ -167,12 +156,12 @@ class LTNRefiner:
         self.device = torch.device(self.config.device)
 
         # Statistics for logging
-        self.refinement_stats = {
+        self.refinement_stats: dict[str, int] = {
             "total_refinements": 0,
             "successful_refinements": 0,
             "failed_energy_barrier": 0,
             "failed_no_movement": 0,
-            "failed_convergence": 0
+            "failed_convergence": 0,
         }
 
     def refine(
@@ -180,7 +169,7 @@ class LTNRefiner:
         current_belief: torch.Tensor,
         evidence: torch.Tensor,
         constraints: list[str],
-        energy_evaluator: callable
+        energy_evaluator: Callable,
     ) -> Optional[torch.Tensor]:
         """
         Generate intermediate waypoint via gradient descent.
@@ -214,16 +203,15 @@ class LTNRefiner:
         with torch.no_grad():
             initial_energy = energy_evaluator(current).item()
 
-        best_loss = float('inf')
+        best_loss = float("inf")
         best_candidate = None
 
         # Pre-compute constraint embeddings
         constraint_embeddings = None
         if constraints:
-            constraint_embeddings = torch.stack([
-                self.constraint_evaluator.embed_constraint(c)
-                for c in constraints
-            ]).to(self.device)
+            constraint_embeddings = torch.stack(
+                [self.constraint_evaluator.embed_constraint(c) for c in constraints]
+            ).to(self.device)
 
         for iteration in range(self.config.max_iterations):
             optimizer.zero_grad()
@@ -242,7 +230,9 @@ class LTNRefiner:
             # We want to minimize energy increase relative to start
             current_energy = energy_evaluator(cand_norm)
 
-            if torch.isinf(torch.tensor(initial_energy)) or torch.isnan(torch.tensor(initial_energy)):
+            if torch.isinf(torch.tensor(initial_energy)) or torch.isnan(
+                torch.tensor(initial_energy)
+            ):
                 # If initial energy is undefined (e.g. empty memory), ignore energy constraint
                 l_energy = torch.tensor(0.0, device=self.device)
             else:
@@ -255,19 +245,15 @@ class LTNRefiner:
             if constraint_embeddings is not None:
                 # Maximize similarity to constraints (minimize 1 - sim)
                 # We average the loss across all constraints
-                sims = f.cosine_similarity(
-                    cand_norm.unsqueeze(0),
-                    constraint_embeddings,
-                    dim=1
-                )
+                sims = f.cosine_similarity(cand_norm.unsqueeze(0), constraint_embeddings, dim=1)
                 l_constr = torch.mean(1.0 - sims)
 
             # Total loss
             loss = (
-                self.config.weight_distance * l_dist +
-                self.config.weight_evidence * l_ev +
-                self.config.weight_energy * l_energy +
-                self.config.weight_constraints * l_constr
+                self.config.weight_distance * l_dist
+                + self.config.weight_evidence * l_ev
+                + self.config.weight_energy * l_energy
+                + self.config.weight_constraints * l_constr
             )
 
             # Backpropagation
@@ -298,14 +284,13 @@ class LTNRefiner:
             candidate=best_candidate,
             current=current,
             energy_evaluator=energy_evaluator,
-            initial_energy=initial_energy
+            initial_energy=initial_energy,
         )
 
         if is_valid:
             self.refinement_stats["successful_refinements"] += 1
             logger.info(
-                f"✓ LTN refinement successful (loss={best_loss:.4f}, "
-                f"iterations={iteration+1})"
+                f"✓ LTN refinement successful (loss={best_loss:.4f}, " f"iterations={iteration+1})"
             )
             return best_candidate.cpu()
         else:
@@ -316,8 +301,8 @@ class LTNRefiner:
         self,
         candidate: torch.Tensor,
         current: torch.Tensor,
-        energy_evaluator: callable,
-        initial_energy: float
+        energy_evaluator: Callable,
+        initial_energy: float,
     ) -> tuple[bool, str]:
         """
         Validate that candidate is a valid waypoint.
@@ -344,9 +329,7 @@ class LTNRefiner:
 
             # Check 2: Basin separation (must have actually moved)
             similarity = f.cosine_similarity(
-                candidate.unsqueeze(0),
-                current.unsqueeze(0),
-                dim=1
+                candidate.unsqueeze(0), current.unsqueeze(0), dim=1
             ).item()
 
             if similarity > self.config.max_similarity:
@@ -358,24 +341,21 @@ class LTNRefiner:
 
             if similarity < self.config.min_similarity:
                 return False, (
-                    f"Moved too far: similarity={similarity:.4f} < "
-                    f"{self.config.min_similarity}"
+                    f"Moved too far: similarity={similarity:.4f} < " f"{self.config.min_similarity}"
                 )
 
             return True, "Valid waypoint"
 
     def get_stats(self) -> dict[str, Any]:
         """Return refinement statistics."""
-        stats = self.refinement_stats.copy()
+        stats: dict[str, Any] = self.refinement_stats.copy()
         if stats["total_refinements"] > 0:
-            stats["success_rate"] = (
-                stats["successful_refinements"] / stats["total_refinements"]
-            )
+            stats["success_rate"] = stats["successful_refinements"] / stats["total_refinements"]
         else:
             stats["success_rate"] = 0.0
         return stats
 
-    def reset_stats(self):
+    def reset_stats(self) -> None:
         """Reset statistics counters."""
         for key in self.refinement_stats:
             self.refinement_stats[key] = 0
@@ -404,8 +384,7 @@ def validate_ltn_config(config: LTNConfig) -> tuple[bool, list[str]]:
 
     if config.weight_distance > 0.5:
         warnings.append(
-            f"weight_distance={config.weight_distance} is high. "
-            "LTN may be too conservative."
+            f"weight_distance={config.weight_distance} is high. " "LTN may be too conservative."
         )
 
     # Check thresholds
