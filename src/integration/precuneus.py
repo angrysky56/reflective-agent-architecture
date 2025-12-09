@@ -149,3 +149,14 @@ class PrecuneusIntegrator(nn.Module):
             e_tensor = energy.float()
 
         return float(torch.sigmoid(-e_tensor * distinctiveness).item())
+
+    def set_integration_rate(self, rate: float) -> None:
+        """
+        Adjust the integration rate (plasticity).
+
+        Args:
+            rate: New integration rate (0.0 to 1.0)
+        """
+        # In this MVP, we log the plasticity change.
+        # Future versions could modulate the layer_norm epsilon or fusion weights directly.
+        pass
