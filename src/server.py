@@ -1632,11 +1632,11 @@ class CognitiveWorkspace:
 
             system_prompt = """You are the Prefrontal Cortex Decomposition Engine.
 Input: A user prompt or situation.
-Task: Fragment the input into three orthogonal domains.
+Task: Fragment the input into three orthogonal domains. Provide detailed, descriptive fragments (1-2 sentences each).
 
-1. STATE (vmPFC): Where are we? What is the static context? (e.g., "Python CLI", "Philosophical Debate", "Error Log")
-2. AGENT (amPFC): Who is involved? What is the intent/persona? (e.g., "Frustrated User", "Socratic Teacher", "Debugger")
-3. ACTION (dmPFC): What is the transition/verb? (e.g., "Refactor", "Summarize", "Search")
+1. STATE (vmPFC): Where are we? Detailed context. (e.g., "Python CLI debugging session focused on list indices")
+2. AGENT (amPFC): Who is involved? Detailed persona/intent. (e.g., "Frustrated User seeking immediate resolution to a crash")
+3. ACTION (dmPFC): What is the transition? Detailed operation. (e.g., "Refactor the loop logic to handle out-of-bounds errors safely")
 
 Output JSON:
 {
@@ -5238,7 +5238,7 @@ Provide an improved synthesis that addresses the critique by using these tools t
             hopfield_state, hopfield_energy = director.latest_cognitive_state
 
             # --- Signal 1: Entropy from WorkHistory ---
-            entropy_history = bridge.history.get_entropy_history(limit=20)
+            entropy_history = bridge.history.get_entropy_history(limit=100)
             if entropy_history:
                 avg_entropy = sum(entropy_history) / len(entropy_history)
                 entropy_trend = (
@@ -5268,7 +5268,7 @@ Provide an improved synthesis that addresses the critique by using these tools t
                     metabolic_pct = float(pct_str) if pct_str else 100.0
 
             # --- Signal 3: Operation Pattern Analysis (Looping Detection) ---
-            recent_history = bridge.history.get_recent_history(limit=10)
+            recent_history = bridge.history.get_recent_history(limit=100)
             op_counts = {}
             for h in recent_history:
                 op = h.get("operation", "unknown")
@@ -5307,12 +5307,12 @@ Provide an improved synthesis that addresses the critique by using these tools t
             # --- Dynamic Advice (LLM-Generated) ---
             history_summary = "\n".join(
                 [
-                    f"- {h['operation']}: {h.get('result_summary', '')[:100]}"
-                    for h in recent_history[:5]
+                    f"- {h['operation']}: {h.get('result_summary', '')[:10000]}"
+                    for h in recent_history[:100]
                 ]
             )
 
-            advice_prompt = f"""Analyze this agent's cognitive state and provide ONE specific recommendation.
+            advice_prompt = f"""Analyze this agent's cognitive state and provide recommendations based on the following signals:
 
 SIGNALS:
 - Hopfield State: {hopfield_state} (Energy: {hopfield_energy:.2f})
@@ -5325,12 +5325,12 @@ SIGNALS:
 RECENT OPERATIONS:
 {history_summary}
 
-Provide a brief, actionable recommendation (1-2 sentences). Be specific about which tool to use."""
+Provide a brief, actionable recommendation (1-2 sentences). Be specific."""
 
             dynamic_advice = workspace._llm_generate(
                 system_prompt="You are an expert cognitive systems advisor. Be concise and specific.",
                 user_prompt=advice_prompt,
-                max_tokens=400,
+                max_tokens=4000,
             )
 
             # --- Meta-Commentary ---
@@ -5350,7 +5350,7 @@ Provide a brief first-person reflection on your cognitive state. Are you making 
             meta_commentary = workspace._llm_generate(
                 system_prompt="You are a reflective AI agent analyzing your own cognitive state.",
                 user_prompt=meta_prompt,
-                max_tokens=500,
+                max_tokens=4000,
             )
 
             # --- Signal 5: Precuneus Fusion ---
@@ -5751,9 +5751,9 @@ Provide a brief first-person reflection on your cognitive state. Are you making 
                 # Record in working memory
                 workspace.working_memory.record(
                     operation="revise",
-                    input_data={"belief": belief_text[:300], "evidence": evidence_text[:300]},
+                    input_data={"belief": belief_text[:3000], "evidence": evidence_text[:3000]},
                     output_data={
-                        "revised": waypoint_description[:500],
+                        "revised": waypoint_description[:5000],
                         "strategy": result.strategy.value,
                     },
                     node_ids=[revised_id],
@@ -5762,7 +5762,7 @@ Provide a brief first-person reflection on your cognitive state. Are you making 
                 # Persist to SQLite history
                 workspace.history.log_operation(
                     operation="revise",
-                    params={"belief": belief_text[:300], "evidence": evidence_text[:300]},
+                    params={"belief": belief_text[:3000], "evidence": evidence_text[:3000]},
                     result={"revised_node_id": revised_id, "strategy": result.strategy.value},
                     cognitive_state=workspace.working_memory.current_goal or "Unknown",
                 )
@@ -5774,7 +5774,7 @@ Provide a brief first-person reflection on your cognitive state. Are you making 
 
         elif name == "inspect_graph":
             mode = arguments["mode"]
-            limit = arguments.get("limit", 10)
+            limit = arguments.get("limit", 100)
 
             if mode == "nodes":
                 label = arguments.get("label")
