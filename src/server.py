@@ -4791,23 +4791,6 @@ Provide an improved synthesis that addresses the critique by using these tools t
                             result["resolution_error"] = str(e)
                         result["resolution_skipped"] = "Director/COMPASS not available"
 
-            # --- AGGRESSIVE DEBUGGING ---
-            # 1. Check if key exists in result
-            if isinstance(result, dict):
-                if "precuneus_debug" not in result:
-                    result["precuneus_debug_missing_check"] = "TRUE"
-
-            # 2. Check workspace state directly from this context
-            # This confirms if synthesize updated the object THIS context holds
-            direct_state = getattr(workspace, "latest_precuneus_state", "ATTR_MISSING")
-            # Inject this check into the result so I can see it in client
-            if isinstance(result, dict):
-                result["debug_workspace_check"] = {
-                    "id": str(id(workspace)),
-                    "has_state": direct_state is not None and direct_state != "ATTR_MISSING",
-                    "state_preview": str(direct_state)[:100] if direct_state else "None",
-                }
-
             # Return the result (either success or error)
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
 
