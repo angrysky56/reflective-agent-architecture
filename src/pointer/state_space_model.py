@@ -84,7 +84,6 @@ class StateSpaceGoalController(nn.Module):
         goal = f.linear(self.state, self.C)
 
         return goal
-        return goal
 
     def update(self, input_vec: torch.Tensor, dt: float = 0.1) -> torch.Tensor:
         """
@@ -108,8 +107,6 @@ class StateSpaceGoalController(nn.Module):
 
         # Discretize continuous-time system (Euler method)
         # x_{t+1} = x_t + dt * (A @ x_t + B @ u_t)
-        state_derivative = f.linear(self.state, self.A.T) + f.linear(input_vec, self.B.T)
-        self.state = self.state + dt * state_derivative
         state_derivative = f.linear(self.state, self.A.T) + f.linear(input_vec, self.B.T)
         self.state = self.state + dt * state_derivative
 
