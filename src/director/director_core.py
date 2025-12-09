@@ -14,7 +14,7 @@ import asyncio
 import logging
 import time
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
 
 import torch
 
@@ -23,6 +23,7 @@ from src.compass.compass_framework import COMPASS
 
 if TYPE_CHECKING:
     from src.integration.continuity_service import ContinuityService
+    from src.manifold import Manifold
 
 import numpy as np
 
@@ -40,7 +41,7 @@ from .reflexive_closure_engine import ReflexiveClosureEngine
 from .search_mvp import SearchResult
 from .sheaf_diagnostics import SheafAnalyzer, SheafConfig, SheafDiagnostics
 from .simple_gp import TRIG_OPS, TRIG_UNARY_OPS, SimpleGP
-from .thought_suppression import SuppressionStrategy, ThoughtSuppressor
+from .thought_suppression import SuppressionResult, SuppressionStrategy, ThoughtSuppressor
 
 logger = logging.getLogger(__name__)
 
@@ -48,12 +49,14 @@ logger = logging.getLogger(__name__)
 @dataclass
 class Intervention:
     """Represents a proactive intervention in the cognitive process."""
+
     type: str
     source: str
     target: str
     content: str
     priority: float
     energy_cost: float
+
 
 @dataclass
 class DirectorConfig:
@@ -112,7 +115,7 @@ class DirectorMVP:
 
     def __init__(
         self,
-        manifold,
+        manifold: "Manifold",
         config: Optional[DirectorConfig] = None,
         embedding_fn: Optional[Callable[[str], torch.Tensor]] = None,
         mcp_client: Optional[Any] = None,
@@ -153,7 +156,7 @@ class DirectorMVP:
         if self.config.enable_reflexive_closure:
             self.reflexive_engine = ReflexiveClosureEngine(
                 analysis_interval=self.config.reflexive_analysis_interval,
-                criterion=None # Will use default which loads from disk
+                criterion=None,  # Will use default which loads from disk
             )
             logger.info("Reflexive Closure Engine initialized.")
 
@@ -163,7 +166,8 @@ class DirectorMVP:
 
         # 3. Matrix Monitor (Cognitive Proprioception)
         self.matrix_monitor = MatrixMonitor(
-            config=self.config.matrix_monitor_config or MatrixMonitorConfig(device=self.config.device)
+            config=self.config.matrix_monitor_config
+            or MatrixMonitorConfig(device=self.config.device)
         )
         self.matrix_monitor.seed_defaults()
 
@@ -184,16 +188,13 @@ class DirectorMVP:
             return torch.zeros(1, device=self.config.device)
 
         ltn_config = hybrid_cfg.ltn_config or LTNConfig(device=self.config.device)
-        self.ltn_refiner = LTNRefiner(
-            embedding_fn=embedding_fn or dummy_embed,
-            config=ltn_config
-        )
+        self.ltn_refiner = LTNRefiner(embedding_fn=embedding_fn or dummy_embed, config=ltn_config)
 
         self.hybrid_search = HybridSearchStrategy(
             manifold=self.manifold,
             ltn_refiner=self.ltn_refiner,
             sheaf_analyzer=self.sheaf_analyzer,
-            config=hybrid_cfg
+            config=hybrid_cfg,
         )
 
         # 5. COMPASS Framework (Metacognitive Orchestration)
@@ -203,20 +204,25 @@ class DirectorMVP:
         self.compass = COMPASS(llm_provider=_llm_provider, mcp_client=self.mcp_client)
 
         # 6. Agent Factory (Dynamic Escalation)
-        # 6. Agent Factory (Dynamic Escalation)
+
         # Initialize with the same LLM provider and MCP client executor
         # Import here to avoid circular dependency
         from src.integration.agent_factory import AgentFactory
+
         self.agent_factory = AgentFactory(
             llm_provider=_llm_provider,
-            tool_executor=self.mcp_client.call_tool if self.mcp_client else None
+            tool_executor=self.mcp_client.call_tool if self.mcp_client else None,
         )
 
         # Initialize Allostatic Controller (Predictive)
         from src.director.allostatic_controller import AllostaticConfig, AllostaticController
-        self.allostatic_controller = AllostaticController(AllostaticConfig(), ledger=None) # Ledger wired later
+
+        self.allostatic_controller = AllostaticController(
+            AllostaticConfig(), ledger=None
+        )  # Ledger wired later
         # 7. Swarm Controller (Hive Mind)
         from src.integration.swarm_controller import SwarmController
+
         self.swarm_controller = SwarmController(self.agent_factory)
 
         # Cognitive State
@@ -225,7 +231,7 @@ class DirectorMVP:
         self.latest_attention_weights: Optional[torch.Tensor] = None
 
         # Search episode logging
-        self.search_episodes = []
+        self.search_episodes: List[Dict[str, Any]] = []
 
         # Energy Budget (Thermodynamic Constraint)
         self.energy_budget = 100.0
@@ -237,25 +243,20 @@ class DirectorMVP:
             suppression_threshold=self.config.suppression_threshold,
             suppression_cost=self.config.suppression_cost,
             quarantine_threshold=0.8,
-            quarantine_cost=0.5
+            quarantine_cost=0.5,
         )
-        self.suppression_history = []
+        self.suppression_history: List[SuppressionResult] = []
         logger.info("ThoughtSuppressor initialized (active policing mode)")
 
         # 2. Epistemic Discriminator (Experiment C)
         self.epistemic_discriminator = EpistemicDiscriminator(
-            complexity_threshold=0.6,
-            randomness_threshold=0.2,
-            dissonance_threshold=0.5
+            complexity_threshold=0.6, randomness_threshold=0.2, dissonance_threshold=0.5
         )
         logger.info("EpistemicDiscriminator initialized")
 
         # 3. Plasticity Modulator (Phenomenal Time)
         self.plasticity_modulator = PlasticityModulator(
-            P_min=0.1,
-            P_max=1.0,
-            tau_min=0.1,
-            tau_max=2.0
+            min_p=0.1, max_p=1.0, tau_min=0.1, tau_max=2.0
         )
         logger.info("PlasticityModulator initialized")
 
@@ -278,7 +279,7 @@ class DirectorMVP:
                 thought_id=f"thought_{int(time.time())}",
                 entropy=current_entropy,
                 energy_budget=self.energy_budget,
-                graph_handle=self.manifold # Assuming manifold can be passed, or None
+                graph_handle=self.manifold,  # Assuming manifold can be passed, or None
             )
 
             self.suppression_history.append(suppression_result)
@@ -292,7 +293,7 @@ class DirectorMVP:
                 )
 
                 if suppression_result.strategy == SuppressionStrategy.SUPPRESS:
-                    return False # Block propagation
+                    return False  # Block propagation
 
         # 2. Epistemic Discrimination
         # Use long-term history if available, otherwise short-term monitor history
@@ -308,29 +309,34 @@ class DirectorMVP:
 
         if len(entropy_history) > 10:
             assessment = self.epistemic_discriminator.assess(entropy_history)
-            logger.info(f"Epistemic Assessment: {assessment.recommendation} (Conf: {assessment.confidence:.2f})")
+            logger.info(
+                f"Epistemic Assessment: {assessment.recommendation} (Conf: {assessment.confidence:.2f})"
+            )
 
-            if assessment.recommendation == 'trigger_dissonance':
+            if assessment.recommendation == "trigger_dissonance":
                 logger.warning("Epistemic Dissonance Triggered - Halting path")
                 return False
 
         # 3. Plasticity Modulation
-        p_state = self.plasticity_modulator.compute_P(
+        p_state = self.plasticity_modulator.compute_p(
             energy=self.energy_budget,
             confidence=self.get_current_confidence(),
             entropy=current_entropy,
-            manifold_stability=self.matrix_monitor.get_stability() if hasattr(self.matrix_monitor, 'get_stability') else 1.0
+            manifold_stability=(
+                self.matrix_monitor.get_stability()
+                if hasattr(self.matrix_monitor, "get_stability")
+                else 1.0
+            ),
         )
 
         logger.info(f"Plasticity: P={p_state.value:.2f} ({p_state.mode})")
 
         # Apply to Precuneus if available (placeholder)
-        if hasattr(self, 'precuneus'):
+        if hasattr(self, "precuneus"):
             # self.precuneus.set_integration_rate(p_state.value)
             pass
 
         return True
-
 
     def map_entropy_to_generations(self, entropy: float) -> int:
         """
@@ -347,7 +353,9 @@ class DirectorMVP:
         generations = int(10 + (entropy * 600))
         return generations
 
-    async def evolve_formula(self, data_points: List[Dict[str, float]], n_generations: int = 10) -> str:
+    async def evolve_formula(
+        self, data_points: List[Dict[str, float]], n_generations: int = 10
+    ) -> str:
         """
         Evolve a mathematical formula to fit the data points.
         Uses Genetic Programming (System 2) with Epistemic Discrimination.
@@ -357,7 +365,9 @@ class DirectorMVP:
         2. Randomness Estimation -> Suppression (Noise Filtering)
         3. Discontinuity Detection -> Epistemic Honesty (Warning)
         """
-        logger.info(f"Director: Evolving formula for {len(data_points)} points over {n_generations} generations...")
+        logger.info(
+            f"Director: Evolving formula for {len(data_points)} points over {n_generations} generations..."
+        )
 
         if not data_points:
             return "0"
@@ -369,68 +379,81 @@ class DirectorMVP:
         complexity_info = estimate_complexity(y_values)
         randomness_info = estimate_randomness(y_values)
 
-        complexity = complexity_info['complexity_score']
-        randomness = randomness_info['randomness_score']
+        complexity = complexity_info["complexity_score"]
+        randomness = randomness_info["randomness_score"]
 
-        logger.info(f"Director: [Epistemic] Complexity: {complexity:.3f} ({complexity_info['type']})")
-        logger.info(f"Director: [Epistemic] Randomness: {randomness:.3f} ({randomness_info['type']})")
+        logger.info(
+            f"Director: [Epistemic] Complexity: {complexity:.3f} ({complexity_info['type']})"
+        )
+        logger.info(
+            f"Director: [Epistemic] Randomness: {randomness:.3f} ({randomness_info['type']})"
+        )
 
         if self.reflexive_engine:
-             import uuid
-             episode_id = str(uuid.uuid4())
+            import uuid
 
-             # Dynamic Threshold Logic (Integration of Reflexive Learning)
-             # Get global learned threshold
-             reflexive_threshold = self.reflexive_engine.get_threshold(self.latest_cognitive_state[0])
-             # Use the higher of local config or learned threshold (Conservative/Safe)
-             current_threshold = max(self.config.suppression_threshold, reflexive_threshold)
+            episode_id = str(uuid.uuid4())
 
-             logger.debug(f"Director: Using composed threshold: {current_threshold:.3f} (Config: {self.config.suppression_threshold}, Reflexive: {reflexive_threshold:.3f})")
+            # Dynamic Threshold Logic (Integration of Reflexive Learning)
+            # Get global learned threshold
+            reflexive_threshold = self.reflexive_engine.get_threshold(
+                self.latest_cognitive_state[0]
+            )
+            # Use the higher of local config or learned threshold (Conservative/Safe)
+            current_threshold = max(self.config.suppression_threshold, reflexive_threshold)
 
-             self.reflexive_engine.record_intervention_start(
-                 episode_id=episode_id,
-                 entropy=randomness,
-                 energy=self.energy_budget,
-                 cognitive_state=self.latest_cognitive_state[0],
-                 goal="policing_check",
-                 intervention_type="epistemic_filter",
-                 intervention_source="director_core",
-                 threshold=current_threshold,
-                 parameters={"complexity": complexity}
-             )
+            logger.debug(
+                f"Director: Using composed threshold: {current_threshold:.3f} (Config: {self.config.suppression_threshold}, Reflexive: {reflexive_threshold:.3f})"
+            )
+
+            self.reflexive_engine.record_intervention_start(
+                episode_id=episode_id,
+                entropy=randomness,
+                energy=self.energy_budget,
+                cognitive_state=self.latest_cognitive_state[0],
+                goal="policing_check",
+                intervention_type="epistemic_filter",
+                intervention_source="director_core",
+                threshold=current_threshold,
+                parameters={"complexity": complexity},
+            )
         else:
-             current_threshold = self.config.suppression_threshold
+            current_threshold = self.config.suppression_threshold
 
         # --- 1. Suppression (Policing Entropy) ---
         suppression_active = False
         if randomness > current_threshold:
-            logger.info(f"Director: [Action] HIGH RANDOMNESS ({randomness:.2f} > {current_threshold:.2f}) -> Activating Suppression (Noise Filtering)")
+            logger.info(
+                f"Director: [Action] HIGH RANDOMNESS ({randomness:.2f} > {current_threshold:.2f}) -> Activating Suppression (Noise Filtering)"
+            )
 
             # Log to suppression history
-            from src.director.thought_suppression import SuppressionResult, SuppressionStrategy
-            self.suppression_history.append(SuppressionResult(
-                entropy_before=randomness,
-                energy_cost=self.config.suppression_cost,
-                strategy=SuppressionStrategy.SUPPRESS,
-                suppressed=True,
-                reason="High Randomness (Epistemic Filtering)"
-            ))
+
+            self.suppression_history.append(
+                SuppressionResult(
+                    entropy_before=randomness,
+                    energy_cost=self.config.suppression_cost,
+                    strategy=SuppressionStrategy.SUPPRESS,
+                    suppressed=True,
+                    reason="High Randomness (Epistemic Filtering)",
+                )
+            )
             self.energy_budget -= self.config.suppression_cost
 
             # Reflexive Feedback: Suppression Event
             if self.reflexive_engine:
-                 # Suppression is the "Safe Bet" (Quality 0.5)
-                 self.reflexive_engine.record_intervention_end(
-                     episode_id=episode_id,
-                     entropy_after=0.0, # Effectively zeroed
-                     energy_after=self.energy_budget,
-                     task_success=True, # We successfully suppressed
-                     outcome_quality=0.5, # Neutral/Safe outcome
-                     metadata={"strategy": "suppress", "cost": self.config.suppression_cost}
-                 )
+                # Suppression is the "Safe Bet" (Quality 0.5)
+                self.reflexive_engine.record_intervention_end(
+                    episode_id=episode_id,
+                    entropy_after=0.0,  # Effectively zeroed
+                    energy_after=self.energy_budget,
+                    task_success=True,  # We successfully suppressed
+                    outcome_quality=0.5,  # Neutral/Safe outcome
+                    metadata={"strategy": "suppress", "cost": self.config.suppression_cost},
+                )
 
             # Simple moving average smoothing
-            y_smooth = np.convolve(y_values, np.ones(5)/5, mode='same')
+            y_smooth = np.convolve(y_values, np.ones(5) / 5, mode="same")
             for i, d in enumerate(data_points):
                 d["result"] = float(y_smooth[i])
             suppression_active = True
@@ -440,24 +463,26 @@ class DirectorMVP:
             # But "Suppression" implies blocking the original chaotic signal.
 
         else:
-             # We ACCEPTED the signal.
-             pass
+            # We ACCEPTED the signal.
+            pass
 
         # --- 2. Attention (Focused Search) ---
         focused_search = False
-        ops = None
-        unary_ops = None
+        ops: Optional[List[Tuple[Callable[[float, float], float], str]]] = None
+        unary_ops: Optional[List[Tuple[Callable[[float], float], str]]] = None
 
-        if complexity > 0.7 and complexity_info['type'] != 'discontinuous':
-             logger.info("Director: [Action] HIGH COMPLEXITY -> Activating Focused Search (Trig Primitives)")
-             focused_search = True
-             ops = TRIG_OPS
-             unary_ops = TRIG_UNARY_OPS
-             n_generations = max(n_generations, 100)
+        if complexity > 0.7 and complexity_info["type"] != "discontinuous":
+            logger.info(
+                "Director: [Action] HIGH COMPLEXITY -> Activating Focused Search (Trig Primitives)"
+            )
+            focused_search = True
+            ops = TRIG_OPS
+            unary_ops = TRIG_UNARY_OPS
+            n_generations = max(n_generations, 100)
 
         # --- 3. Epistemic Honesty ---
         warning_msg = ""
-        if complexity_info['type'] == 'discontinuous':
+        if complexity_info["type"] == "discontinuous":
             logger.info("Director: [Action] DISCONTINUITY DETECTED -> Flagging for Segmentation")
             warning_msg = " [WARNING: Discontinuity Detected - Approximation Only]"
 
@@ -471,25 +496,29 @@ class DirectorMVP:
             population_size=pop_size,
             max_depth=6 if focused_search else 4,
             ops=ops,
-            unary_ops=unary_ops
+            unary_ops=unary_ops,
         )
 
         # Evolve
         # [PROCESS LOGGING]
         try:
-            process_logger.log("THOUGHT", {
-                "action": "run_reflexive_loop",
-                "step": "start",
-                "context": "Reflexive Evolution Loop",
-                "cognitive_state": self.latest_cognitive_state[0] if hasattr(self, 'latest_cognitive_state') else "Unknown"
-            })
-        except Exception:
-            pass
+            process_logger.log(
+                "THOUGHT",
+                {
+                    "action": "run_reflexive_loop",
+                    "step": "start",
+                    "context": "Reflexive Evolution Loop",
+                    "cognitive_state": (
+                        self.latest_cognitive_state[0]
+                        if hasattr(self, "latest_cognitive_state")
+                        else "Unknown"
+                    ),
+                },
+            )
+        except Exception as e:
+            logger.warning(f"Director: Failed to log reflexive loop start: {e}")
         best_formula, best_error = gp.evolve(
-            data_points,
-            target_key="result",
-            generations=n_generations,
-            hybrid=True
+            data_points, target_key="result", generations=n_generations, hybrid=True
         )
 
         # Calculate Compute Cost
@@ -499,29 +528,31 @@ class DirectorMVP:
 
         # Reflexive Feedback: Acceptance Outcome
         if self.reflexive_engine and not suppression_active:
-             # Quality driven by Error (MSE)
-             # Low MSE (< 0.1) -> High Quality (1.0)
-             # High MSE (> 1.0) -> Low Quality (0.0) -> implies we accepted noise
+            # Quality driven by Error (MSE)
+            # Low MSE (< 0.1) -> High Quality (1.0)
+            # High MSE (> 1.0) -> Low Quality (0.0) -> implies we accepted noise
 
-             mse = best_error
-             if mse < 0.1:
-                 quality = 1.0
-             elif mse > 10.0:
-                 quality = 0.0
-             else:
-                 # Linear interpolation 0.1..10.0 -> 1.0..0.0
-                 quality = max(0.0, 1.0 - (mse - 0.1) / 9.9)
+            mse = best_error
+            if mse < 0.1:
+                quality = 1.0
+            elif mse > 10.0:
+                quality = 0.0
+            else:
+                # Linear interpolation 0.1..10.0 -> 1.0..0.0
+                quality = max(0.0, 1.0 - (mse - 0.1) / 9.9)
 
-             self.reflexive_engine.record_intervention_end(
-                 episode_id=episode_id,
-                 entropy_after=mse, # Uncertainty remains high if error is high
-                 energy_after=self.energy_budget,
-                 task_success=(quality > 0.6),
-                 outcome_quality=quality,
-                 metadata={"strategy": "accept", "mse": mse, "cost": compute_cost}
-             )
+            self.reflexive_engine.record_intervention_end(
+                episode_id=episode_id,
+                entropy_after=mse,  # Uncertainty remains high if error is high
+                energy_after=self.energy_budget,
+                task_success=(quality > 0.6),
+                outcome_quality=quality,
+                metadata={"strategy": "accept", "mse": mse, "cost": compute_cost},
+            )
 
-        logger.info(f"Director: Evolution complete. Formula: {best_formula} (MSE: {best_error:.4f})")
+        logger.info(
+            f"Director: Evolution complete. Formula: {best_formula} (MSE: {best_error:.4f})"
+        )
 
         result_str = best_formula + warning_msg
         if suppression_active:
@@ -529,12 +560,14 @@ class DirectorMVP:
 
         return result_str
 
-    async def process_task_with_time_gate(self, task: str, context: Dict[str, Any] = None) -> Dict[str, Any]:
+    async def process_task_with_time_gate(
+        self, task: str, context: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
         """
         Process a task with the "Time Gate" (Dynamic Inference Budgeting).
         If entropy is high, we allocate more compute (generations) to solve it.
         """
-        logger.info(f"Director: Processing task with Time Gate: {task[:50]}...")
+        logger.info(f"Director: Processing task with Time Gate: {task[:5000]}...")
 
         # 1. Immediate Prediction (System 1)
         # We use COMPASS to get the initial thought/attempt
@@ -543,6 +576,7 @@ class DirectorMVP:
         # 2. Measure Entropy (Uncertainty)
         # Use EntropyCalculator to get formal Shannon entropy
         from src.integration.entropy_calculator import EntropyCalculator
+
         calc = EntropyCalculator()
 
         # Create pseudo-logits from confidence: [confidence, 1-confidence]
@@ -551,7 +585,9 @@ class DirectorMVP:
         logits = torch.log(scores + 1e-8)
         entropy_score = calc.compute_entropy(logits)
 
-        logger.info(f"Director: System 1 Confidence: {confidence:.2f}, Entropy (Bits): {entropy_score:.2f}")
+        logger.info(
+            f"Director: System 1 Confidence: {confidence:.2f}, Entropy (Bits): {entropy_score:.2f}"
+        )
         if context:
             logger.info(f"Director: Context keys: {list(context.keys())}")
             logger.info(f"Director: force_time_gate: {context.get('force_time_gate')}")
@@ -574,15 +610,19 @@ class DirectorMVP:
                 # Given strict instructions to "call mcp_check_cognitive_state in Director", we need access.
                 # Director has self.compass.mcp_client (RAAMCPClient)
                 if self.compass and self.compass.mcp_client:
-                     state_result = await self.compass.mcp_client.call_tool("mcp_check_cognitive_state", {})
-                     # Parse result: "State: Focused (Stability: 0.8)"
-                     state_str = str(state_result)
-                     if "Looping" in state_str or "Stuck" in state_str:
-                         should_engage_system2 = True
-                         cognitive_state_label = "Looping/Stuck"
-                         logger.info(f"Director: Cognitive State is {cognitive_state_label}. FORCING System 2.")
-                     elif "Focused" in state_str or "Flow" in state_str:
-                         cognitive_state_label = "Focused/Flow"
+                    state_result = await self.compass.mcp_client.call_tool(
+                        "mcp_check_cognitive_state", {}
+                    )
+                    # Parse result: "State: Focused (Stability: 0.8)"
+                    state_str = str(state_result)
+                    if "Looping" in state_str or "Stuck" in state_str:
+                        should_engage_system2 = True
+                        cognitive_state_label = "Looping/Stuck"
+                        logger.info(
+                            f"Director: Cognitive State is {cognitive_state_label}. FORCING System 2."
+                        )
+                    elif "Focused" in state_str or "Flow" in state_str:
+                        cognitive_state_label = "Focused/Flow"
 
             except Exception as e:
                 logger.warning(f"Director: Failed to check cognitive state: {e}")
@@ -602,17 +642,19 @@ class DirectorMVP:
         engage_reason = None
 
         if not self.config.enable_system2 and not force_gate:
-             logger.info(f"Director: High Entropy ({entropy_score:.2f}) but System 2 disabled. Using System 1.")
-             return result
+            logger.info(
+                f"Director: High Entropy ({entropy_score:.2f}) but System 2 disabled. Using System 1."
+            )
+            return result
 
         if force_gate:
             engage_reason = "Forced by User"
         elif should_engage_system2:
             engage_reason = f"Cognitive State ({cognitive_state_label})"
         elif entropy_score >= 0.95:
-             engage_reason = f"Critical Entropy ({entropy_score:.2f})"
+            engage_reason = f"Critical Entropy ({entropy_score:.2f})"
         elif entropy_score >= 0.8 and cognitive_state_label != "Focused/Flow":
-             engage_reason = f"High Entropy ({entropy_score:.2f})"
+            engage_reason = f"High Entropy ({entropy_score:.2f})"
 
         if not engage_reason:
             logger.info("Director: Low Entropy. Trusting System 1 (Fast Time).")
@@ -631,7 +673,9 @@ class DirectorMVP:
 
             # A. Allocation of Time (Compute)
             pondering_budget = self.map_entropy_to_generations(entropy_score)
-            logger.info(f"Director: Allocating {pondering_budget} generations to 'evolve_formula'...")
+            logger.info(
+                f"Director: Allocating {pondering_budget} generations to 'evolve_formula'..."
+            )
 
             # B. The "Slow" Path (Evolutionary Optimization)
             # We need to extract data points from context to run evolve_formula
@@ -639,14 +683,16 @@ class DirectorMVP:
             data_points = context.get("data_points") if context else None
 
             # If no explicit data points, we might need to parse them or skip
-            if not data_points and "data" in str(context):
-                 # Try to find 'data' key loosely
-                 data_points = context.get("data")
+            if not data_points and context and "data" in str(context):
+                # Try to find 'data' key loosely
+                data_points = context.get("data")
 
             if data_points:
                 try:
                     # Call evolve_formula directly (System 2 function)
-                    evolution_text = await self.evolve_formula(data_points, n_generations=pondering_budget)
+                    evolution_text = await self.evolve_formula(
+                        data_points, n_generations=pondering_budget
+                    )
 
                     # C. Insight Integration
                     # Force the agent to accept the "future" result
@@ -668,10 +714,12 @@ class DirectorMVP:
 
                 except Exception as e:
                     logger.error(f"Director: Evolutionary Loop failed: {e}")
-                    return result # Fallback to System 1
+                    return result  # Fallback to System 1
 
             else:
-                logger.warning("Director: High entropy but no 'data_points' found in context for evolution.")
+                logger.warning(
+                    "Director: High entropy but no 'data_points' found in context for evolution."
+                )
                 return result
 
     async def check_proactive_interventions(self) -> Optional[Intervention]:
@@ -688,8 +736,10 @@ class DirectorMVP:
         allostatic_trigger = self.allostatic_controller.check_trigger()
 
         if allostatic_trigger == "PROACTIVE_ECC":
-             logger.warning(f"Allostatic Alert! Predicted Entropy {predicted_entropy:.2f} > Critical. Deploying ECC Swarm.")
-             return await self._handle_proactive_ecc(predicted_entropy)
+            logger.warning(
+                f"Allostatic Alert! Predicted Entropy {predicted_entropy:.2f} > Critical. Deploying ECC Swarm."
+            )
+            return await self._handle_proactive_ecc(predicted_entropy)
 
         return None
 
@@ -697,7 +747,9 @@ class DirectorMVP:
         """
         Deploy ECC Swarm (Redundancy, Parity, Syndrome) to preemptively stabilize the system.
         """
-        logger.info(f"Deploying ECC Swarm for Allostatic Regulation (Predicted Entropy: {predicted_entropy:.2f})")
+        logger.info(
+            f"Deploying ECC Swarm for Allostatic Regulation (Predicted Entropy: {predicted_entropy:.2f})"
+        )
 
         # 1. Define ECC Task
         ecc_task = (
@@ -708,28 +760,25 @@ class DirectorMVP:
             f"Parity Agent: Check for contradictions. "
             f"Syndrome Agent: Diagnose the noise source."
         )
-        task = f"ECC TRIGGERED: Entropy gradient {predicted_entropy:.2f} > 0.05. Check system logic." # Using predicted_entropy as a proxy for gradient here
-
+        task = f"ECC TRIGGERED: Entropy gradient {predicted_entropy:.2f} > 0.05. Check system logic."  # Using predicted_entropy as a proxy for gradient here
 
         try:
-            process_logger.log("SWARM", {
-                "action": "ecc_trigger",
-                "gradient": float(predicted_entropy),
-                "task": task
-            })
-        except Exception:
-             pass
+            process_logger.log(
+                "SWARM",
+                {"action": "ecc_trigger", "gradient": float(predicted_entropy), "task": task},
+            )
+        except Exception as e:
+            logger.warning(f"Director: Failed to log ECC trigger: {e}")
 
         # 2. Summon ECC Advisors
         advisor_ids = ["redundancy_agent", "parity_agent", "syndrome_agent"]
-        self.swarm_controller.active_advisors = advisor_ids # Force specific team
 
         # 3. Run Swarm
         # We pass an empty context or current manifold state as context
         swarm_result = await self.swarm_controller.run_swarm(
             task=ecc_task,
-            context={"predicted_entropy": predicted_entropy},
-            advisor_ids=advisor_ids
+            context=f"Predicted Entropy: {predicted_entropy}",
+            advisor_ids=advisor_ids,
         )
 
         # 4. Construct Intervention
@@ -739,8 +788,8 @@ class DirectorMVP:
             source="Swarm_ECC",
             target="manifold",
             content=swarm_result,
-            priority=1.0, # High priority prevention
-            energy_cost=5.0 # Expensive but cheaper than a crash
+            priority=1.0,  # High priority prevention
+            energy_cost=5.0,  # Expensive but cheaper than a crash
         )
 
         return intervention
@@ -756,7 +805,9 @@ class DirectorMVP:
 
         if self.reflexive_engine:
             # Get global learned threshold (success-based)
-            reflexive_threshold = self.reflexive_engine.get_threshold(self.latest_cognitive_state[0])
+            reflexive_threshold = self.reflexive_engine.get_threshold(
+                self.latest_cognitive_state[0]
+            )
 
             # Composition: Use the higher of the two.
             # - If local context is noisy (high monitor_threshold), we wait for even higher entropy.
@@ -817,11 +868,11 @@ class DirectorMVP:
         try:
             result = self.hybrid_search.search(
                 current_state=current_state,
-                evidence=None, # Director search is usually unsupervised/intrinsic, unless context provides evidence
+                evidence=None,  # Director search is usually unsupervised/intrinsic, unless context provides evidence
                 constraints=[],
                 context=context,
                 k=k,
-                metric=metric
+                metric=metric,
             )
 
             # Log search episode
@@ -864,7 +915,7 @@ class DirectorMVP:
         self.observer.observe(
             f"Monitoring entropy: {entropy_value:.3f} (Threshold: {self.monitor.get_threshold():.3f})",
             level=0,
-            metadata={"entropy": entropy_value, "is_clash": is_clash}
+            metadata={"entropy": entropy_value, "is_clash": is_clash},
         )
 
         # Add entropy to context for logging
@@ -885,23 +936,27 @@ class DirectorMVP:
         omcd_state = {
             "value_difference": 1.0 / (1.0 + entropy_value),
             "precision": 1.0,
-            "variance": 1.0
+            "variance": 1.0,
         }
 
         # Determine allocation
         allocation = self.compass.omcd_controller.determine_resource_allocation(
             current_state=omcd_state,
-            importance=10.0, # Default importance
-            available_resources=100.0 # Default available
+            importance=10.0,  # Default importance
+            available_resources=100.0,  # Default available
         )
 
-        logger.info(f"COMPASS oMCD Allocation: {allocation['amount']:.2f} resources (Confidence: {allocation['confidence']:.3f})")
+        logger.info(
+            f"COMPASS oMCD Allocation: {allocation['amount']:.2f} resources (Confidence: {allocation['confidence']:.3f})"
+        )
         context["compass_allocation"] = allocation
 
         # If allocation is very high, we might want to trigger full COMPASS processing
         # For now, we just log it and use it to inform search (potentially)
-        if allocation['amount'] > 80.0:
-            logger.warning(f"High entropy/allocation detected ({allocation['amount']:.2f}). Triggering COMPASS intervention.")
+        if allocation["amount"] > 80.0:
+            logger.warning(
+                f"High entropy/allocation detected ({allocation['amount']:.2f}). Triggering COMPASS intervention."
+            )
 
             # Trigger COMPASS asynchronously
             try:
@@ -931,13 +986,17 @@ class DirectorMVP:
                 logger.info(f"Meta-Reflection: {reflection}")
                 self._apply_reflection_action(reflection)
 
-            logger.warning(f"Critical Entropy ({entropy_value:.2f}). Triggering Dynamic Agent Escalation.")
+            logger.warning(
+                f"Critical Entropy ({entropy_value:.2f}). Triggering Dynamic Agent Escalation."
+            )
             try:
                 loop = asyncio.get_running_loop()
-                loop.create_task(self._escalate_to_agent(
-                    signal_type="High Entropy",
-                    context=f"Entropy: {entropy_value:.2f}. Processor is confused. Context: {str(context)[:200]}"
-                ))
+                loop.create_task(
+                    self._escalate_to_agent(
+                        signal_type="High Entropy",
+                        context=f"Entropy: {entropy_value:.2f}. Processor is confused. Context: {str(context)[:200]}",
+                    )
+                )
             except RuntimeError:
                 logger.warning("No running event loop. Skipping agent escalation.")
             except Exception as e:
@@ -953,7 +1012,7 @@ class DirectorMVP:
             self.observer.observe(
                 f"Clash detected! Entropy {entropy_value:.3f} exceeds threshold.",
                 level=1,
-                metadata={"type": "clash"}
+                metadata={"type": "clash"},
             )
 
             logger.info(
@@ -967,16 +1026,22 @@ class DirectorMVP:
                 episode_id = self.reflexive_engine.record_intervention_start(
                     episode_id=f"ep_{int(time.time() * 1000)}",
                     entropy=entropy_value,
-                    energy=0.0, # TODO: Get real energy
+                    energy=(
+                        self.manifold.energy
+                        if hasattr(self.manifold, "energy")
+                        else self.energy_budget
+                    ),  # Real energy from substrate/manifold
                     cognitive_state=self.latest_cognitive_state[0],
-                    goal=str(self.current_goal) if hasattr(self, 'current_goal') else "Unknown",
+                    goal=str(self.current_goal) if hasattr(self, "current_goal") else "Unknown",
                     intervention_type="search",
                     intervention_source="entropy",
-                    threshold=self.reflexive_engine.get_threshold(self.latest_cognitive_state[0])
+                    threshold=self.reflexive_engine.get_threshold(self.latest_cognitive_state[0]),
                 )
 
             # Update Allostatic Controller with current entropy
-            self.allostatic_controller.record_entropy(entropy_value) # Using entropy_value from monitor
+            self.allostatic_controller.record_entropy(
+                entropy_value
+            )  # Using entropy_value from monitor
 
             # 1. Check for Proactive ECC (Allostasis)
             # This is now async, so we assume fire-and-forget in the main loop context,
@@ -989,7 +1054,7 @@ class DirectorMVP:
                 loop = asyncio.get_running_loop()
                 loop.create_task(self.check_proactive_interventions())
             except RuntimeError:
-                pass # No loop, skip proactive check
+                pass  # No loop, skip proactive check
 
             # --- ADAPTIVE BETA LOGIC ---
             # Store original beta to reset it after search
@@ -1022,19 +1087,27 @@ class DirectorMVP:
 
                 if self.reflexive_engine:
                     # Get dynamic parameters from Reflexive Closure
-                    dyn_k = self.reflexive_engine.get_parameter("search_k", self.latest_cognitive_state[0])
-                    dyn_metric = self.reflexive_engine.get_parameter("search_metric", self.latest_cognitive_state[0])
+                    dyn_k = self.reflexive_engine.get_parameter(
+                        "search_k", self.latest_cognitive_state[0]
+                    )
+                    dyn_metric = self.reflexive_engine.get_parameter(
+                        "search_metric", self.latest_cognitive_state[0]
+                    )
 
                     if dyn_k is not None:
                         search_k = int(dyn_k)
                     if dyn_metric is not None:
                         search_metric = str(dyn_metric)
 
-                    logger.debug(f"Using dynamic search params: k={search_k}, metric={search_metric}")
+                    logger.debug(
+                        f"Using dynamic search params: k={search_k}, metric={search_metric}"
+                    )
                 # -----------------------------------
 
                 # Step 4: Search for alternative using the adaptive beta and dynamic params
-                search_result = self.search(current_state, context, k=search_k, metric=search_metric)
+                search_result = self.search(
+                    current_state, context, k=search_k, metric=search_metric
+                )
 
             except Exception as e:
                 logger.error(f"Search with adaptive beta failed: {e}")
@@ -1056,7 +1129,7 @@ class DirectorMVP:
                         entropy_after=entropy_value,
                         energy_after=0.0,
                         task_success=False,
-                        outcome_quality=0.0
+                        outcome_quality=0.0,
                     )
                 return None
 
@@ -1071,17 +1144,19 @@ class DirectorMVP:
             if self.reflexive_engine and episode_id:
                 self.reflexive_engine.record_intervention_end(
                     episode_id=episode_id,
-                    entropy_after=entropy_value * 0.8, # Mock reduction
+                    entropy_after=entropy_value * 0.8,  # Mock reduction
                     energy_after=0.0,
                     task_success=True,
-                    outcome_quality=search_result.selection_score
+                    outcome_quality=search_result.selection_score,
                 )
 
             # Anchor this milestone (Continuity)
             if self.continuity_service:
                 try:
                     # Convert tensor to numpy for continuity service
-                    state_np = new_goal.cpu().numpy() if isinstance(new_goal, torch.Tensor) else new_goal
+                    state_np = (
+                        new_goal.cpu().numpy() if isinstance(new_goal, torch.Tensor) else new_goal
+                    )
                     # Ensure it's 1D or flatten it
                     if len(state_np.shape) > 1:
                         state_np = state_np.flatten()
@@ -1093,8 +1168,8 @@ class DirectorMVP:
                             "type": "intervention",
                             "trigger": "clash",
                             "entropy": float(entropy_value),
-                            "source": "director_search"
-                        }
+                            "source": "director_search",
+                        },
                     )
                     logger.info("Anchored new goal state in Continuity Field.")
                 except Exception as e:
@@ -1103,10 +1178,9 @@ class DirectorMVP:
             logger.debug(f"No clash detected (entropy={entropy_value:.3f})")
             return None
 
-
         return new_goal
 
-    def _apply_reflection_action(self, action: Dict[str, Any]):
+    def _apply_reflection_action(self, action: Dict[str, Any]) -> None:
         """
         Execute a self-modification action triggered by the Recursive Observer.
         """
@@ -1160,9 +1234,9 @@ class DirectorMVP:
 
         # 2. Energy-based Logic (Stability)
         if energy > -0.8 and state != "Unknown":
-             warnings.append("Note: State is unstable (high energy).")
-             if state == "Flow":
-                 advice = "Flow state is fragile. Proceed with caution."
+            warnings.append("Note: State is unstable (high energy).")
+            if state == "Flow":
+                advice = "Flow state is fragile. Proceed with caution."
 
         # 3. Entropy-based Logic (Uncertainty)
         if entropy > 0.8:
@@ -1173,7 +1247,7 @@ class DirectorMVP:
         return {
             "warnings": warnings,
             "advice": advice,
-            "suggested_tools": [] # Could be populated dynamically
+            "suggested_tools": [],  # Could be populated dynamically
         }
 
     def diagnose(
@@ -1303,7 +1377,7 @@ class DirectorMVP:
             "sheaf_diagnostics": {
                 "h1_threshold": self.sheaf_analyzer.config.h1_escalation_threshold,
                 "overlap_threshold": self.sheaf_analyzer.config.overlap_warning_threshold,
-            }
+            },
         }
 
     def reset(self) -> None:
@@ -1320,27 +1394,27 @@ class DirectorMVP:
 
             # If High Entropy, trigger Swarm
             if signal_type == "High Entropy":
-                 logger.info("CRITICAL ENTROPY -> Triggering SWARM CONSENSUS.")
-                 advisors = ["linearist", "periodicist", "evolutionist", "thermodynamicist"]
-                 synthesis = await self.swarm_controller.run_swarm(
-                     task=f"Resolve High Entropy Clash. Context: {context}",
-                     advisor_ids=advisors,
-                     context=context
-                 )
-                 logger.info(f"Swarm Synthesis Result:\n{synthesis}")
-                 # TODO: Apply synthesis to goal?
+                logger.info("CRITICAL ENTROPY -> Triggering SWARM CONSENSUS.")
+                advisors = ["linearist", "periodicist", "evolutionist", "thermodynamicist"]
+                synthesis = await self.swarm_controller.run_swarm(
+                    task=f"Resolve High Entropy Clash. Context: {context}",
+                    advisor_ids=advisors,
+                    context=context,
+                )
+                logger.info(f"Swarm Synthesis Result:\n{synthesis}")
+                # TODO: Apply synthesis to goal?
 
             else:
-                 # Default Single Agent Escalation
-                 # 1. Spawn Agent (Generates Persona)
-                 tool_name = await self.agent_factory.spawn_agent(signal_type, context)
+                # Default Single Agent Escalation
+                # 1. Spawn Agent (Generates Persona)
+                tool_name = await self.agent_factory.spawn_agent(signal_type, context)
 
-                 # 2. Execute Agent
-                 query = f"The system is stuck with {signal_type}. Please analyze the context and provide a new goal or framing to resolve the obstruction.\nContext: {context}"
+                # 2. Execute Agent
+                query = f"The system is stuck with {signal_type}. Please analyze the context and provide a new goal or framing to resolve the obstruction.\nContext: {context}"
 
-                 result = await self.agent_factory.execute_agent(tool_name, {"query": query})
+                result = await self.agent_factory.execute_agent(tool_name, {"query": query})
 
-                 logger.info(f"Specialized Agent {tool_name} Result:\n{result}")
+                logger.info(f"Specialized Agent {tool_name} Result:\n{result}")
 
         except Exception as e:
             logger.error(f"Agent escalation failed: {e}")

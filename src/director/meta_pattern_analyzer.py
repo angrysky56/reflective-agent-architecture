@@ -33,7 +33,7 @@ class PatternInsight:
             "confidence": self.confidence,
             "recommendation": self.recommendation,
             "suggested_adjustment": self.suggested_adjustment,
-            "evidence_count": self.evidence_count
+            "evidence_count": self.evidence_count,
         }
 
 
@@ -70,7 +70,9 @@ class MetaPatternAnalyzer:
         completed = [r for r in history if r.outcome is not None]
 
         if len(completed) < self.min_samples:
-            logger.debug(f"Insufficient samples for analysis: {len(completed)} < {self.min_samples}")
+            logger.debug(
+                f"Insufficient samples for analysis: {len(completed)} < {self.min_samples}"
+            )
             return []
 
         insights = []
@@ -86,7 +88,9 @@ class MetaPatternAnalyzer:
 
         return insights
 
-    def _analyze_threshold_effectiveness(self, records: List[InterventionRecord]) -> Optional[PatternInsight]:
+    def _analyze_threshold_effectiveness(
+        self, records: List[InterventionRecord]
+    ) -> Optional[PatternInsight]:
         """
         Determine if the global entropy threshold should be raised or lowered.
 
@@ -101,7 +105,7 @@ class MetaPatternAnalyzer:
         - If interventions at high entropy (> 2.5) have high 'outcome_quality', suggests we are catching them correctly, but maybe we should catch them sooner?
         """
         # Extract data: (entropy_threshold_used, outcome_quality)
-        data = [(r.entropy_threshold_used, r.outcome.outcome_quality) for r in records]
+        data = [(r.entropy_threshold_used, r.outcome.outcome_quality) for r in records if r.outcome]
 
         if not data:
             return None
@@ -127,7 +131,7 @@ class MetaPatternAnalyzer:
                 confidence=0.7,  # Moderate confidence
                 recommendation=f"Raise threshold. Higher thresholds ({median_threshold:.2f}+) yield better outcomes ({avg_high:.2f} vs {avg_low:.2f}).",
                 suggested_adjustment={"threshold_multiplier": 1.1},  # Suggest 10% increase
-                evidence_count=len(records)
+                evidence_count=len(records),
             )
 
         # Conversely, if lower thresholds yield better quality, maybe we should be more sensitive
@@ -137,12 +141,14 @@ class MetaPatternAnalyzer:
                 confidence=0.7,
                 recommendation=f"Lower threshold. Lower thresholds (<{median_threshold:.2f}) yield better outcomes ({avg_low:.2f} vs {avg_high:.2f}).",
                 suggested_adjustment={"threshold_multiplier": 0.9},  # Suggest 10% decrease
-                evidence_count=len(records)
+                evidence_count=len(records),
             )
 
         return None
 
-    def _analyze_state_specific_patterns(self, records: List[InterventionRecord]) -> List[PatternInsight]:
+    def _analyze_state_specific_patterns(
+        self, records: List[InterventionRecord]
+    ) -> List[PatternInsight]:
         """
         Analyze if specific cognitive states (e.g., 'Looping', 'Focused') have different optimal thresholds.
         """
@@ -161,39 +167,43 @@ class MetaPatternAnalyzer:
                 continue
 
             # Calculate average quality for this state
-            avg_quality = np.mean([r.outcome.outcome_quality for r in state_records])
+            avg_quality = np.mean([r.outcome.outcome_quality for r in state_records if r.outcome])
 
             # Compare to global average
-            global_avg = np.mean([r.outcome.outcome_quality for r in records])
+            global_avg = np.mean([r.outcome.outcome_quality for r in records if r.outcome])
 
             # If this state performs poorly, maybe it needs a different sensitivity
             if avg_quality < global_avg - 0.15:
                 # Poor performance in this state.
                 # Heuristic: If "Looping", we usually need to intervene SOONER (lower threshold).
                 if "Looping" in state or "Stuck" in state:
-                    insights.append(PatternInsight(
-                        pattern_type=f"state_specific_{state}",
-                        confidence=0.6,
-                        recommendation=f"State '{state}' has poor outcomes ({avg_quality:.2f}). Suggest increasing sensitivity.",
-                        suggested_adjustment={
-                            "state": state,
-                            "threshold_multiplier": 0.8  # Lower threshold significantly
-                        },
-                        evidence_count=len(state_records)
-                    ))
+                    insights.append(
+                        PatternInsight(
+                            pattern_type=f"state_specific_{state}",
+                            confidence=0.6,
+                            recommendation=f"State '{state}' has poor outcomes ({avg_quality:.2f}). Suggest increasing sensitivity.",
+                            suggested_adjustment={
+                                "state": state,
+                                "threshold_multiplier": 0.8,  # Lower threshold significantly
+                            },
+                            evidence_count=len(state_records),
+                        )
+                    )
 
             # If "Flow" or "Focused", maybe we intervene too much?
             elif "Flow" in state or "Focused" in state:
-                if avg_quality < global_avg: # Even slightly below average might mean disruption
-                     insights.append(PatternInsight(
-                        pattern_type=f"state_specific_{state}",
-                        confidence=0.6,
-                        recommendation=f"State '{state}' might be disrupted by interventions. Suggest decreasing sensitivity.",
-                        suggested_adjustment={
-                            "state": state,
-                            "threshold_multiplier": 1.2  # Raise threshold
-                        },
-                        evidence_count=len(state_records)
-                    ))
+                if avg_quality < global_avg:  # Even slightly below average might mean disruption
+                    insights.append(
+                        PatternInsight(
+                            pattern_type=f"state_specific_{state}",
+                            confidence=0.6,
+                            recommendation=f"State '{state}' might be disrupted by interventions. Suggest decreasing sensitivity.",
+                            suggested_adjustment={
+                                "state": state,
+                                "threshold_multiplier": 1.2,  # Raise threshold
+                            },
+                            evidence_count=len(state_records),
+                        )
+                    )
 
         return insights

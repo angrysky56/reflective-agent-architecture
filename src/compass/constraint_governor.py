@@ -10,7 +10,7 @@ Responsible for enforcing computational invariants across the reasoning stack:
 """
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set
 
 from .config import ConstraintGovernorConfig
 from .utils import COMPASSLogger
@@ -97,13 +97,17 @@ class ConstraintGovernor:
         self.violations.extend(current_violations)
 
         if current_violations:
-            self.logger.warning(f"Constraint violations in step {step_index}: {len(current_violations)}")
+            self.logger.warning(
+                f"Constraint violations in step {step_index}: {len(current_violations)}"
+            )
             for v in current_violations:
                 self.logger.debug(f"  - {v.invariant_type}: {v.description}")
 
         return current_violations
 
-    def _check_logical_coherence(self, step_data: Dict, step_index: int) -> List[ConstraintViolation]:
+    def _check_logical_coherence(
+        self, step_data: Dict, step_index: int
+    ) -> List[ConstraintViolation]:
         """
         Check for logical contradictions with previous steps.
 
@@ -114,23 +118,44 @@ class ConstraintGovernor:
         content = str(step_data.get("reasoning", "")) + str(step_data.get("action", ""))
 
         # Simple heuristic: check for explicit self-contradiction phrases
-        contradiction_markers = ["however, this contradicts", "but previously I said", "wait, that cannot be true because", "inconsistent with"]
+        contradiction_markers = [
+            "however, this contradicts",
+            "but previously I said",
+            "wait, that cannot be true because",
+            "inconsistent with",
+        ]
 
         for marker in contradiction_markers:
             if marker in content.lower():
                 # This might actually be GOOD meta-cognition (catching an error),
                 # but it indicates a coherence break in the reasoning flow itself.
                 # We flag it as a warning to ensure it's resolved.
-                violations.append(ConstraintViolation(invariant_type="logical_coherence", description=f"Potential contradiction detected: '{marker}'", severity="warning", step_index=step_index))
+                violations.append(
+                    ConstraintViolation(
+                        invariant_type="logical_coherence",
+                        description=f"Potential contradiction detected: '{marker}'",
+                        severity="warning",
+                        step_index=step_index,
+                    )
+                )
                 self.contradictions_found += 1
 
         # Check against max allowed contradictions
         if self.contradictions_found > self.config.max_contradictions_allowed:
-            violations.append(ConstraintViolation(invariant_type="logical_coherence", description=f"Exceeded maximum allowed contradictions ({self.config.max_contradictions_allowed})", severity="error", step_index=step_index))
+            violations.append(
+                ConstraintViolation(
+                    invariant_type="logical_coherence",
+                    description=f"Exceeded maximum allowed contradictions ({self.config.max_contradictions_allowed})",
+                    severity="error",
+                    step_index=step_index,
+                )
+            )
 
         return violations
 
-    def _check_compositionality(self, step_data: Dict, step_index: int) -> List[ConstraintViolation]:
+    def _check_compositionality(
+        self, step_data: Dict, step_index: int
+    ) -> List[ConstraintViolation]:
         """
         Verify that complex ideas are built from simpler components.
         Checks if new concepts introduced have defined dependencies or constituents.
@@ -143,12 +168,26 @@ class ConstraintGovernor:
         if action_type == "decompose":
             subtasks = step_data.get("subtasks", [])
             if not subtasks:
-                violations.append(ConstraintViolation(invariant_type="compositionality", description="Decomposition action missing subtasks (compositional failure)", severity="error", step_index=step_index))
+                violations.append(
+                    ConstraintViolation(
+                        invariant_type="compositionality",
+                        description="Decomposition action missing subtasks (compositional failure)",
+                        severity="error",
+                        step_index=step_index,
+                    )
+                )
 
         elif action_type == "integrate":
             components = step_data.get("components", [])
             if not components:
-                violations.append(ConstraintViolation(invariant_type="compositionality", description="Integration action missing components (compositional failure)", severity="error", step_index=step_index))
+                violations.append(
+                    ConstraintViolation(
+                        invariant_type="compositionality",
+                        description="Integration action missing components (compositional failure)",
+                        severity="error",
+                        step_index=step_index,
+                    )
+                )
 
         return violations
 
@@ -168,12 +207,21 @@ class ConstraintGovernor:
             prev_content = str(prev_step.get("reasoning", "")).strip()
 
             if current_content and current_content == prev_content:
-                violations.append(ConstraintViolation(invariant_type="productivity", description=f"Repetitive reasoning detected (identical to step {step_index - i})", severity="warning", step_index=step_index))
+                violations.append(
+                    ConstraintViolation(
+                        invariant_type="productivity",
+                        description=f"Repetitive reasoning detected (identical to step {step_index - i})",
+                        severity="warning",
+                        step_index=step_index,
+                    )
+                )
                 break
 
         return violations
 
-    def _check_conceptual_processing(self, step_data: Dict, step_index: int) -> List[ConstraintViolation]:
+    def _check_conceptual_processing(
+        self, step_data: Dict, step_index: int
+    ) -> List[ConstraintViolation]:
         """
         Track abstract representation depth.
         Ensures reasoning isn't just surface-level linguistic pattern matching.
@@ -206,13 +254,24 @@ class ConstraintGovernor:
         if len(self.concept_depth_history) >= 3:
             recent_avg = sum(self.concept_depth_history[-3:]) / 3
             if recent_avg < 0.2:  # Threshold for "too shallow"
-                violations.append(ConstraintViolation(invariant_type="conceptual_processing", description="Sustained shallow processing detected (low conceptual depth)", severity="warning", step_index=step_index))
+                violations.append(
+                    ConstraintViolation(
+                        invariant_type="conceptual_processing",
+                        description="Sustained shallow processing detected (low conceptual depth)",
+                        severity="warning",
+                        step_index=step_index,
+                    )
+                )
 
         return violations
 
-    def get_violation_report(self) -> Dict:
+    def get_violation_report(self) -> Dict[str, Any]:
         """Generate a summary report of all violations."""
-        report = {"total_violations": len(self.violations), "by_type": {}, "by_severity": {}}
+        report: Dict[str, Any] = {
+            "total_violations": len(self.violations),
+            "by_type": {},
+            "by_severity": {},
+        }
 
         for v in self.violations:
             # Count by type
@@ -222,7 +281,7 @@ class ConstraintGovernor:
 
         return report
 
-    def reset(self):
+    def reset(self) -> None:
         """Reset governor state."""
         self.violations.clear()
         self.reasoning_history.clear()

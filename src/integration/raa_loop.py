@@ -294,7 +294,7 @@ class ReflectiveAgentArchitecture:
             retrieved_state: Converged state
             energy_trajectory: Energy at each step
         """
-        return self.manifold.retrieve(query, num_steps)
+        return self.manifold.state_memory.retrieve(query, num_steps)
 
     def reset_goal(self) -> None:
         """Reset Pointer to initial state."""
@@ -371,7 +371,9 @@ def create_default_raa(
 
     # Cold Start Prevention: Initialize Manifold with prototype patterns if empty
     if raa.manifold.num_patterns == 0:
-        logger.info("Manifold is empty. Initializing with prototype patterns (Cold Start Prevention).")
+        logger.info(
+            "Manifold is empty. Initializing with prototype patterns (Cold Start Prevention)."
+        )
         initialize_manifold_patterns(raa.manifold, strategy="prototype", num_patterns=100)
 
     return raa

@@ -6,7 +6,7 @@ Provides specialized reasoning operations like backward chaining,
 backtracking, and counterfactual reasoning.
 """
 
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from .config import ProceduralToolkitConfig
 from .utils import COMPASSLogger
@@ -49,7 +49,12 @@ class ProceduralToolkit:
         current_subgoal = goal
 
         # Heuristic: Break down goal into prerequisites
-        prerequisites = [f"Verify prerequisites for {current_subgoal}", f"Gather resources for {current_subgoal}", f"Execute core logic for {current_subgoal}", f"Validate {current_subgoal}"]
+        prerequisites = [
+            f"Verify prerequisites for {current_subgoal}",
+            f"Gather resources for {current_subgoal}",
+            f"Execute core logic for {current_subgoal}",
+            f"Validate {current_subgoal}",
+        ]
 
         # Return execution order (forward plan)
         steps = prerequisites
@@ -80,7 +85,12 @@ class ProceduralToolkit:
         # Analyze what went wrong (simulated)
         failed_action = history[failure_point].get("action", "unknown")
 
-        return {"status": "success", "recovered_state": recovered_state, "recovery_index": recovery_index, "recommendation": f"Try alternative to '{failed_action}'"}
+        return {
+            "status": "success",
+            "recovered_state": recovered_state,
+            "recovery_index": recovery_index,
+            "recommendation": f"Try alternative to '{failed_action}'",
+        }
 
     def counterfactual_reasoning(self, scenario: str, alternative_condition: str) -> str:
         """
@@ -114,6 +124,11 @@ class ProceduralToolkit:
         self.logger.info(f"Mapping analogy: {source_domain} -> {target_domain}")
 
         # Simulated mapping
-        mapping = {"structure": "architecture", "flow": "process", "component": "module", "constraint": "limitation"}
+        mapping = {
+            "structure": "architecture",
+            "flow": "process",
+            "component": "module",
+            "constraint": "limitation",
+        }
 
         return mapping

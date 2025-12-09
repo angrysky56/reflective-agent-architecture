@@ -26,9 +26,9 @@ from .director_integration import OperationCostProfile, SubstrateAwareDirector
 from .energy_token import EnergyToken
 from .ledger import InsufficientEnergyError, MeasurementLedger
 from .measurement_cost import MeasurementCost
-from .state_descriptor import NamedState, StateDescriptor, UnknownState
+from .state_descriptor import NamedState, StateDescriptor, StateTransitionCost, UnknownState
 from .substrate_quantity import SubstrateQuantity
-from .transition_registry import InvalidTransitionError, StateTransitionCost, StateTransitionRegistry
+from .transition_registry import InvalidTransitionError, StateTransitionRegistry
 
 __all__ = [
     "EnergyToken",

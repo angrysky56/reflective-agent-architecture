@@ -15,6 +15,7 @@ from src.llm.provider import BaseLLMProvider, Message
 
 logger = logging.getLogger(__name__)
 
+
 class HuggingFaceProvider(BaseLLMProvider):
     """Hugging Face implementation of LLM provider."""
 
@@ -33,22 +34,28 @@ class HuggingFaceProvider(BaseLLMProvider):
         stop=stop_after_attempt(5),
         before_sleep=before_sleep_log(logger, logging.WARNING),
     )
-    def generate(self, system_prompt: str, user_prompt: str, max_tokens: int = 16000, tools: Optional[List[Dict]] = None) -> str:
+    def generate(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        max_tokens: int = 16000,
+        tools: Optional[List[Dict]] = None,
+    ) -> str:
         try:
             client = InferenceClient(token=self.api_key)
             # HF Inference API format can vary. Using chat completion style if supported, else text generation.
             # For simplicity, we assume a chat-compatible model or use a simple prompt structure.
             messages = [
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
+                {"role": "user", "content": user_prompt},
             ]
             response = client.chat_completion(
-                messages=messages,
-                model=self.model_name,
-                max_tokens=max_tokens,
-                temperature=0.7
+                messages=messages, model=self.model_name, max_tokens=max_tokens, temperature=0.7
             )
-            return response.choices[0].message.content
+            content = response.choices[0].message.content
+            if content is None:
+                raise ValueError("HuggingFace API returned empty content")
+            return str(content)
         except Exception:
             # We are retrying on generic Exception for HF, so we must re-raise it
             # But we also want to eventually return an error string if it fails after retries.
@@ -77,7 +84,7 @@ class HuggingFaceProvider(BaseLLMProvider):
         stream: bool = False,
         temperature: float = 0.7,
         max_tokens: int = 16000,
-        tools: Optional[List[Dict]] = None
+        tools: Optional[List[Dict]] = None,
     ) -> AsyncGenerator[str, None]:
 
         client = AsyncInferenceClient(token=self.api_key)
@@ -89,7 +96,7 @@ class HuggingFaceProvider(BaseLLMProvider):
                 model=self.model_name,
                 max_tokens=max_tokens,
                 temperature=temperature,
-                stream=True
+                stream=True,
             )
 
             async for chunk in response:

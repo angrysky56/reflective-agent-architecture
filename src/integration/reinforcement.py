@@ -16,8 +16,6 @@ for which types of confusion.
 import logging
 from typing import Any
 
-import torch
-
 logger = logging.getLogger(__name__)
 
 
@@ -53,7 +51,7 @@ class AttractorReinforcement:
 
     def reinforce_from_compression(
         self,
-        manifold,
+        manifold: Any,
         pattern_idx: int,
         compression_improvement: float,
     ) -> None:
@@ -70,7 +68,7 @@ class AttractorReinforcement:
 
     def decay_unused(
         self,
-        manifold,
+        manifold: Any,
         usage_counts: dict[int, int],
         time_since_use: dict[int, float],
     ) -> None:

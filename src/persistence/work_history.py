@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
+
 class WorkHistory:
     """
     Persists agent operations, results, and cognitive states to a SQLite database.
@@ -22,12 +23,13 @@ class WorkHistory:
 
         self._init_db()
 
-    def _init_db(self):
+    def _init_db(self) -> None:
         """Initialize the database schema."""
         try:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
-                cursor.execute("""
+                cursor.execute(
+                    """
                     CREATE TABLE IF NOT EXISTS history (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -38,7 +40,8 @@ class WorkHistory:
                         energy REAL,
                         entropy REAL
                     )
-                """)
+                """
+                )
 
                 # Check for diagnostics column and add if missing (Migration)
                 cursor.execute("PRAGMA table_info(history)")
@@ -65,7 +68,7 @@ class WorkHistory:
         energy: float = 0.0,
         diagnostics: Optional[Dict[str, Any]] = None,
         causal_impact: float = 0.0,
-        entropy: float = 0.0
+        entropy: float = 0.0,
     ) -> None:
         """
         Log an operation and its context to history.
@@ -84,10 +87,22 @@ class WorkHistory:
 
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
-                cursor.execute("""
+                cursor.execute(
+                    """
                     INSERT INTO history (operation, params, result_summary, cognitive_state, energy, diagnostics, causal_impact, entropy)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """, (operation, params_json, summary, cognitive_state, energy, diagnostics_json, causal_impact, entropy))
+                """,
+                    (
+                        operation,
+                        params_json,
+                        summary,
+                        cognitive_state,
+                        energy,
+                        diagnostics_json,
+                        causal_impact,
+                        entropy,
+                    ),
+                )
                 conn.commit()
 
             logger.debug(f"Logged operation '{operation}' to history.")
@@ -103,11 +118,14 @@ class WorkHistory:
             with sqlite3.connect(self.db_path) as conn:
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
-                cursor.execute("""
+                cursor.execute(
+                    """
                     SELECT * FROM history
                     ORDER BY timestamp DESC
                     LIMIT ?
-                """, (limit,))
+                """,
+                    (limit,),
+                )
 
                 rows = cursor.fetchall()
                 return [dict(row) for row in rows]
@@ -128,29 +146,25 @@ class WorkHistory:
                 total_ops = cursor.fetchone()[0]
 
                 # Most frequent cognitive state
-                cursor.execute("""
+                cursor.execute(
+                    """
                     SELECT cognitive_state, COUNT(*) as count
                     FROM history
                     GROUP BY cognitive_state
                     ORDER BY count DESC
                     LIMIT 1
-                """)
+                """
+                )
                 top_state_row = cursor.fetchone()
                 top_state = top_state_row[0] if top_state_row else "None"
 
-                return {
-                    "total_operations": total_ops,
-                    "dominant_state": top_state
-                }
+                return {"total_operations": total_ops, "dominant_state": top_state}
         except sqlite3.Error as e:
             logger.error(f"Failed to get session summary: {e}")
             return {}
 
     def search_history(
-        self,
-        query: Optional[str] = None,
-        operation_type: Optional[str] = None,
-        limit: int = 10
+        self, query: Optional[str] = None, operation_type: Optional[str] = None, limit: int = 10
     ) -> List[Dict[str, Any]]:
         """
         Search history for operations matching query and/or type.
@@ -162,7 +176,7 @@ class WorkHistory:
                 cursor = conn.cursor()
 
                 sql = "SELECT * FROM history WHERE 1=1"
-                params = []
+                params: List[Any] = []
 
                 if operation_type:
                     sql += " AND operation = ?"
@@ -199,13 +213,16 @@ class WorkHistory:
             with sqlite3.connect(self.db_path) as conn:
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
-                cursor.execute("""
+                cursor.execute(
+                    """
                     SELECT operation, params, result_summary
                     FROM history
                     WHERE cognitive_state = 'Focused' OR energy < 0.5
                     ORDER BY timestamp DESC
                     LIMIT ?
-                """, (limit,))
+                """,
+                    (limit,),
+                )
                 rows = cursor.fetchall()
                 return [dict(row) for row in rows]
         except sqlite3.Error as e:
@@ -221,16 +238,19 @@ class WorkHistory:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
                 # Get last 'limit' entries, then reverse to get chronological order
-                cursor.execute("""
+                cursor.execute(
+                    """
                     SELECT entropy FROM history
                     WHERE entropy IS NOT NULL
                     ORDER BY timestamp DESC
                     LIMIT ?
-                """, (limit,))
+                """,
+                    (limit,),
+                )
                 rows = cursor.fetchall()
                 # rows is [(val,), (val,), ...] desc
                 values = [row[0] for row in rows]
-                return values[::-1] # Reverse to ascending time
+                return values[::-1]  # Reverse to ascending time
         except sqlite3.Error as e:
             logger.error(f"Failed to retrieve entropy history: {e}")
             return []

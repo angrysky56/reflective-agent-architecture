@@ -48,10 +48,10 @@ class EmotionEvolutionFramework:
         "high_arousal_positive": ["excitement", "joy", "elation"],
         "high_arousal_negative": ["fear", "anger", "panic"],
         "low_arousal_positive": ["contentment", "serenity", "love"],
-        "low_arousal_negative": ["sadness", "depression", "boredom"]
+        "low_arousal_negative": ["sadness", "depression", "boredom"],
     }
 
-    def __init__(self, framework_path: Optional[str] = None):
+    def __init__(self, framework_path: Optional[str | Path] = None):
         """
         Load the emotion evolution framework.
 
@@ -65,14 +65,14 @@ class EmotionEvolutionFramework:
         else:
             framework_path = Path(framework_path)
 
-        self.framework_path = framework_path
+        self.framework_path: Path = framework_path
         self._data: Dict[str, Any] = {}
         self._load_framework()
 
     def _load_framework(self) -> None:
         """Load the framework JSON file."""
         try:
-            with open(self.framework_path, 'r', encoding='utf-8') as f:
+            with open(self.framework_path, "r", encoding="utf-8") as f:
                 raw = json.load(f)
                 # The actual data is nested under 'data' key
                 self._data = raw.get("data", raw)
@@ -80,7 +80,7 @@ class EmotionEvolutionFramework:
                     "name": raw.get("name", "emotion_evolution_framework"),
                     "domain": raw.get("domain", ""),
                     "description": raw.get("description", ""),
-                    "tags": raw.get("tags", [])
+                    "tags": raw.get("tags", []),
                 }
             logger.info(f"Loaded Emotion Evolution Framework from {self.framework_path}")
         except FileNotFoundError:
@@ -108,9 +108,11 @@ class EmotionEvolutionFramework:
             Dict with adaptive_function, neural_circuit, behavioral_output,
             physiological, universal_expression, variants
         """
-        emotions = self._data.get("functional_architecture", {}).get(
-            "basic_emotion_theory", {}
-        ).get("core_emotions", {})
+        emotions: Dict[str, Any] = (
+            self._data.get("functional_architecture", {})
+            .get("basic_emotion_theory", {})
+            .get("core_emotions", {})
+        )
 
         # Handle aliases
         if emotion_name.lower() in ["joy", "happiness"]:
@@ -128,9 +130,12 @@ class EmotionEvolutionFramework:
         Returns:
             Dict with components, cognitive_appraisal, social_function, etc.
         """
-        complex_emotions = self._data.get("functional_architecture", {}).get(
-            "basic_emotion_theory", {}
-        ).get("complex_emotions", {}).get("examples", {})
+        complex_emotions: Dict[str, Any] = (
+            self._data.get("functional_architecture", {})
+            .get("basic_emotion_theory", {})
+            .get("complex_emotions", {})
+            .get("examples", {})
+        )
 
         return complex_emotions.get(emotion_name.lower())
 
@@ -148,10 +153,10 @@ class EmotionEvolutionFramework:
             1: "layer_1_homeostatic",
             2: "layer_2_primary_process",
             3: "layer_3_secondary_process",
-            4: "layer_4_tertiary_process"
+            4: "layer_4_tertiary_process",
         }
 
-        timeline = self._data.get("evolutionary_foundations", {}).get(
+        timeline: Dict[str, Any] = self._data.get("evolutionary_foundations", {}).get(
             "evolutionary_timeline", {}
         )
 
@@ -166,7 +171,8 @@ class EmotionEvolutionFramework:
             Dict with key_understanding_principles, interaction_guidelines,
             design_considerations, ethical_considerations
         """
-        return self._data.get("implications_for_ai", {})
+        result: Dict[str, Any] = self._data.get("implications_for_ai", {})
+        return result
 
     def get_ai_principles(self) -> List[str]:
         """
@@ -190,9 +196,11 @@ class EmotionEvolutionFramework:
         Returns:
             Template string for empathic response
         """
-        templates = self._data.get("practical_applications", {}).get(
-            "empathic_responses", {}
-        ).get("templates", {})
+        templates: Dict[str, Any] = (
+            self._data.get("practical_applications", {})
+            .get("empathic_responses", {})
+            .get("templates", {})
+        )
 
         return templates.get(context.lower())
 
@@ -206,13 +214,10 @@ class EmotionEvolutionFramework:
         Returns:
             Dict with core_thesis, value_integration_framework, operational_implications
         """
-        return self._data.get("computational_empathy_architecture", {})
+        result: Dict[str, Any] = self._data.get("computational_empathy_architecture", {})
+        return result
 
-    def map_affect_to_emotions(
-        self,
-        valence: float,
-        arousal: float
-    ) -> List[str]:
+    def map_affect_to_emotions(self, valence: float, arousal: float) -> List[str]:
         """
         Map VAD values to likely emotions using the valence-arousal framework.
 
@@ -239,11 +244,14 @@ class EmotionEvolutionFramework:
             quadrant = "low_arousal_negative"
 
         # Get from framework data
-        mapping = self._data.get("functional_architecture", {}).get(
-            "valence_arousal_framework", {}
-        ).get("mapping", self.VALENCE_AROUSAL_MAP)
+        mapping: Dict[str, Any] = (
+            self._data.get("functional_architecture", {})
+            .get("valence_arousal_framework", {})
+            .get("mapping", self.VALENCE_AROUSAL_MAP)
+        )
 
-        return mapping.get(quadrant, [])
+        result: List[str] = mapping.get(quadrant, [])
+        return result
 
     def get_neurobiological_architecture(self) -> Dict[str, Any]:
         """
@@ -252,7 +260,8 @@ class EmotionEvolutionFramework:
         Returns:
             Dict with hierarchical_processing, key_circuits, neurochemical_systems
         """
-        return self._data.get("neurobiological_architecture", {})
+        result: Dict[str, Any] = self._data.get("neurobiological_architecture", {})
+        return result
 
     def get_acip_integration(self) -> Dict[str, Any]:
         """
@@ -263,7 +272,8 @@ class EmotionEvolutionFramework:
         Returns:
             Dict with mapping_to_continuum and key_insights
         """
-        return self._data.get("acip_integration", {})
+        result: Dict[str, Any] = self._data.get("acip_integration", {})
+        return result
 
     def get_emotional_regulation_strategies(self) -> Dict[str, Any]:
         """
@@ -272,9 +282,12 @@ class EmotionEvolutionFramework:
         Returns:
             Dict of regulation strategies with descriptions and effectiveness
         """
-        return self._data.get("functional_architecture", {}).get(
-            "cognitive_emotional_integration", {}
-        ).get("cognition_regulates_emotion", {})
+        result: Dict[str, Any] = (
+            self._data.get("functional_architecture", {})
+            .get("cognitive_emotional_integration", {})
+            .get("cognition_regulates_emotion", {})
+        )
+        return result
 
     def query(self, query_type: str, query_param: str = "") -> Dict[str, Any]:
         """
@@ -343,11 +356,18 @@ class EmotionEvolutionFramework:
             return {
                 "error": f"Unknown query type: {query_type}",
                 "valid_types": [
-                    "basic_emotion", "complex_emotion", "evolutionary_layer",
-                    "ai_guidelines", "ai_principles", "empathic_template",
-                    "computational_empathy", "affect_mapping", "neurobiology",
-                    "acip", "regulation"
-                ]
+                    "basic_emotion",
+                    "complex_emotion",
+                    "evolutionary_layer",
+                    "ai_guidelines",
+                    "ai_principles",
+                    "empathic_template",
+                    "computational_empathy",
+                    "affect_mapping",
+                    "neurobiology",
+                    "acip",
+                    "regulation",
+                ],
             }
 
         if result is None:
@@ -368,10 +388,7 @@ def get_emotion_framework() -> EmotionEvolutionFramework:
     return _framework_instance
 
 
-def consult_computational_empathy(
-    query_type: str,
-    query_param: str = ""
-) -> Dict[str, Any]:
+def consult_computational_empathy(query_type: str, query_param: str = "") -> Dict[str, Any]:
     """
     Consult the Emotion Evolution Framework for computational empathy insights.
 

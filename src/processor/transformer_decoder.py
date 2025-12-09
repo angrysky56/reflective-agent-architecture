@@ -41,9 +41,7 @@ class CustomDecoderLayer(nn.Module):
 
         # Self-Attention with Goal Biasing
         self.self_attn = GoalBiasedAttention(
-            embedding_dim=config.embedding_dim,
-            num_heads=config.num_heads,
-            dropout=config.dropout
+            embedding_dim=config.embedding_dim, num_heads=config.num_heads, dropout=config.dropout
         )
 
         # Feed-forward network
@@ -73,11 +71,7 @@ class CustomDecoderLayer(nn.Module):
         # 1. Self-Attention
         # tgt is (batch, seq_len, embedding_dim)
         tgt2, attn_weights = self.self_attn(
-            query=tgt,
-            key=tgt,
-            value=tgt,
-            goal_state=goal_state,
-            attn_mask=tgt_mask
+            query=tgt, key=tgt, value=tgt, goal_state=goal_state, attn_mask=tgt_mask
         )
 
         # Residual connection + Norm
@@ -119,9 +113,7 @@ class TransformerDecoder(nn.Module):
         self.position_embedding = nn.Embedding(config.max_seq_length, config.embedding_dim)
 
         # Custom Transformer Layers
-        self.layers = nn.ModuleList([
-            CustomDecoderLayer(config) for _ in range(config.num_layers)
-        ])
+        self.layers = nn.ModuleList([CustomDecoderLayer(config) for _ in range(config.num_layers)])
 
         # Output projection to vocabulary
         self.output_projection = nn.Linear(config.embedding_dim, config.vocab_size)
@@ -198,9 +190,7 @@ class TransformerDecoder(nn.Module):
 
         for layer in self.layers:
             hidden_states, attn_weights = layer(
-                tgt=hidden_states,
-                goal_state=goal_state,
-                tgt_mask=causal_mask
+                tgt=hidden_states, goal_state=goal_state, tgt_mask=causal_mask
             )
             last_attention_weights = attn_weights
 
@@ -255,7 +245,7 @@ class TransformerDecoder(nn.Module):
         input_ids: torch.Tensor,
         labels: torch.Tensor,
         optimizer: torch.optim.Optimizer,
-        goal_state: Optional[torch.Tensor] = None
+        goal_state: Optional[torch.Tensor] = None,
     ) -> float:
         """
         Perform a single training step (Supervised Fine-Tuning).
@@ -277,15 +267,13 @@ class TransformerDecoder(nn.Module):
         # Flatten for CrossEntropyLoss
         # logits: (batch, seq_len, vocab_size) -> (batch*seq_len, vocab_size)
         # labels: (batch, seq_len) -> (batch*seq_len)
-        loss = f.cross_entropy(
-            logits.view(-1, self.config.vocab_size),
-            labels.view(-1)
-        )
+        loss = f.cross_entropy(logits.view(-1, self.config.vocab_size), labels.view(-1))
 
         loss.backward()
         optimizer.step()
 
-        return loss.item()
+        loss_value: float = loss.item()
+        return loss_value
 
     def __repr__(self) -> str:
         return (

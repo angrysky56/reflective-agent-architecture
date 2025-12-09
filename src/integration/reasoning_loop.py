@@ -9,7 +9,7 @@ space for faster reasoning without vocabulary constraints.
 """
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any, Optional
 
 import torch
 
@@ -87,7 +87,7 @@ class RAAReasoningLoop:
 
     def reset_metrics(self) -> None:
         """Reset metrics tracking."""
-        self.metrics = {
+        self.metrics: dict[str, Any] = {
             "energy_trajectory": [],
             "entropy_trajectory": [],
             "reframing_events": [],
@@ -137,7 +137,7 @@ class RAAReasoningLoop:
             True if converged (state change below tolerance)
         """
         state_change = torch.norm(current_state - previous_state).item()
-        return state_change < self.config.convergence_tolerance
+        return bool(state_change < self.config.convergence_tolerance)
 
     def reason_step(self, current_state: torch.Tensor, step: int) -> tuple[torch.Tensor, dict]:
         """

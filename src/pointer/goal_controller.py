@@ -5,7 +5,7 @@ Maintains persistent goal state using RNN-based mechanism.
 """
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Union
 
 import torch
 import torch.nn as nn
@@ -64,7 +64,8 @@ class GoalController(nn.Module):
         self.goal_projection = nn.Linear(config.hidden_dim, config.embedding_dim)
 
         # Initialize hidden state
-        self.hidden_state = None
+        # For GRU: Tensor, For LSTM: tuple[Tensor, Tensor]
+        self.hidden_state: Optional[Union[torch.Tensor, tuple[torch.Tensor, torch.Tensor]]] = None
 
     def reset(self, batch_size: int = 1) -> None:
         """Reset the goal controller to initial state."""
@@ -77,9 +78,7 @@ class GoalController(nn.Module):
             self.hidden_state = (h0, c0)
         else:
             # GRU has only hidden state
-            self.hidden_state = torch.zeros(
-                num_layers, batch_size, self.hidden_dim
-            ).to(self.device)
+            self.hidden_state = torch.zeros(num_layers, batch_size, self.hidden_dim).to(self.device)
 
     def set_goal(self, goal_vector: torch.Tensor) -> None:
         """

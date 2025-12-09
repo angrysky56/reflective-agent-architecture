@@ -31,9 +31,10 @@ class GoalBiasedAttention(nn.Module):
         self.num_heads = num_heads
         self.head_dim = embedding_dim // num_heads
 
-        assert (
-            self.head_dim * num_heads == embedding_dim
-        ), "embedding_dim must be divisible by num_heads"
+        if self.head_dim * num_heads != embedding_dim:
+            raise ValueError(
+                f"embedding_dim ({embedding_dim}) must be divisible by num_heads ({num_heads})"
+            )
 
         # Standard attention projections
         self.q_proj = nn.Linear(embedding_dim, embedding_dim)
@@ -45,6 +46,7 @@ class GoalBiasedAttention(nn.Module):
         self.goal_bias_proj = nn.Linear(embedding_dim, num_heads)
 
         self.dropout = nn.Dropout(dropout)
+
     def forward(
         self,
         query: torch.Tensor,
@@ -81,7 +83,7 @@ class GoalBiasedAttention(nn.Module):
         # Now: (batch, num_heads, seq_len, head_dim)
 
         # Compute attention scores
-        scores = torch.matmul(q, k.transpose(-2, -1)) / (self.head_dim ** 0.5)
+        scores = torch.matmul(q, k.transpose(-2, -1)) / (self.head_dim**0.5)
         # (batch, num_heads, seq_len, seq_len)
 
         # Apply goal bias if provided
@@ -98,7 +100,7 @@ class GoalBiasedAttention(nn.Module):
 
         # Apply attention mask
         if attn_mask is not None:
-            scores = scores.masked_fill(attn_mask.unsqueeze(0).unsqueeze(0), float('-inf'))
+            scores = scores.masked_fill(attn_mask.unsqueeze(0).unsqueeze(0), float("-inf"))
 
         # Softmax to get attention weights
         attention_weights = f.softmax(scores, dim=-1)
@@ -107,7 +109,9 @@ class GoalBiasedAttention(nn.Module):
         attention_weights_dropped = self.dropout(attention_weights)
 
         # Apply attention to values
-        context = torch.matmul(attention_weights_dropped, other=v)  # (batch, num_heads, seq_len, head_dim)
+        context = torch.matmul(
+            attention_weights_dropped, other=v
+        )  # (batch, num_heads, seq_len, head_dim)
 
         # Reshape back
         context = context.transpose(1, 2).contiguous()

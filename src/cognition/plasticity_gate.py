@@ -1,11 +1,12 @@
 import logging
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Tuple
 
 import numpy as np
 
 from src.integration.continuity_field import ContinuityField
 
 logger = logging.getLogger(__name__)
+
 
 class PlasticityGate:
     """
@@ -18,13 +19,23 @@ class PlasticityGate:
       (U(Psi) >= tau_high AND sim_C(Psi, Psi + Delta Theta) > tau_conserve)
     """
 
-    def __init__(self, uncertainty_threshold: float = 0.3, explore_threshold: float = 0.3, conserve_threshold: float = 0.8):
+    def __init__(
+        self,
+        uncertainty_threshold: float = 0.3,
+        explore_threshold: float = 0.3,
+        conserve_threshold: float = 0.8,
+    ):
         self.uncertainty_threshold = uncertainty_threshold
         self.explore_threshold = explore_threshold
         self.conserve_threshold = conserve_threshold
-        self.modification_history = []
+        self.modification_history: list[Dict[str, Any]] = []
 
-    def evaluate_modification(self, current_state: np.ndarray, proposed_change: np.ndarray, continuity_field: ContinuityField) -> Tuple[bool, float]:
+    def evaluate_modification(
+        self,
+        current_state: np.ndarray,
+        proposed_change: np.ndarray,
+        continuity_field: ContinuityField,
+    ) -> Tuple[bool, float]:
         """
         Determines whether to permit structural modification.
 
@@ -68,15 +79,19 @@ class PlasticityGate:
 
         gating_score = (1.0 - uncertainty) * identity_preservation
 
-        logger.info(f"PlasticityGate: mode={mode}, uncertainty={uncertainty:.2f}, preservation={identity_preservation:.2f}, permit={permit}")
+        logger.info(
+            f"PlasticityGate: mode={mode}, uncertainty={uncertainty:.2f}, preservation={identity_preservation:.2f}, permit={permit}"
+        )
 
         if permit:
-            self.modification_history.append({
-                'change_magnitude': float(np.linalg.norm(proposed_change)),
-                'uncertainty': uncertainty,
-                'preservation': identity_preservation,
-                'mode': mode
-            })
+            self.modification_history.append(
+                {
+                    "change_magnitude": float(np.linalg.norm(proposed_change)),
+                    "uncertainty": uncertainty,
+                    "preservation": identity_preservation,
+                    "mode": mode,
+                }
+            )
 
         return permit, gating_score
 

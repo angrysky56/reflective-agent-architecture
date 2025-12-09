@@ -30,6 +30,7 @@ import json
 import logging
 import os
 import re
+import shutil
 import time
 from collections import Counter
 from collections.abc import Sequence
@@ -99,13 +100,16 @@ def evolve_formula_logic(data_points, n_generations=10, hybrid=False):
 
     # 2. Initialize SimpleGP
     # We support x, y, z variables as per schema
-    gp = SimpleGP(variables=['x', 'y', 'z'], population_size=100, max_depth=5)
+    gp = SimpleGP(variables=["x", "y", "z"], population_size=100, max_depth=5)
 
     # 3. Evolve
     # SimpleGP.evolve returns (best_formula_str, best_error_float)
-    best_formula, best_error = gp.evolve(data_points, target_key='result', generations=n_generations, hybrid=hybrid)
+    best_formula, best_error = gp.evolve(
+        data_points, target_key="result", generations=n_generations, hybrid=hybrid
+    )
 
     return f"Evolved Formula: {best_formula} | MSE: {best_error:.4f} | Mode: {'Hybrid' if hybrid else 'Standard'}"
+
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -148,21 +152,31 @@ class CWDConfig(BaseSettings):
     # LLM Settings
     llm_provider: str = "openrouter"
     llm_model: str = Field(default="google/gemini-2.0-flash-exp:free", description="LLM model name")
-    compass_model: str = Field(default="anthropic/claude-3.5-sonnet:beta", description="Model for COMPASS reasoning")
+    compass_model: str = Field(
+        default="anthropic/claude-3.5-sonnet:beta", description="Model for COMPASS reasoning"
+    )
 
     # Ruminator Settings
     ruminator_enabled: bool = Field(default=False, description="Enable background rumination")
-    ruminator_delay: float = Field(default=2.0, description="Delay between rumination cycles (seconds)")
+    ruminator_delay: float = Field(
+        default=2.0, description="Delay between rumination cycles (seconds)"
+    )
 
     # Embedding Settings
-    embedding_provider: str = Field(default="sentence-transformers", description="Embedding provider (sentence-transformers, ollama, lm_studio)")
+    embedding_provider: str = Field(
+        default="sentence-transformers",
+        description="Embedding provider (sentence-transformers, ollama, lm_studio)",
+    )
     embedding_model: str = Field(
         default="BAAI/bge-large-en-v1.5", description="Embedding model name"
     )
     confidence_threshold: float = Field(default=0.7)  # Lower to .3 for asymmetric embeddings
-    device: str = Field(default="cuda" if torch.cuda.is_available() else "cpu", description="Device for tensor operations")
+    device: str = Field(
+        default="cuda" if torch.cuda.is_available() else "cpu",
+        description="Device for tensor operations",
+    )
 
-    @model_validator(mode='after')
+    @model_validator(mode="after")
     def resolve_relative_paths(self):
         """Ensure paths are absolute relative to project root."""
         if self.chroma_path and not Path(self.chroma_path).is_absolute():
@@ -194,8 +208,7 @@ class CognitiveWorkspace:
         # Initialize Chroma with persistence
         # Use PersistentClient for data to survive restarts
         self.chroma_client = chromadb.PersistentClient(
-            path=config.chroma_path,
-            settings=Settings(anonymized_telemetry=False)
+            path=config.chroma_path, settings=Settings(anonymized_telemetry=False)
         )
 
         # Initialize LLM Provider
@@ -224,8 +237,7 @@ class CognitiveWorkspace:
         try:
             # Create embedding provider via factory (handles all optimizations)
             self.embedding_model: BaseEmbeddingProvider = EmbeddingFactory.create(
-                provider_name=config.embedding_provider,
-                model_name=config.embedding_model
+                provider_name=config.embedding_provider, model_name=config.embedding_model
             )
 
             # Initialize Continuity Field (Identity Manifold)
@@ -237,9 +249,13 @@ class CognitiveWorkspace:
             for concept in base_concepts:
                 vector = self.embedding_model.encode(concept)
                 self.continuity_field.add_anchor(vector)
-            logger.info(f"Initialized ContinuityField with dim={embedding_dim} and {len(base_concepts)} base anchors")
+            logger.info(
+                f"Initialized ContinuityField with dim={embedding_dim} and {len(base_concepts)} base anchors"
+            )
             logger.info(f"DEBUG: Server ContinuityField ID: {id(self.continuity_field)}")
-            logger.info(f"DEBUG: Server ContinuityField anchors: {len(self.continuity_field.anchors)}")
+            logger.info(
+                f"DEBUG: Server ContinuityField anchors: {len(self.continuity_field.anchors)}"
+            )
 
         except Exception as e:
             logger.error(f"Failed to initialize embedding provider: {e}")
@@ -252,7 +268,8 @@ class CognitiveWorkspace:
 
         # Collection for Manifold patterns (persistent memory across restarts)
         self.manifold_patterns_collection = self.chroma_client.get_or_create_collection(
-            name="manifold_patterns", metadata={"description": "Hopfield network patterns for associative memory"}
+            name="manifold_patterns",
+            metadata={"description": "Hopfield network patterns for associative memory"},
         )
 
         # Gen 3 Enhancement: Active goals for utility-guided exploration
@@ -280,8 +297,7 @@ class CognitiveWorkspace:
 
         # Initialize Continuity Service
         self.continuity_service = ContinuityService(
-            continuity_field=self.continuity_field,
-            work_history=self.history
+            continuity_field=self.continuity_field, work_history=self.history
         )
 
         logger.info("Cognitive Workspace initialized with Gen 3 architecture")
@@ -338,7 +354,9 @@ class CognitiveWorkspace:
         # Update entropy
         counts = Counter(self.tool_usage_buffer)
         entropy = self.entropy_monitor.update_from_counts(counts)
-        logger.debug(f"Tool usage entropy updated: {entropy:.2f} (State: {self.entropy_monitor.state.value})")
+        logger.debug(
+            f"Tool usage entropy updated: {entropy:.2f} (State: {self.entropy_monitor.state.value})"
+        )
 
     def _read_file(self, path: str) -> str:
         """Read file content."""
@@ -377,10 +395,27 @@ class CognitiveWorkspace:
         try:
             import subprocess
 
+            # Validation: Ensure path is safe and exists
+            search_path = Path(path).resolve()
+            if not search_path.exists():
+                return f"Error: Path not found: {path}"
+
+            # Security: Resolve grep path to ensure we are running the intended binary
+            grep_path = shutil.which("grep")
+            if not grep_path:
+                return "Error: grep utility not found."
+
+            # Security: Prevent directory traversal outside of workspace
+            workspace_root = Path(__file__).parent.parent.resolve()
+            if not str(search_path).startswith(str(workspace_root)):
+                return (
+                    f"Error: Search path {search_path} is outside workspace root {workspace_root}"
+                )
+
             # State-dependent behavior
             # FOCUS: Narrow search, fewer results (Convergence)
             # EXPLORE: Broad search, more results (Divergence)
-            max_results = 100 # Default
+            max_results = 100  # Default
             if self.entropy_monitor.state.value == "focus":
                 max_results = 20
             elif self.entropy_monitor.state.value == "explore":
@@ -397,12 +432,15 @@ class CognitiveWorkspace:
                 "--exclude-dir=.mypy_cache",
                 "--exclude=*.pyc",
                 "--exclude=*.rdb",
-                "--exclude=*.log"
+                "--exclude=*.log",
             ]
-            cmd = ["grep", "-r", "-n"] + excludes + [query, path]
+
+            # Construction: Use list format for subprocess to avoid shell injection.
+            # Use '--' to delimit options from the query, protecting against queries starting with '-'
+            cmd = [grep_path, "-r", "-n"] + excludes + ["--", query, str(search_path)]
 
             # Add timeout to prevent hanging
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
 
             if result.returncode != 0 and result.returncode != 1:
                 return f"Error searching: {result.stderr}"
@@ -414,7 +452,10 @@ class CognitiveWorkspace:
             # Truncate if too long
             lines = output.splitlines()
             if len(lines) > max_results:
-                return "\n".join(lines[:max_results]) + f"\n... and {len(lines)-max_results} more matches (truncated due to {self.entropy_monitor.state.value} state)."
+                return (
+                    "\n".join(lines[:max_results])
+                    + f"\n... and {len(lines)-max_results} more matches (truncated due to {self.entropy_monitor.state.value} state)."
+                )
             return output
 
         except subprocess.TimeoutExpired:
@@ -481,9 +522,7 @@ class CognitiveWorkspace:
         """
 
         # Initial call
-        response = self.llm_provider.generate(
-            system_prompt, user_prompt, tools=tools
-        )
+        response = self.llm_provider.generate(system_prompt, user_prompt, tools=tools)
 
         # Check if response is a tool call (this depends on provider implementation)
         # Since our generate() returns string, we need to parse it or rely on provider-specific behavior.
@@ -534,7 +573,9 @@ class CognitiveWorkspace:
             raise ValueError(f"Invalid identifier: {identifier}")
         return identifier
 
-    def search_nodes(self, label: str, property_filters: dict[str, Any] | None = None, limit: int = 10) -> list[dict[str, Any]]:
+    def search_nodes(
+        self, label: str, property_filters: dict[str, Any] | None = None, limit: int = 10
+    ) -> list[dict[str, Any]]:
         """
         Search for nodes with a specific label and optional property filters.
         Uses validated f-strings for label to ensure compatibility.
@@ -559,7 +600,13 @@ class CognitiveWorkspace:
 
         return self.read_query(query, params)
 
-    def traverse_relationships(self, start_id: str, rel_type: str | None = None, direction: str = "OUTGOING", limit: int = 10) -> list[dict[str, Any]]:
+    def traverse_relationships(
+        self,
+        start_id: str,
+        rel_type: str | None = None,
+        direction: str = "OUTGOING",
+        limit: int = 10,
+    ) -> list[dict[str, Any]]:
         """
         Traverse relationships dynamically.
         If rel_type is None, traverses all relationship types.
@@ -583,10 +630,7 @@ class CognitiveWorkspace:
         RETURN m, type(r) as rel_type, properties(r) as rel_props
         LIMIT $limit
         """
-        params = {
-            "start_id": start_id,
-            "limit": limit
-        }
+        params = {"start_id": start_id, "limit": limit}
         return self.read_query(query, params)
 
     def _initialize_gen3_schema(self):
@@ -724,42 +768,53 @@ class CognitiveWorkspace:
         """Verify a logical conclusion from premises using Prover9."""
         self._track_tool_usage("prove")
         if not self.logic_core:
-             return {"result": "error", "message": "Logic Core not initialized"}
+            return {"result": "error", "message": "Logic Core not initialized"}
         return self.logic_core.prove(premises, conclusion)
 
-    def _find_counterexample(self, premises: List[str], conclusion: str, domain_size: Optional[int] = None) -> Dict[str, Any]:
+    def _find_counterexample(
+        self, premises: List[str], conclusion: str, domain_size: Optional[int] = None
+    ) -> Dict[str, Any]:
         """Find a counterexample using Mace4."""
         self._track_tool_usage("find_counterexample")
         if not self.logic_core:
-             return {"result": "error", "message": "Logic Core not initialized"}
+            return {"result": "error", "message": "Logic Core not initialized"}
         return self.logic_core.find_counterexample(premises, conclusion, domain_size)
 
     def _find_model(self, premises: List[str], domain_size: Optional[int] = None) -> Dict[str, Any]:
         """Find a model using Mace4."""
         self._track_tool_usage("find_model")
         if not self.logic_core:
-             return {"result": "error", "message": "Logic Core not initialized"}
+            return {"result": "error", "message": "Logic Core not initialized"}
         return self.logic_core.find_model(premises, domain_size)
 
     def _check_well_formed(self, statements: List[str]) -> Dict[str, Any]:
         """Validate logical formulas."""
         self._track_tool_usage("check_well_formed")
         if not self.logic_core:
-             return {"result": "error", "message": "Logic Core not initialized"}
+            return {"result": "error", "message": "Logic Core not initialized"}
         return self.logic_core.check_well_formed(statements)
 
-    def _verify_commutativity(self, path_a: List[str], path_b: List[str], object_start: str, object_end: str, with_category_axioms: bool = True) -> Dict[str, Any]:
+    def _verify_commutativity(
+        self,
+        path_a: List[str],
+        path_b: List[str],
+        object_start: str,
+        object_end: str,
+        with_category_axioms: bool = True,
+    ) -> Dict[str, Any]:
         """Verify diagram commutativity."""
         self._track_tool_usage("verify_commutativity")
         if not self.logic_core:
-             return {"result": "error", "message": "Logic Core not initialized"}
-        return self.logic_core.verify_commutativity(path_a, path_b, object_start, object_end, with_category_axioms)
+            return {"result": "error", "message": "Logic Core not initialized"}
+        return self.logic_core.verify_commutativity(
+            path_a, path_b, object_start, object_end, with_category_axioms
+        )
 
     def _get_category_axioms(self, concept: str, **kwargs) -> Dict[str, Any]:
         """Get category theory axioms."""
         self._track_tool_usage("get_category_axioms")
         if not self.logic_core:
-             return {"result": "error", "message": "Logic Core not initialized"}
+            return {"result": "error", "message": "Logic Core not initialized"}
         axioms = self.logic_core.get_category_axioms(concept, **kwargs)
         return {"concept": concept, "axioms": axioms}
 
@@ -1062,8 +1117,11 @@ class CognitiveWorkspace:
             self.working_memory.record(
                 operation="explore_for_utility",
                 input_data={"focus_area": focus_area, "max_candidates": max_candidates},
-                output_data={"count": len(top_candidates), "top_score": top_candidates[0]["combined_score"] if top_candidates else 0},
-                node_ids=top_ids
+                output_data={
+                    "count": len(top_candidates),
+                    "top_score": top_candidates[0]["combined_score"] if top_candidates else 0,
+                },
+                node_ids=top_ids,
             )
 
             # Persist to SQLite history
@@ -1071,7 +1129,7 @@ class CognitiveWorkspace:
                 operation="explore_for_utility",
                 params={"focus_area": focus_area, "max_candidates": max_candidates},
                 result={"count": len(top_candidates), "top_ids": top_ids},
-                cognitive_state=self.working_memory.current_goal or "Unknown"
+                cognitive_state=self.working_memory.current_goal or "Unknown",
             )
 
             return {
@@ -1139,7 +1197,7 @@ class CognitiveWorkspace:
                 logger.error(f"Embedding fallback failed: {e2}")
                 # Return zero vector as last resort to prevent system crash
                 # Get dim from model or config
-                dim = 1024 # Default fallback
+                dim = 1024  # Default fallback
                 if hasattr(self.embedding_model, "get_sentence_embedding_dimension"):
                     dim = self.embedding_model.get_sentence_embedding_dimension()
                 return [0.0] * dim
@@ -1175,7 +1233,7 @@ class CognitiveWorkspace:
         user_prompt: str,
         max_tokens: int = 16000,
         include_memory: bool = True,
-        operation_name: str = None
+        operation_name: str = None,
     ) -> str:
         """
         Generate text using the configured LLM provider.
@@ -1192,7 +1250,7 @@ class CognitiveWorkspace:
         """
         try:
             # Inject working memory context into system prompt
-            if include_memory and hasattr(self, 'working_memory') and self.working_memory:
+            if include_memory and hasattr(self, "working_memory") and self.working_memory:
                 memory_context = self.working_memory.get_context()
                 if memory_context:
                     system_prompt = f"{system_prompt}\n\n{memory_context}"
@@ -1210,7 +1268,7 @@ class CognitiveWorkspace:
         operation_name: str,
         input_data: Any = None,
         node_ids: List[str] = None,
-        max_tokens: int = 16000
+        max_tokens: int = 16000,
     ) -> str:
         """
         Generate text AND record the operation in working memory.
@@ -1218,16 +1276,14 @@ class CognitiveWorkspace:
         Use this for significant cognitive operations that should
         maintain context continuity (synthesize, hypothesize, etc.)
         """
-        response = self._llm_generate(
-            system_prompt, user_prompt, max_tokens, include_memory=True
-        )
+        response = self._llm_generate(system_prompt, user_prompt, max_tokens, include_memory=True)
 
         # Record in working memory for future context
         self.working_memory.record(
             operation=operation_name,
             input_data=input_data or user_prompt[:500],
             output_data=response[:1000],
-            node_ids=node_ids or []
+            node_ids=node_ids or [],
         )
 
         return response
@@ -1368,7 +1424,7 @@ Output JSON:
                 fragments = {
                     "state_fragment": "Unknown Context",
                     "agent_fragment": "Unknown Agent",
-                    "action_fragment": problem
+                    "action_fragment": problem,
                 }
 
             # 2. Persist Fragments as ThoughtNodes
@@ -1376,28 +1432,32 @@ Output JSON:
             fragment_map = {
                 "State": fragments.get("state_fragment", ""),
                 "Agent": fragments.get("agent_fragment", ""),
-                "Action": fragments.get("action_fragment", "")
+                "Action": fragments.get("action_fragment", ""),
             }
             embeddings_map = {}
 
             for label in ["State", "Agent", "Action"]:
                 content = fragment_map.get(label)
                 if not content:
-                   # Default fallback if LLM misses a domain
-                   content = "Unknown" if label != "Action" else problem
+                    # Default fallback if LLM misses a domain
+                    content = "Unknown" if label != "Action" else problem
 
                 # Create node with specific label
                 comp_id = self._create_thought_node(
                     session,
                     content,
-                    cognitive_type=label.lower(), # type: state, agent, action
+                    cognitive_type=label.lower(),  # type: state, agent, action
                     parent_problem=root_id,
-                    confidence=0.9
+                    confidence=0.9,
                 )
                 component_ids.append(comp_id)
 
                 # Create specific relationship based on type
-                rel_type = "HAS_STATE" if label == "State" else "HAS_AGENT" if label == "Agent" else "REQUIRES_ACTION"
+                rel_type = (
+                    "HAS_STATE"
+                    if label == "State"
+                    else "HAS_AGENT" if label == "Agent" else "REQUIRES_ACTION"
+                )
 
                 session.run(
                     f"""
@@ -1417,7 +1477,6 @@ Output JSON:
                 self.get_manifold().store_pattern(vec_tensor, domain=label.lower())
                 # CRITICAL: Precuneus expects lower-case keys: 'state', 'agent', 'action'
                 embeddings_map[label.lower()] = vec_tensor
-
 
             # Get decomposition tree
             tree = self._get_decomposition_tree(session, root_id)
@@ -1449,7 +1508,7 @@ Output JSON:
                 "components": final_components,
                 "decomposition_tree": tree,
                 "embeddings": embeddings_map,  # Internal: tensors for Manifold
-                "embeddings_serializable": embeddings_serializable  # Output: lists for JSON
+                "embeddings_serializable": embeddings_serializable,  # Output: lists for JSON
             }
 
             # Record in working memory for context continuity
@@ -1457,7 +1516,7 @@ Output JSON:
                 operation="deconstruct",
                 input_data={"problem": problem[:500]},
                 output_data={"components": len(final_components), "root_id": root_id},
-                node_ids=[root_id] + component_ids[:5]
+                node_ids=[root_id] + component_ids[:5],
             )
 
             # Persist to SQLite history for long-term recall
@@ -1465,18 +1524,17 @@ Output JSON:
                 operation="deconstruct",
                 params={"problem": problem[:500], "max_depth": max_depth},
                 result=result,
-                cognitive_state=self.working_memory.current_goal or "Unknown"
+                cognitive_state=self.working_memory.current_goal or "Unknown",
             )
 
             return result
 
     def get_node_context(self, node_id: str, depth: int = 1) -> Dict[str, Any]:
-
         """
         Get the local context (neighbors) of a node.
         """
         try:
-            with self.neo4j_driver.session() as session: # Changed self.driver to self.neo4j_driver
+            with self.neo4j_driver.session() as session:  # Changed self.driver to self.neo4j_driver
                 # Get node and immediate neighbors
                 query = """
                 MATCH (n {id: $node_id})-[r]-(m)
@@ -1506,12 +1564,16 @@ Output JSON:
 
                     neighbor = dict(record["m"])
                     rel = record["r"]
-                    neighbors.append({
-                        "id": neighbor.get("id"),
-                        "content": content_map.get(neighbor.get("id"), ""),
-                        "relationship": rel.type,
-                        "direction": "outgoing" if rel.start_node.id == record["n"].id else "incoming"
-                    })
+                    neighbors.append(
+                        {
+                            "id": neighbor.get("id"),
+                            "content": content_map.get(neighbor.get("id"), ""),
+                            "relationship": rel.type,
+                            "direction": (
+                                "outgoing" if rel.start_node.id == record["n"].id else "incoming"
+                            ),
+                        }
+                    )
 
                 if not node_data:
                     # Try fetching just the node if no neighbors
@@ -1523,16 +1585,10 @@ Output JSON:
                     else:
                         return {"error": f"Node {node_id} not found"}
 
-                return {
-                    "node": node_data,
-                    "neighbors": neighbors,
-                    "neighbor_count": len(neighbors)
-                }
+                return {"node": node_data, "neighbors": neighbors, "neighbor_count": len(neighbors)}
         except Exception as e:
             logger.error(f"Failed to get node context: {e}")
             return {"error": str(e)}
-
-
 
     def _get_decomposition_tree(self, session, root_id: str) -> dict[str, Any]:
         """Retrieve decomposition tree"""
@@ -1560,7 +1616,11 @@ Output JSON:
             "id": root_id_res,
             "content": content_map.get(root_id_res, ""),
             "type": record["root_type"],
-            "children": [{"id": c["id"], "content": content_map.get(c["id"], "")} for c in children_data if c["id"]],
+            "children": [
+                {"id": c["id"], "content": content_map.get(c["id"], "")}
+                for c in children_data
+                if c["id"]
+            ],
         }
 
     # ========================================================================
@@ -1678,16 +1738,23 @@ Output JSON:
             self.working_memory.record(
                 operation="hypothesize",
                 input_data={"node_a": node_a_id, "node_b": node_b_id, "context": context},
-                output_data={"hypothesis": hypothesis_text[:500], "quality": float(hypothesis_quality)},
-                node_ids=[node_a_id, node_b_id, hyp_id]
+                output_data={
+                    "hypothesis": hypothesis_text[:500],
+                    "quality": float(hypothesis_quality),
+                },
+                node_ids=[node_a_id, node_b_id, hyp_id],
             )
 
             # Persist to SQLite history
             self.history.log_operation(
                 operation="hypothesize",
                 params={"node_a": node_a_id, "node_b": node_b_id, "context": context},
-                result={"hypothesis_id": hyp_id, "quality": float(hypothesis_quality), "similarity": float(similarity_score)},
-                cognitive_state=self.working_memory.current_goal or "Unknown"
+                result={
+                    "hypothesis_id": hyp_id,
+                    "quality": float(hypothesis_quality),
+                    "similarity": float(similarity_score),
+                },
+                cognitive_state=self.working_memory.current_goal or "Unknown",
             )
 
             return {
@@ -1793,7 +1860,7 @@ Output JSON:
             # Fetch all node details first (structure)
             node_records = session.run(
                 "MATCH (n:ThoughtNode) WHERE n.id IN $ids RETURN n.id as id, n.type as type",
-                ids=node_ids
+                ids=node_ids,
             ).data()
 
             # Fetch content from Chroma
@@ -1849,9 +1916,7 @@ Output JSON:
         )
 
         user_prompt = (
-            f"Content:\n{content[:4000]}\n\n"
-            f"Rule: {rule}\n\n"
-            f"Perform Chain of Verification:"
+            f"Content:\n{content[:4000]}\n\n" f"Rule: {rule}\n\n" f"Perform Chain of Verification:"
         )
 
         llm_output = self._llm_generate(system_prompt, user_prompt, max_tokens=1000)
@@ -1862,7 +1927,7 @@ Output JSON:
 
             # Look for explicit verdict
             if "VERDICT: VALID" in response or "VERDICT:VALID" in response:
-                 # High confidence if explicit valid
+                # High confidence if explicit valid
                 return (True, 0.95)
 
             if "VERDICT: INVALID" in response or "VERDICT:INVALID" in response:
@@ -1882,8 +1947,6 @@ Output JSON:
             logger.warning(f"Logic Validator parse error: {e}")
             # Fallback to conservative rejection if logic fails
             return (False, 0.1)
-
-
 
     # ========================================================================
     # Cognitive Primitive 3: Synthesize
@@ -1932,7 +1995,11 @@ Output JSON:
                 neighbor_ids = r["neighbor_ids"]
                 nodes_data[nid] = {
                     "content": content_map.get(nid, ""),
-                    "context": [content_map.get(nb_id, "") for nb_id in neighbor_ids if content_map.get(nb_id)]
+                    "context": [
+                        content_map.get(nb_id, "")
+                        for nb_id in neighbor_ids
+                        if content_map.get(nb_id)
+                    ],
                 }
 
             if len(nodes_data) < 2:
@@ -1944,7 +2011,7 @@ Output JSON:
                     "found_nodes": len(nodes_data),
                     "found_ids": found_ids,
                     "missing_ids": missing_ids,
-                    "hint": "Some nodes may no longer exist. Try using 'deconstruct' to create new nodes first."
+                    "hint": "Some nodes may no longer exist. Try using 'deconstruct' to create new nodes first.",
                 }
 
             # Compute centroid in latent space (synthesis node lives at geometric center)
@@ -1966,15 +2033,12 @@ Output JSON:
 
             # 2. Rigor (R): Epistemic rigor via MetaValidator
             rigor_score = MetaValidator.compute_epistemic_rigor(
-                synthesis_text,
-                lambda sys, user: self._llm_generate(sys, user, max_tokens=1000)
+                synthesis_text, lambda sys, user: self._llm_generate(sys, user, max_tokens=1000)
             )
 
             # 3. Unified Score & Quadrant
             meta_stats = MetaValidator.calculate_unified_score(
-                float(coverage_score),
-                float(rigor_score),
-                context="comprehensive_analysis"
+                float(coverage_score), float(rigor_score), context="comprehensive_analysis"
             )
 
             # Create synthesis node with REAL embedding (more accurate than centroid)
@@ -1984,7 +2048,7 @@ Output JSON:
                 synthesis_text,
                 "synthesis",
                 confidence=meta_stats["unified_score"],
-                embedding=real_embedding
+                embedding=real_embedding,
             )
 
             # Create relationships
@@ -2003,16 +2067,20 @@ Output JSON:
             self.working_memory.record(
                 operation="synthesize",
                 input_data={"goal": goal, "node_count": len(node_ids)},
-                output_data={"synthesis": synthesis_text[:500], "quadrant": meta_stats['quadrant']},
-                node_ids=node_ids[:5] + [synth_id]
+                output_data={"synthesis": synthesis_text[:500], "quadrant": meta_stats["quadrant"]},
+                node_ids=node_ids[:5] + [synth_id],
             )
 
             # Persist to SQLite history
             self.history.log_operation(
                 operation="synthesize",
                 params={"goal": goal, "node_count": len(node_ids), "node_ids": node_ids[:5]},
-                result={"synthesis_id": synth_id, "quadrant": meta_stats['quadrant'], "unified_score": meta_stats['unified_score']},
-                cognitive_state=self.working_memory.current_goal or "Unknown"
+                result={
+                    "synthesis_id": synth_id,
+                    "quadrant": meta_stats["quadrant"],
+                    "unified_score": meta_stats["unified_score"],
+                },
+                cognitive_state=self.working_memory.current_goal or "Unknown",
             )
 
             return {
@@ -2042,9 +2110,9 @@ Output JSON:
         concept_list = []
         for i, data in enumerate(nodes_data[:100], 1):  # Cap at 100 for token management
             text = f"{i}. {data['content']}"
-            if data['context']:
+            if data["context"]:
                 # Add context as a sub-bullet or note
-                context_str = "; ".join(data['context'])
+                context_str = "; ".join(data["context"])
                 text += f"\n   [Context: {context_str}]"
             concept_list.append(text)
 
@@ -2072,7 +2140,7 @@ Output JSON:
         rules: list[str],
         mode: str = "consistency",
         conclusion: str | None = None,
-        strict: bool = True
+        strict: bool = True,
     ) -> dict[str, Any]:
         """
         Validate logical constraints against a thought-node using formal logic.
@@ -2139,7 +2207,7 @@ Output JSON:
                             "error": "Entailment mode requires 'conclusion' parameter",
                             "hint": "Provide the statement to prove, e.g., conclusion='mortal(socrates)'",
                             "node_id": node_id,
-                            "mode": mode
+                            "mode": mode,
                         }
 
                     # Prove: rules are premises, conclusion is what we want to derive
@@ -2151,7 +2219,9 @@ Output JSON:
                     if result_status != "proved":
                         ce_result = self.logic_core.find_counterexample(rules, conclusion)
                         if ce_result.get("result") == "model_found":
-                            counterexample = ce_result.get("raw_output", "Model found disproving conclusion")
+                            counterexample = ce_result.get(
+                                "raw_output", "Model found disproving conclusion"
+                            )
 
                     # Update node
                     session.run(
@@ -2162,7 +2232,7 @@ Output JSON:
                             n.constraint_result = $result
                         """,
                         id=node_id,
-                        result=result_status
+                        result=result_status,
                     )
 
                     return {
@@ -2173,7 +2243,7 @@ Output JSON:
                         "result": result_status,
                         "proved": result_status == "proved",
                         "counterexample": counterexample,
-                        "explanation": f"Entailment check: Does '{conclusion}' follow from the {len(rules)} premises? Result: {result_status}"
+                        "explanation": f"Entailment check: Does '{conclusion}' follow from the {len(rules)} premises? Result: {result_status}",
                     }
 
                 # MODE: CONSISTENCY - "Can all statements be true together?"
@@ -2189,10 +2259,14 @@ Output JSON:
                         explanation = "Statements are CONSISTENT - a model exists where all hold simultaneously"
                     elif result_status == "no_model_found":
                         # Try to prove explicit contradiction
-                        contradiction_result = self.logic_core.prove(rules, "$F")  # $F is Prover9's false
+                        contradiction_result = self.logic_core.prove(
+                            rules, "$F"
+                        )  # $F is Prover9's false
                         if contradiction_result.get("result") == "proved":
                             is_consistent = False
-                            explanation = "Statements are INCONSISTENT - a contradiction is derivable"
+                            explanation = (
+                                "Statements are INCONSISTENT - a contradiction is derivable"
+                            )
                         else:
                             is_consistent = None  # Undecidable in timeout
                             explanation = "UNDECIDABLE - no model found but no contradiction proven (timeout or incomplete)"
@@ -2209,7 +2283,7 @@ Output JSON:
                             n.is_consistent = $consistent
                         """,
                         id=node_id,
-                        consistent=is_consistent
+                        consistent=is_consistent,
                     )
 
                     return {
@@ -2217,9 +2291,13 @@ Output JSON:
                         "mode": "consistency",
                         "statements": rules,
                         "consistent": is_consistent,
-                        "result": "consistent" if is_consistent else ("contradiction" if is_consistent is False else "undecidable"),
+                        "result": (
+                            "consistent"
+                            if is_consistent
+                            else ("contradiction" if is_consistent is False else "undecidable")
+                        ),
                         "model": model_result.get("raw_output") if is_consistent else None,
-                        "explanation": explanation
+                        "explanation": explanation,
                     }
 
                 # MODE: SATISFIABILITY - "Find a world where this holds"
@@ -2243,7 +2321,7 @@ Output JSON:
                             n.is_satisfiable = $satisfiable
                         """,
                         id=node_id,
-                        satisfiable=is_satisfiable
+                        satisfiable=is_satisfiable,
                     )
 
                     return {
@@ -2253,14 +2331,14 @@ Output JSON:
                         "satisfiable": is_satisfiable,
                         "result": "satisfiable" if is_satisfiable else "unsatisfiable",
                         "model": model,
-                        "explanation": f"Found {'a model satisfying' if is_satisfiable else 'no model for'} the {len(rules)} statements"
+                        "explanation": f"Found {'a model satisfying' if is_satisfiable else 'no model for'} the {len(rules)} statements",
                     }
 
                 else:
                     return {
                         "error": f"Unknown mode: {mode}",
                         "valid_modes": ["entailment", "consistency", "satisfiability"],
-                        "node_id": node_id
+                        "node_id": node_id,
                     }
 
             # === STANDARD MODE: Embedding + Semantic Validation ===
@@ -2322,7 +2400,7 @@ Output JSON:
                 operation="constrain",
                 input_data={"node_id": node_id, "rules": rules},
                 output_data={"score": float(avg_score), "satisfied": all_satisfied},
-                node_ids=[node_id]
+                node_ids=[node_id],
             )
 
             # Persist to SQLite history
@@ -2330,7 +2408,7 @@ Output JSON:
                 operation="constrain",
                 params={"node_id": node_id, "rules": rules},
                 result={"score": float(avg_score), "satisfied": all_satisfied},
-                cognitive_state=self.working_memory.current_goal or "Unknown"
+                cognitive_state=self.working_memory.current_goal or "Unknown",
             )
 
             return {
@@ -2367,7 +2445,7 @@ Output JSON:
         if len(component_ids) < 2:
             return {
                 "error": "Conflict too simple to deconstruct. Need at least 2 components.",
-                "deconstruction": decon_result
+                "deconstruction": decon_result,
             }
 
         # 2. Hypothesize connection between the first two components (Thesis/Antithesis)
@@ -2383,19 +2461,16 @@ Output JSON:
 
         synthesis_result = self.synthesize(
             nodes_to_synthesize,
-            goal=f"Resolve the conflict: '{conflict}'. Propose a structural fix or policy change."
+            goal=f"Resolve the conflict: '{conflict}'. Propose a structural fix or policy change.",
         )
 
         return {
             "conflict": conflict,
-            "analysis": {
-                "root_id": root_id,
-                "components": [c["content"] for c in components]
-            },
+            "analysis": {"root_id": root_id, "components": [c["content"] for c in components]},
             "hypothesis": hypo_result.get("hypothesis", "No hypothesis generated"),
             "resolution": synthesis_result["synthesis"],
             "critique": synthesis_result.get("critique", "No critique"),
-            "message": "Meta-Paradox resolved."
+            "message": "Meta-Paradox resolved.",
         }
 
 
@@ -2407,11 +2482,13 @@ Output JSON:
 # MCP Tool Handlers & Server Context
 # ============================================================================
 
+
 class RAAServerContext:
     """
     Manages the lifecycle and state of the RAA Server.
     Encapsulates CognitiveWorkspace and RAA components to avoid global state.
     """
+
     def __init__(self):
         self.workspace: CognitiveWorkspace | None = None
         self.raa_context: dict[str, Any] | None = None
@@ -2434,6 +2511,7 @@ class RAAServerContext:
 
         # 3. Initialize External MCP Manager
         from src.integration.external_mcp_client import ExternalMCPManager
+
         # Config path relative to project root
         config_path = Path(__file__).parent.parent / "compass_mcp_config.json"
         self.external_mcp = ExternalMCPManager(str(config_path))
@@ -2455,8 +2533,8 @@ class RAAServerContext:
 
         # Ensure concrete int
         if embedding_dim is None:
-             sample2 = self.workspace._embed_text("dimension probe 2")
-             embedding_dim = len(sample2)
+            sample2 = self.workspace._embed_text("dimension probe 2")
+            embedding_dim = len(sample2)
         embedding_dim = int(embedding_dim)
 
         device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -2490,20 +2568,24 @@ class RAAServerContext:
 
         # Create LLM provider for COMPASS
         from src.compass.adapters import RAALLMProvider
+
         llm_provider = RAALLMProvider(model_name=self.workspace.config.compass_model)
 
         # Create MCP Client Adapter
         from src.compass.adapters import RAAMCPClient
+
         mcp_client_adapter = RAAMCPClient(self)
 
         director = Director(
             manifold,
             director_cfg,
-            embedding_fn=lambda text: torch.tensor(self.workspace._embed_text(text), dtype=torch.float32, device=device),
+            embedding_fn=lambda text: torch.tensor(
+                self.workspace._embed_text(text), dtype=torch.float32, device=device
+            ),
             mcp_client=mcp_client_adapter,
             continuity_service=self.workspace.continuity_service,
             llm_provider=llm_provider,
-            work_history=self.workspace.history
+            work_history=self.workspace.history,
         )
 
         # Wire Adaptive Temperature Control
@@ -2521,12 +2603,9 @@ class RAAServerContext:
             try:
                 self.workspace.history.log_operation(
                     operation="substrate_transaction",
-                    params={
-                        "cost": str(cost.total_energy()),
-                        "operation": cost.operation_name
-                    },
+                    params={"cost": str(cost.total_energy()), "operation": cost.operation_name},
                     result={"balance": str(balance)},
-                    energy=float(balance.amount)
+                    energy=float(balance.amount),
                 )
             except Exception as e:
                 logger.error(f"Failed to persist transaction: {e}")
@@ -2538,7 +2617,7 @@ class RAAServerContext:
         self.substrate_director = SubstrateAwareDirector(
             director=director,
             ledger=self.ledger,
-            cost_profile=OperationCostProfile() # Use defaults
+            cost_profile=OperationCostProfile(),  # Use defaults
         )
 
         # Inject director into workspace for introspection
@@ -2546,11 +2625,7 @@ class RAAServerContext:
 
         # Initialize Processor for Cognitive Proprioception
         processor_cfg = ProcessorConfig(
-            vocab_size=50257,
-            embedding_dim=embedding_dim,
-            num_layers=4,
-            num_heads=4,
-            device=device
+            vocab_size=50257, embedding_dim=embedding_dim, num_layers=4, num_heads=4, device=device
         )
         # Inject Substrate Director into Processor so monitoring costs energy
         processor = Processor(processor_cfg, director=self.substrate_director)
@@ -2570,7 +2645,7 @@ class RAAServerContext:
 
         bridge = CWDRAABridge(
             cwd_server=self.workspace,
-            raa_director=self.substrate_director, # Use substrate-aware director
+            raa_director=self.substrate_director,  # Use substrate-aware director
             manifold=manifold,
             config=bridge_cfg,
             pointer=pointer,
@@ -2587,8 +2662,7 @@ class RAAServerContext:
         # Initialize Agent Factory
         # We pass self.call_tool as the tool executor callback
         self.agent_factory = AgentFactory(
-            llm_provider=self.llm_provider,
-            tool_executor=self.call_tool
+            llm_provider=self.llm_provider, tool_executor=self.call_tool
         )
 
         # Initialize Precuneus Integrator
@@ -2599,7 +2673,7 @@ class RAAServerContext:
             "device": device,
             "manifold": manifold,
             "pointer": pointer,
-            "director": self.substrate_director, # Expose substrate-aware director
+            "director": self.substrate_director,  # Expose substrate-aware director
             "processor": processor,
             "bridge": bridge,
             "agent_factory": self.agent_factory,
@@ -2640,7 +2714,7 @@ class RAAServerContext:
                     ids=[pattern_id],
                     embeddings=[embedding],
                     documents=[f"Manifold pattern {domain}:{idx}"],
-                    metadatas=[meta]
+                    metadatas=[meta],
                 )
                 logger.debug(f"Synced pattern {pattern_id} to Chroma")
             except Exception as e:
@@ -2659,8 +2733,7 @@ class RAAServerContext:
         for domain in ["state", "agent", "action"]:
             try:
                 results = self.workspace.manifold_patterns_collection.get(
-                    where={"domain": domain},
-                    include=["embeddings", "metadatas"]
+                    where={"domain": domain}, include=["embeddings", "metadatas"]
                 )
 
                 if not results["ids"]:
@@ -2675,7 +2748,9 @@ class RAAServerContext:
                     memory = manifold.action_memory
 
                 for embedding, metadata in zip(results["embeddings"], results["metadatas"]):
-                    pattern = torch.tensor(embedding, dtype=torch.float32, device=manifold.state_memory.device)
+                    pattern = torch.tensor(
+                        embedding, dtype=torch.float32, device=manifold.state_memory.device
+                    )
                     clean_meta = {k: v for k, v in metadata.items() if k not in ["domain", "index"]}
                     # Directly store to avoid triggering callback (already in Chroma)
                     memory.store_pattern(pattern, metadata=clean_meta)
@@ -2750,8 +2825,8 @@ class RAAServerContext:
                 existing = self.workspace.manifold_patterns_collection.get(ids=[pattern_id])
                 if existing["ids"]:
                     continue  # Already synced
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Error checking if pattern {pattern_id} exists: {e}")
 
             # Store in Chroma
             try:
@@ -2759,7 +2834,9 @@ class RAAServerContext:
                     ids=[pattern_id],
                     embeddings=[pattern.cpu().tolist()],
                     documents=[f"Manifold pattern {domain}:{i}"],
-                    metadatas=[{"domain": domain, "index": i, **{k: str(v) for k, v in metadata.items()}}]
+                    metadatas=[
+                        {"domain": domain, "index": i, **{k: str(v) for k, v in metadata.items()}}
+                    ],
                 )
                 synced += 1
             except Exception as e:
@@ -2795,8 +2872,7 @@ class RAAServerContext:
         # Query Chroma for patterns in this domain
         try:
             results = self.workspace.manifold_patterns_collection.get(
-                where={"domain": domain},
-                include=["embeddings", "metadatas"]
+                where={"domain": domain}, include=["embeddings", "metadatas"]
             )
         except Exception as e:
             logger.warning(f"Failed to query Chroma for patterns: {e}")
@@ -2806,10 +2882,12 @@ class RAAServerContext:
             return 0
 
         loaded = 0
-        for i, (pattern_id, embedding, metadata) in enumerate(zip(
-            results["ids"], results["embeddings"], results["metadatas"]
-        )):
-            pattern = torch.tensor(embedding, dtype=torch.float32, device=manifold.state_memory.device)
+        for i, (pattern_id, embedding, metadata) in enumerate(
+            zip(results["ids"], results["embeddings"], results["metadatas"])
+        ):
+            pattern = torch.tensor(
+                embedding, dtype=torch.float32, device=manifold.state_memory.device
+            )
             # Convert metadata back from strings
             clean_metadata = {k: v for k, v in metadata.items() if k not in ["domain", "index"]}
             memory.store_pattern(pattern, metadata=clean_metadata)
@@ -2853,11 +2931,13 @@ class RAAServerContext:
             from decimal import Decimal
 
             from src.substrate import EnergyToken, MeasurementCost
+
             # Cost ~ Learning Cost (5.0)
-            self.ledger.record_transaction(MeasurementCost(
-                energy=EnergyToken(Decimal("5.0"), "joules"),
-                operation_name="deconstruct"
-            ))
+            self.ledger.record_transaction(
+                MeasurementCost(
+                    energy=EnergyToken(Decimal("5.0"), "joules"), operation_name="deconstruct"
+                )
+            )
 
         # 1. Execute Core Deconstruction (Workspace + Graph Persistence)
         # This now handles Tripartite Decomposition, Embeddings, and Persistence
@@ -2882,10 +2962,12 @@ class RAAServerContext:
         # 3. Precuneus Fusion (now returns coherence info)
         director = self.get_director()
         cognitive_state = director.latest_cognitive_state
-        unified_context, coherence_info = self.get_precuneus()(vectors, energies, cognitive_state=cognitive_state)
+        unified_context, coherence_info = self.get_precuneus()(
+            vectors, energies, cognitive_state=cognitive_state
+        )
 
         # 4. Gödel Detector
-        is_paradox = all(e == float('inf') for e in energies.values()) if energies else False
+        is_paradox = all(e == float("inf") for e in energies.values()) if energies else False
 
         fusion_status = "Integrated"
         advice = None
@@ -2907,17 +2989,21 @@ class RAAServerContext:
         novelty_summary = {k: classify_energy(v) for k, v in energies.items()} if energies else {}
 
         # Enhance result with meta-cognitive insights (cleaned up)
-        result.update({
-             "pattern_match": novelty_summary,  # Interpretable novelty
-             "coherence": coherence_info,       # Stream weights and balance
-             "fusion_status": fusion_status,
-             "unified_context_norm": float(torch.norm(unified_context)) if unified_context is not None else 0.0,
-        })
+        result.update(
+            {
+                "pattern_match": novelty_summary,  # Interpretable novelty
+                "coherence": coherence_info,  # Stream weights and balance
+                "fusion_status": fusion_status,
+                "unified_context_norm": (
+                    float(torch.norm(unified_context)) if unified_context is not None else 0.0
+                ),
+            }
+        )
 
         if advice:
-             result["advice"] = advice
+            result["advice"] = advice
         if escalation:
-             result["escalation"] = escalation
+            result["escalation"] = escalation
 
         return result
 
@@ -2946,17 +3032,19 @@ class RAAServerContext:
                 from decimal import Decimal
 
                 from src.substrate import EnergyToken, MeasurementCost
+
                 # Cost ~ Search Cost (1.0)
-                self.workspace.ctx.ledger.record_transaction(MeasurementCost(
-                    energy=EnergyToken(Decimal("1.0"), "joules"),
-                    operation_name="hypothesize"
-                ))
+                self.workspace.ctx.ledger.record_transaction(
+                    MeasurementCost(
+                        energy=EnergyToken(Decimal("1.0"), "joules"), operation_name="hypothesize"
+                    )
+                )
 
             # 1. Topology Tunneling (Graph + Vector + Analogy)
             result = self.workspace.hypothesize(
                 node_a_id=arguments["node_a_id"],
                 node_b_id=arguments["node_b_id"],
-                context=arguments.get("context")
+                context=arguments.get("context"),
             )
             return result
         elif name == "synthesize":
@@ -2977,7 +3065,7 @@ class RAAServerContext:
                 )
                 critique = self.workspace._llm_generate(
                     system_prompt="You are a critical reviewer of AI-generated syntheses.",
-                    user_prompt=critique_prompt
+                    user_prompt=critique_prompt,
                 )
                 result["critique"] = critique
             return result
@@ -2988,15 +3076,18 @@ class RAAServerContext:
                 from decimal import Decimal
 
                 from src.substrate import EnergyToken, MeasurementCost
-                self.workspace.ctx.ledger.record_transaction(MeasurementCost(
-                    energy=EnergyToken(Decimal("10.0"), "joules"),
-                    operation_name="evolve_formula"
-                ))
+
+                self.workspace.ctx.ledger.record_transaction(
+                    MeasurementCost(
+                        energy=EnergyToken(Decimal("10.0"), "joules"),
+                        operation_name="evolve_formula",
+                    )
+                )
 
             return evolve_formula_logic(
                 arguments["data_points"],
                 arguments.get("n_generations", 10),
-                arguments.get("hybrid", False)
+                arguments.get("hybrid", False),
             )
 
         elif name == "constrain":
@@ -3050,10 +3141,13 @@ class RAAServerContext:
                 from decimal import Decimal
 
                 from src.substrate import EnergyToken, MeasurementCost
-                self.workspace.ctx.ledger.record_transaction(MeasurementCost(
-                    energy=EnergyToken(Decimal("1.0"), "joules"),
-                    operation_name="explore_for_utility"
-                ))
+
+                self.workspace.ctx.ledger.record_transaction(
+                    MeasurementCost(
+                        energy=EnergyToken(Decimal("1.0"), "joules"),
+                        operation_name="explore_for_utility",
+                    )
+                )
             result = self.workspace.explore_for_utility(
                 focus_area=arguments.get("focus_area"),
                 max_candidates=arguments.get("max_candidates", 10),
@@ -3096,7 +3190,7 @@ class RAAServerContext:
                 "can_resolve": diagnosis.cohomology.can_fully_resolve,
                 "overlap": diagnosis.harmonic_diffusive_overlap,
                 "escalation_recommended": diagnosis.escalation_recommended,
-                "messages": diagnosis.diagnostic_messages
+                "messages": diagnosis.diagnostic_messages,
             }
             return result
 
@@ -3117,7 +3211,9 @@ class RAAServerContext:
 
             # Meta-Commentary
             recent_history = bridge.history.get_recent_history(limit=5)
-            history_summary = "\n".join([f"- {h['operation']}: {h['result_summary']}" for h in recent_history])
+            history_summary = "\n".join(
+                [f"- {h['operation']}: {h['result_summary']}" for h in recent_history]
+            )
 
             meta_prompt = (
                 f"You are a reflective agent. Based on your recent history:\n{history_summary}\n"
@@ -3128,7 +3224,7 @@ class RAAServerContext:
             )
             meta_commentary = self.workspace._llm_generate(
                 system_prompt="You are a reflective AI agent analyzing your own cognitive state.",
-                user_prompt=meta_prompt
+                user_prompt=meta_prompt,
             )
 
             result = {
@@ -3138,7 +3234,7 @@ class RAAServerContext:
                 "warnings": warnings,
                 "advice": advice,
                 "meta_commentary": meta_commentary,
-                "message": f"Agent is currently '{state}' (Energy: {energy:.2f})"
+                "message": f"Agent is currently '{state}' (Energy: {energy:.2f})",
             }
             return result
 
@@ -3146,21 +3242,24 @@ class RAAServerContext:
             results = bridge.history.search_history(
                 query=arguments.get("query"),
                 operation_type=arguments.get("operation_type"),
-                limit=arguments.get("limit", 10)
+                limit=arguments.get("limit", 10),
             )
             return results
 
         elif name == "inspect_knowledge_graph":
             result = self.workspace.get_node_context(
-                node_id=arguments["node_id"],
-                depth=arguments.get("depth", 1)
+                node_id=arguments["node_id"], depth=arguments.get("depth", 1)
             )
             return result
 
         elif name == "teach_cognitive_state":
             director = self.get_director()
             success = director.teach_state(arguments["label"])
-            msg = f"Learned state '{arguments['label']}'" if success else "Failed: No recent thought to learn from."
+            msg = (
+                f"Learned state '{arguments['label']}'"
+                if success
+                else "Failed: No recent thought to learn from."
+            )
             return msg
 
         elif name == "get_known_archetypes":
@@ -3205,10 +3304,11 @@ class RAAServerContext:
                 signals.append("No topological obstructions detected.")
 
             result = {
-                "antifragility_score": diagnosis.harmonic_diffusive_overlap * (1.0 if h1_dim == 0 else 0.5),
+                "antifragility_score": diagnosis.harmonic_diffusive_overlap
+                * (1.0 if h1_dim == 0 else 0.5),
                 "signals": signals,
                 "adaptation_plan": adaptation_plan,
-                "message": "Antifragility diagnosis complete."
+                "message": "Antifragility diagnosis complete.",
             }
             return result
 
@@ -3235,11 +3335,13 @@ class RAAServerContext:
             # Instead, we'll return a message to use global handler or implement fully if sure.
             # Actually, let's just implement the basic vector check here.
 
-            similarity = float(np.dot(vector_a, vector_b) / (np.linalg.norm(vector_a) * np.linalg.norm(vector_b)))
+            similarity = float(
+                np.dot(vector_a, vector_b) / (np.linalg.norm(vector_a) * np.linalg.norm(vector_b))
+            )
             result = {
                 "concepts": {"a": concept_a, "b": concept_b},
                 "vector_analysis": {"similarity": similarity, "orthogonality": 1 - abs(similarity)},
-                "qualitative_analysis": "Analysis delegated to global handler for full report."
+                "qualitative_analysis": "Analysis delegated to global handler for full report.",
             }
             return result
 
@@ -3268,18 +3370,25 @@ class RAAServerContext:
             evidence_text = arguments["evidence"]
             constraints = arguments.get("constraints", [])
 
-            belief_emb = torch.tensor(workspace._embed_text(belief_text), dtype=torch.float32, device=self.device)
-            evidence_emb = torch.tensor(workspace._embed_text(evidence_text), dtype=torch.float32, device=self.device)
+            belief_emb = torch.tensor(
+                workspace._embed_text(belief_text), dtype=torch.float32, device=self.device
+            )
+            evidence_emb = torch.tensor(
+                workspace._embed_text(evidence_text), dtype=torch.float32, device=self.device
+            )
 
             result = director.hybrid_search.search(
                 current_state=belief_emb,
                 evidence=evidence_emb,
                 constraints=constraints,
-                context={"operation": "revise_tool"}
+                context={"operation": "revise_tool"},
             )
 
             if result:
-                response = {"status": "success", "revised_content": "Revision successful (see global handler for details)"}
+                response = {
+                    "status": "success",
+                    "revised_content": "Revision successful (see global handler for details)",
+                }
             else:
                 response = {"status": "failure", "message": "Revision failed."}
             return response
@@ -3293,6 +3402,7 @@ class RAAServerContext:
 
 # Global context instance (managed by main lifecycle, not implicitly lazy-loaded)
 server_context = RAAServerContext()
+
 
 def get_raa_context() -> RAAServerContext:
     """Helper to get the initialized RAA Server Context."""
@@ -3413,17 +3523,17 @@ Syntax: Prover9 FOL format (e.g., "all x (human(x) -> mortal(x))", "human(socrat
                     "type": "string",
                     "enum": ["entailment", "consistency", "satisfiability"],
                     "description": "Validation mode: entailment (prove), consistency (no contradiction), satisfiability (find model)",
-                    "default": "consistency"
+                    "default": "consistency",
                 },
                 "conclusion": {
                     "type": "string",
-                    "description": "For entailment mode: the statement to prove from rules as premises"
+                    "description": "For entailment mode: the statement to prove from rules as premises",
                 },
                 "strict": {
                     "type": "boolean",
                     "description": "Use Prover9/Mace4 (True) or embedding similarity (False)",
-                    "default": True
-                }
+                    "default": True,
+                },
             },
             "required": ["node_id", "rules"],
         },
@@ -3440,8 +3550,8 @@ Syntax: Prover9 FOL format (e.g., "all x (human(x) -> mortal(x))", "human(socrat
                 },
                 "waitForPreviousTools": {
                     "type": "boolean",
-                    "description": "If true, wait for all previous tool calls from this turn to complete before executing (sequential). If false or omitted, execute this tool immediately (parallel with other tools)."
-                }
+                    "description": "If true, wait for all previous tool calls from this turn to complete before executing (sequential). If false or omitted, execute this tool immediately (parallel with other tools).",
+                },
             },
             "required": ["conflict"],
         },
@@ -3454,7 +3564,7 @@ Syntax: Prover9 FOL format (e.g., "all x (human(x) -> mortal(x))", "human(socrat
             "properties": {
                 "waitForPreviousTools": {
                     "type": "boolean",
-                    "description": "If true, wait for all previous tool calls from this turn to complete before executing (sequential). If false or omitted, execute this tool immediately (parallel with other tools)."
+                    "description": "If true, wait for all previous tool calls from this turn to complete before executing (sequential). If false or omitted, execute this tool immediately (parallel with other tools).",
                 }
             },
         },
@@ -3557,11 +3667,17 @@ Syntax: Prover9 FOL format (e.g., "all x (human(x) -> mortal(x))", "human(socrat
         inputSchema={
             "type": "object",
             "properties": {
-                "query": {"type": "string", "description": "Text to search for in parameters or results"},
-                "operation_type": {"type": "string", "description": "Filter by operation type (e.g., 'hypothesize')"},
-                "limit": {"type": "integer", "description": "Max number of results (default 10)"}
+                "query": {
+                    "type": "string",
+                    "description": "Text to search for in parameters or results",
+                },
+                "operation_type": {
+                    "type": "string",
+                    "description": "Filter by operation type (e.g., 'hypothesize')",
+                },
+                "limit": {"type": "integer", "description": "Max number of results (default 10)"},
             },
-            "required": []
+            "required": [],
         },
     ),
     Tool(
@@ -3571,9 +3687,13 @@ Syntax: Prover9 FOL format (e.g., "all x (human(x) -> mortal(x))", "human(socrat
             "type": "object",
             "properties": {
                 "node_id": {"type": "string", "description": "ID of the node to inspect"},
-                "depth": {"type": "integer", "description": "Traversal depth (default 1)", "default": 1}
+                "depth": {
+                    "type": "integer",
+                    "description": "Traversal depth (default 1)",
+                    "default": 1,
+                },
             },
-            "required": ["node_id"]
+            "required": ["node_id"],
         },
     ),
     Tool(
@@ -3582,9 +3702,12 @@ Syntax: Prover9 FOL format (e.g., "all x (human(x) -> mortal(x))", "human(socrat
         inputSchema={
             "type": "object",
             "properties": {
-                "label": {"type": "string", "description": "Name of the state (e.g., 'Creative', 'Stuck')"}
+                "label": {
+                    "type": "string",
+                    "description": "Name of the state (e.g., 'Creative', 'Stuck')",
+                }
             },
-            "required": ["label"]
+            "required": ["label"],
         },
     ),
     Tool(
@@ -3603,9 +3726,13 @@ Syntax: Prover9 FOL format (e.g., "all x (human(x) -> mortal(x))", "human(socrat
         inputSchema={
             "type": "object",
             "properties": {
-                "epochs": {"type": "integer", "description": "Number of training epochs (default 1)", "default": 1}
+                "epochs": {
+                    "type": "integer",
+                    "description": "Number of training epochs (default 1)",
+                    "default": 1,
+                }
             },
-            "required": []
+            "required": [],
         },
     ),
     Tool(
@@ -3619,11 +3746,17 @@ Syntax: Prover9 FOL format (e.g., "all x (human(x) -> mortal(x))", "human(socrat
         inputSchema={
             "type": "object",
             "properties": {
-                "concept_a": {"type": "string", "description": "First concept (e.g., 'Deep Learning')"},
-                "concept_b": {"type": "string", "description": "Second concept (e.g., 'Symbolic Logic')"},
-                "context": {"type": "string", "description": "Optional context for the analysis"}
+                "concept_a": {
+                    "type": "string",
+                    "description": "First concept (e.g., 'Deep Learning')",
+                },
+                "concept_b": {
+                    "type": "string",
+                    "description": "Second concept (e.g., 'Symbolic Logic')",
+                },
+                "context": {"type": "string", "description": "Optional context for the analysis"},
             },
-            "required": ["concept_a", "concept_b"]
+            "required": ["concept_a", "concept_b"],
         },
     ),
     Tool(
@@ -3635,10 +3768,10 @@ Syntax: Prover9 FOL format (e.g., "all x (human(x) -> mortal(x))", "human(socrat
                 "mode": {
                     "type": "string",
                     "enum": ["optimization", "adaptation"],
-                    "description": "Mode to set: 'optimization' (High Beta, Convergent) or 'adaptation' (Low Beta, Divergent)."
+                    "description": "Mode to set: 'optimization' (High Beta, Convergent) or 'adaptation' (Low Beta, Divergent).",
                 }
             },
-            "required": ["mode"]
+            "required": ["mode"],
         },
     ),
     Tool(
@@ -3647,15 +3780,21 @@ Syntax: Prover9 FOL format (e.g., "all x (human(x) -> mortal(x))", "human(socrat
         inputSchema={
             "type": "object",
             "properties": {
-                "belief": {"type": "string", "description": "The current belief or thought content to revise"},
-                "evidence": {"type": "string", "description": "New evidence or target concept to align with"},
+                "belief": {
+                    "type": "string",
+                    "description": "The current belief or thought content to revise",
+                },
+                "evidence": {
+                    "type": "string",
+                    "description": "New evidence or target concept to align with",
+                },
                 "constraints": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "List of natural language constraints the revision must satisfy"
-                }
+                    "description": "List of natural language constraints the revision must satisfy",
+                },
             },
-            "required": ["belief", "evidence"]
+            "required": ["belief", "evidence"],
         },
     ),
     Tool(
@@ -3664,18 +3803,27 @@ Syntax: Prover9 FOL format (e.g., "all x (human(x) -> mortal(x))", "human(socrat
         inputSchema={
             "type": "object",
             "properties": {
-                "id": {"type": "string", "description": "Unique identifier for the advisor (e.g., 'socrates')"},
+                "id": {
+                    "type": "string",
+                    "description": "Unique identifier for the advisor (e.g., 'socrates')",
+                },
                 "name": {"type": "string", "description": "Display name of the advisor"},
                 "role": {"type": "string", "description": "Role description (e.g., 'Philosopher')"},
-                "description": {"type": "string", "description": "Detailed description of the advisor's purpose"},
-                "system_prompt": {"type": "string", "description": "The system prompt that defines the advisor's behavior"},
+                "description": {
+                    "type": "string",
+                    "description": "Detailed description of the advisor's purpose",
+                },
+                "system_prompt": {
+                    "type": "string",
+                    "description": "The system prompt that defines the advisor's behavior",
+                },
                 "tools": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "List of tool names available to this advisor"
-                }
+                    "description": "List of tool names available to this advisor",
+                },
             },
-            "required": ["id", "name", "role", "description", "system_prompt"]
+            "required": ["id", "name", "role", "description", "system_prompt"],
         },
     ),
     Tool(
@@ -3686,7 +3834,7 @@ Syntax: Prover9 FOL format (e.g., "all x (human(x) -> mortal(x))", "human(socrat
             "properties": {
                 "id": {"type": "string", "description": "Unique ID of the advisor to delete"}
             },
-            "required": ["id"]
+            "required": ["id"],
         },
     ),
     Tool(
@@ -3702,14 +3850,11 @@ Syntax: Prover9 FOL format (e.g., "all x (human(x) -> mortal(x))", "human(socrat
             "properties": {
                 "advisor_id": {
                     "type": "string",
-                    "description": "ID of the advisor (e.g., 'socrates', 'researcher')"
+                    "description": "ID of the advisor (e.g., 'socrates', 'researcher')",
                 },
-                "node_id": {
-                    "type": "string",
-                    "description": "ID of the ThoughtNode to link"
-                }
+                "node_id": {"type": "string", "description": "ID of the ThoughtNode to link"},
             },
-            "required": ["advisor_id", "node_id"]
+            "required": ["advisor_id", "node_id"],
         },
     ),
     Tool(
@@ -3718,12 +3863,9 @@ Syntax: Prover9 FOL format (e.g., "all x (human(x) -> mortal(x))", "human(socrat
         inputSchema={
             "type": "object",
             "properties": {
-                "advisor_id": {
-                    "type": "string",
-                    "description": "ID of the advisor to query"
-                }
+                "advisor_id": {"type": "string", "description": "ID of the advisor to query"}
             },
-            "required": ["advisor_id"]
+            "required": ["advisor_id"],
         },
     ),
     Tool(
@@ -3746,37 +3888,37 @@ Syntax: Prover9 FOL format (e.g., "all x (human(x) -> mortal(x))", "human(socrat
                 "mode": {
                     "type": "string",
                     "enum": ["nodes", "relationships"],
-                    "description": "Operation mode: 'nodes' to search nodes, 'relationships' to traverse."
+                    "description": "Operation mode: 'nodes' to search nodes, 'relationships' to traverse.",
                 },
                 "label": {
                     "type": "string",
-                    "description": "Node label to search for (required for mode='nodes')."
+                    "description": "Node label to search for (required for mode='nodes').",
                 },
                 "filters": {
                     "type": "object",
-                    "description": "Property filters for node search (e.g., {'name': 'Value'})."
+                    "description": "Property filters for node search (e.g., {'name': 'Value'}).",
                 },
                 "start_id": {
                     "type": "string",
-                    "description": "Starting node ID for traversal (required for mode='relationships')."
+                    "description": "Starting node ID for traversal (required for mode='relationships').",
                 },
                 "rel_type": {
                     "type": "string",
-                    "description": "Relationship type to traverse (required for mode='relationships')."
+                    "description": "Relationship type to traverse (required for mode='relationships').",
                 },
                 "direction": {
                     "type": "string",
                     "enum": ["OUTGOING", "INCOMING", "BOTH"],
                     "default": "OUTGOING",
-                    "description": "Traversal direction."
+                    "description": "Traversal direction.",
                 },
                 "limit": {
                     "type": "integer",
                     "default": 10,
-                    "description": "Max results to return."
-                }
+                    "description": "Max results to return.",
+                },
             },
-            "required": ["mode"]
+            "required": ["mode"],
         },
     ),
     Tool(
@@ -3787,7 +3929,7 @@ Syntax: Prover9 FOL format (e.g., "all x (human(x) -> mortal(x))", "human(socrat
             "properties": {
                 "waitForPreviousTools": {
                     "type": "boolean",
-                    "description": "If true, wait for all previous tool calls from this turn to complete before executing (sequential). If false or omitted, execute this tool immediately (parallel with other tools)."
+                    "description": "If true, wait for all previous tool calls from this turn to complete before executing (sequential). If false or omitted, execute this tool immediately (parallel with other tools).",
                 }
             },
         },
@@ -3798,35 +3940,56 @@ Syntax: Prover9 FOL format (e.g., "all x (human(x) -> mortal(x))", "human(socrat
         inputSchema={
             "type": "object",
             "properties": {
-                "speaker_id": {"type": "string", "description": "Identifier for the speaker/sender"},
-                "listener_id": {"type": "string", "description": "Identifier for the listener/receiver"},
-                "utterance_raw": {"type": "string", "description": "The raw utterance text (e.g., 'Fine.')"},
+                "speaker_id": {
+                    "type": "string",
+                    "description": "Identifier for the speaker/sender",
+                },
+                "listener_id": {
+                    "type": "string",
+                    "description": "Identifier for the listener/receiver",
+                },
+                "utterance_raw": {
+                    "type": "string",
+                    "description": "The raw utterance text (e.g., 'Fine.')",
+                },
                 "speaker_intent": {
                     "type": "string",
                     "enum": ["assert", "question", "request", "promise", "express", "declare"],
-                    "description": "The speaker's intended speech act type"
+                    "description": "The speaker's intended speech act type",
                 },
                 "speaker_affect": {
                     "type": "object",
                     "properties": {
-                        "valence": {"type": "number", "description": "Positive-negative dimension (-1 to 1)"},
+                        "valence": {
+                            "type": "number",
+                            "description": "Positive-negative dimension (-1 to 1)",
+                        },
                         "arousal": {"type": "number", "description": "Activation level (0 to 1)"},
-                        "dominance": {"type": "number", "description": "Control/power dimension (0 to 1)"}
+                        "dominance": {
+                            "type": "number",
+                            "description": "Control/power dimension (0 to 1)",
+                        },
                     },
-                    "description": "Speaker's affective state (VAD model)"
+                    "description": "Speaker's affective state (VAD model)",
                 },
                 "listener_affect": {
                     "type": "object",
                     "properties": {
-                        "valence": {"type": "number", "description": "Positive-negative dimension (-1 to 1)"},
+                        "valence": {
+                            "type": "number",
+                            "description": "Positive-negative dimension (-1 to 1)",
+                        },
                         "arousal": {"type": "number", "description": "Activation level (0 to 1)"},
-                        "dominance": {"type": "number", "description": "Control/power dimension (0 to 1)"}
+                        "dominance": {
+                            "type": "number",
+                            "description": "Control/power dimension (0 to 1)",
+                        },
                     },
-                    "description": "Listener's perceived affective state (VAD model)"
+                    "description": "Listener's perceived affective state (VAD model)",
                 },
-                "context": {"type": "string", "description": "Optional context for the exchange"}
+                "context": {"type": "string", "description": "Optional context for the exchange"},
             },
-            "required": ["speaker_id", "listener_id", "utterance_raw"]
+            "required": ["speaker_id", "listener_id", "utterance_raw"],
         },
     ),
     Tool(
@@ -3849,19 +4012,26 @@ This tool provides access to:
                 "query_type": {
                     "type": "string",
                     "enum": [
-                        "basic_emotion", "complex_emotion", "evolutionary_layer",
-                        "ai_guidelines", "ai_principles", "empathic_template",
-                        "computational_empathy", "affect_mapping", "neurobiology",
-                        "acip", "regulation"
+                        "basic_emotion",
+                        "complex_emotion",
+                        "evolutionary_layer",
+                        "ai_guidelines",
+                        "ai_principles",
+                        "empathic_template",
+                        "computational_empathy",
+                        "affect_mapping",
+                        "neurobiology",
+                        "acip",
+                        "regulation",
                     ],
-                    "description": "Type of query to perform"
+                    "description": "Type of query to perform",
                 },
                 "query_param": {
                     "type": "string",
-                    "description": "Parameter for the query (e.g., emotion name like 'fear', layer number like '2', context like 'distress', or 'valence,arousal' like '-0.5,0.8')"
-                }
+                    "description": "Parameter for the query (e.g., emotion name like 'fear', layer number like '2', context like 'distress', or 'valence,arousal' like '-0.5,0.8')",
+                },
             },
-            "required": ["query_type"]
+            "required": ["query_type"],
         },
     ),
     Tool(
@@ -3879,10 +4049,14 @@ Syntax: Prover9 FOL format (e.g., "all x (human(x) -> mortal(x))", "human(socrat
         inputSchema={
             "type": "object",
             "properties": {
-                "premises": {"type": "array", "items": {"type": "string"}, "description": "List of logical premises"},
-                "conclusion": {"type": "string", "description": "Statement to prove"}
+                "premises": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "List of logical premises",
+                },
+                "conclusion": {"type": "string", "description": "Statement to prove"},
             },
-            "required": ["premises", "conclusion"]
+            "required": ["premises", "conclusion"],
         },
     ),
     Tool(
@@ -3893,11 +4067,18 @@ Syntax: Same as prove tool - use Prover9 FOL format.""",
         inputSchema={
             "type": "object",
             "properties": {
-                "premises": {"type": "array", "items": {"type": "string"}, "description": "List of logical premises"},
+                "premises": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "List of logical premises",
+                },
                 "conclusion": {"type": "string", "description": "Conclusion to disprove"},
-                "domain_size": {"type": "integer", "description": "Optional: specific domain size to search"}
+                "domain_size": {
+                    "type": "integer",
+                    "description": "Optional: specific domain size to search",
+                },
             },
-            "required": ["premises", "conclusion"]
+            "required": ["premises", "conclusion"],
         },
     ),
     Tool(
@@ -3908,10 +4089,17 @@ Syntax: Same as prove tool - use Prover9 FOL format.""",
         inputSchema={
             "type": "object",
             "properties": {
-                "premises": {"type": "array", "items": {"type": "string"}, "description": "List of logical premises"},
-                "domain_size": {"type": "integer", "description": "Optional: specific domain size to search (default: incrementally search 2-10)"}
+                "premises": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "List of logical premises",
+                },
+                "domain_size": {
+                    "type": "integer",
+                    "description": "Optional: specific domain size to search (default: incrementally search 2-10)",
+                },
             },
-            "required": ["premises"]
+            "required": ["premises"],
         },
     ),
     Tool(
@@ -3920,9 +4108,13 @@ Syntax: Same as prove tool - use Prover9 FOL format.""",
         inputSchema={
             "type": "object",
             "properties": {
-                "statements": {"type": "array", "items": {"type": "string"}, "description": "Logical statements to check"}
+                "statements": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Logical statements to check",
+                }
             },
-            "required": ["statements"]
+            "required": ["statements"],
         },
     ),
     Tool(
@@ -3931,13 +4123,24 @@ Syntax: Same as prove tool - use Prover9 FOL format.""",
         inputSchema={
             "type": "object",
             "properties": {
-                "path_a": {"type": "array", "items": {"type": "string"}, "description": "List of morphism names in first path"},
-                "path_b": {"type": "array", "items": {"type": "string"}, "description": "List of morphism names in second path"},
+                "path_a": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "List of morphism names in first path",
+                },
+                "path_b": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "List of morphism names in second path",
+                },
                 "object_start": {"type": "string", "description": "Starting object"},
                 "object_end": {"type": "string", "description": "Ending object"},
-                "with_category_axioms": {"type": "boolean", "description": "Include basic category theory axioms (default: true)"}
+                "with_category_axioms": {
+                    "type": "boolean",
+                    "description": "Include basic category theory axioms (default: true)",
+                },
             },
-            "required": ["path_a", "path_b", "object_start", "object_end"]
+            "required": ["path_a", "path_b", "object_start", "object_end"],
         },
     ),
     Tool(
@@ -3946,13 +4149,29 @@ Syntax: Same as prove tool - use Prover9 FOL format.""",
         inputSchema={
             "type": "object",
             "properties": {
-                "concept": {"type": "string", "enum": ["category", "functor", "natural-transformation", "monoid", "group"], "description": "Which concept's axioms to retrieve"},
-                "functor_name": {"type": "string", "description": "For functor axioms: name of the functor (default: F)"},
-                "functor_f": {"type": "string", "description": "For natural transformation: first functor"},
-                "functor_g": {"type": "string", "description": "For natural transformation: second functor"},
-                "component": {"type": "string", "description": "For natural transformation: component name"}
+                "concept": {
+                    "type": "string",
+                    "enum": ["category", "functor", "natural-transformation", "monoid", "group"],
+                    "description": "Which concept's axioms to retrieve",
+                },
+                "functor_name": {
+                    "type": "string",
+                    "description": "For functor axioms: name of the functor (default: F)",
+                },
+                "functor_f": {
+                    "type": "string",
+                    "description": "For natural transformation: first functor",
+                },
+                "functor_g": {
+                    "type": "string",
+                    "description": "For natural transformation: second functor",
+                },
+                "component": {
+                    "type": "string",
+                    "description": "For natural transformation: component name",
+                },
             },
-            "required": ["concept"]
+            "required": ["concept"],
         },
     ),
     Tool(
@@ -3963,10 +4182,18 @@ Syntax: Same as prove tool - use Prover9 FOL format.""",
         inputSchema={
             "type": "object",
             "properties": {
-                "focus_node_id": {"type": "string", "description": "Optional: The ID of the node to focus rumination on. If omitted, the system selects a node with 'structural tension'."},
-                "mode": {"type": "string", "description": "Operational mode (currently only 'diagram_chasing')", "enum": ["diagram_chasing"], "default": "diagram_chasing"}
+                "focus_node_id": {
+                    "type": "string",
+                    "description": "Optional: The ID of the node to focus rumination on. If omitted, the system selects a node with 'structural tension'.",
+                },
+                "mode": {
+                    "type": "string",
+                    "description": "Operational mode (currently only 'diagram_chasing')",
+                    "enum": ["diagram_chasing"],
+                    "default": "diagram_chasing",
+                },
             },
-            "required": []
+            "required": [],
         },
     ),
 ]
@@ -4043,10 +4270,11 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
 
                 from src.substrate.energy import EnergyToken, MeasurementCost
 
-                workspace.ledger.record_transaction(MeasurementCost(
-                    energy=EnergyToken(Decimal("1.5"), "joules"),
-                    operation_name="deconstruct"
-                ))
+                workspace.ledger.record_transaction(
+                    MeasurementCost(
+                        energy=EnergyToken(Decimal("1.5"), "joules"), operation_name="deconstruct"
+                    )
+                )
             try:
                 result = ctx.execute_deconstruct(arguments["problem"])
                 # Clean up output: remove raw embeddings (internal use only)
@@ -4064,7 +4292,13 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
                 return [TextContent(type="text", text=json.dumps(result, indent=2))]
             except Exception as e:
                 import traceback
-                return [TextContent(type="text", text=f"Deconstruction failed: {str(e)}\n\n{traceback.format_exc()}")]
+
+                return [
+                    TextContent(
+                        type="text",
+                        text=f"Deconstruction failed: {str(e)}\n\n{traceback.format_exc()}",
+                    )
+                ]
         elif name == "hypothesize":
             # Metabolic Cost: Hypothesis is a Search operation (1.0)
             if workspace.ledger:
@@ -4072,10 +4306,11 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
 
                 from src.substrate.energy import EnergyToken, MeasurementCost
 
-                workspace.ledger.record_transaction(MeasurementCost(
-                    energy=EnergyToken(Decimal("1.0"), "joules"),
-                    operation_name="hypothesize"
-                ))
+                workspace.ledger.record_transaction(
+                    MeasurementCost(
+                        energy=EnergyToken(Decimal("1.0"), "joules"), operation_name="hypothesize"
+                    )
+                )
 
             # Route through RAA bridge for entropy monitoring + search
             result = bridge.execute_monitored_operation(
@@ -4093,10 +4328,11 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
 
                 from src.substrate.energy import EnergyToken, MeasurementCost
 
-                workspace.ledger.record_transaction(MeasurementCost(
-                    energy=EnergyToken(Decimal("3.0"), "joules"),
-                    operation_name="synthesize"
-                ))
+                workspace.ledger.record_transaction(
+                    MeasurementCost(
+                        energy=EnergyToken(Decimal("3.0"), "joules"), operation_name="synthesize"
+                    )
+                )
 
             try:
                 result = bridge.execute_monitored_operation(
@@ -4108,19 +4344,35 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
                 )
             except Exception as e:
                 logger.error(f"Synthesize operation failed: {e}", exc_info=True)
-                return [TextContent(type="text", text=json.dumps({
-                    "error": f"Synthesize failed: {str(e)}",
-                    "node_ids": arguments.get("node_ids", []),
-                    "hint": "Check if nodes exist and Chroma/Neo4j are accessible."
-                }, indent=2))]
+                return [
+                    TextContent(
+                        type="text",
+                        text=json.dumps(
+                            {
+                                "error": f"Synthesize failed: {str(e)}",
+                                "node_ids": arguments.get("node_ids", []),
+                                "hint": "Check if nodes exist and Chroma/Neo4j are accessible.",
+                            },
+                            indent=2,
+                        ),
+                    )
+                ]
 
             # Handle None or unexpected result
             if result is None:
-                return [TextContent(type="text", text=json.dumps({
-                    "error": "Synthesize returned no result",
-                    "node_ids": arguments.get("node_ids", []),
-                    "hint": "The synthesize operation completed but returned nothing. Check server logs."
-                }, indent=2))]
+                return [
+                    TextContent(
+                        type="text",
+                        text=json.dumps(
+                            {
+                                "error": "Synthesize returned no result",
+                                "node_ids": arguments.get("node_ids", []),
+                                "hint": "The synthesize operation completed but returned nothing. Check server logs.",
+                            },
+                            indent=2,
+                        ),
+                    )
+                ]
             # Self-Correction/Critique (Via Negativa)
             if isinstance(result, dict) and "synthesis" in result:
                 synthesis_text = result["synthesis"]
@@ -4131,20 +4383,24 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
                 )
                 critique = workspace._llm_generate(
                     system_prompt="You are a critical reviewer of AI-generated syntheses.",
-                    user_prompt=critique_prompt
+                    user_prompt=critique_prompt,
                 )
                 result["critique"] = critique
 
                 # === Director-Orchestrated Synthesis Resolution ===
                 # Classify the critique to determine if Director should intervene
-                classification = workspace._llm_generate(
-                    system_prompt="""Classify this synthesis critique into exactly one category:
+                classification = (
+                    workspace._llm_generate(
+                        system_prompt="""Classify this synthesis critique into exactly one category:
 - MISSING_DATA: Requires external facts, specific information, or user input to proceed
 - ACTIONABLE: Can be improved through reasoning, adding context, or deeper analysis
 - ACCEPTABLE: Minor issues or no significant problems
 Respond with only the category name.""",
-                    user_prompt=f"Critique: {critique}"
-                ).strip().upper()
+                        user_prompt=f"Critique: {critique}",
+                    )
+                    .strip()
+                    .upper()
+                )
 
                 # Normalize classification
                 if classification not in ("MISSING_DATA", "ACTIONABLE", "ACCEPTABLE"):
@@ -4158,10 +4414,12 @@ Respond with only the category name.""",
                     if director and director.compass:
                         # Energy cost for Director escalation
                         if workspace.ledger:
-                            workspace.ledger.record_transaction(MeasurementCost(
-                                energy=EnergyToken(Decimal("5.0"), "joules"),
-                                operation_name="synthesis_director_resolution"
-                            ))
+                            workspace.ledger.record_transaction(
+                                MeasurementCost(
+                                    energy=EnergyToken(Decimal("5.0"), "joules"),
+                                    operation_name="synthesis_director_resolution",
+                                )
+                            )
 
                         # Build resolution task for COMPASS
                         resolution_task = f"""Resolve this synthesis critique using available cognitive tools.
@@ -4191,15 +4449,15 @@ Provide an improved synthesis that addresses the critique by using these tools t
                                 {
                                     "node_ids": arguments.get("node_ids", []),
                                     "goal": arguments.get("goal"),
-                                    "force_time_gate": True  # Force System 2 engagement
-                                }
+                                    "force_time_gate": True,  # Force System 2 engagement
+                                },
                             )
 
                             # Extract improved synthesis from COMPASS result
                             if resolution_result.get("success", False):
                                 improved_synthesis = resolution_result.get(
                                     "final_report",
-                                    resolution_result.get("solution", synthesis_text)
+                                    resolution_result.get("solution", synthesis_text),
                                 )
                                 result["synthesis"] = improved_synthesis
                                 result["auto_resolved"] = True
@@ -4209,21 +4467,31 @@ Provide an improved synthesis that addresses the critique by using these tools t
                                 # Re-critique the improved synthesis
                                 new_critique = workspace._llm_generate(
                                     system_prompt="You are a critical reviewer of AI-generated syntheses.",
-                                    user_prompt=f"Critique for goal '{arguments.get('goal', 'None')}': {improved_synthesis}"
+                                    user_prompt=f"Critique for goal '{arguments.get('goal', 'None')}': {improved_synthesis}",
                                 )
                                 result["critique"] = new_critique
 
                                 # Re-classify
-                                new_classification = workspace._llm_generate(
-                                    system_prompt="Classify: MISSING_DATA, ACTIONABLE, or ACCEPTABLE. Respond with only the category.",
-                                    user_prompt=f"Critique: {new_critique}"
-                                ).strip().upper()
-                                if new_classification not in ("MISSING_DATA", "ACTIONABLE", "ACCEPTABLE"):
+                                new_classification = (
+                                    workspace._llm_generate(
+                                        system_prompt="Classify: MISSING_DATA, ACTIONABLE, or ACCEPTABLE. Respond with only the category.",
+                                        user_prompt=f"Critique: {new_critique}",
+                                    )
+                                    .strip()
+                                    .upper()
+                                )
+                                if new_classification not in (
+                                    "MISSING_DATA",
+                                    "ACTIONABLE",
+                                    "ACCEPTABLE",
+                                ):
                                     new_classification = "ACCEPTABLE"
                                 result["critique_classification"] = new_classification
                             else:
                                 result["resolution_attempted"] = True
-                                result["resolution_status"] = resolution_result.get("status", "failed")
+                                result["resolution_status"] = resolution_result.get(
+                                    "status", "failed"
+                                )
 
                         except Exception as e:
                             logger.warning(f"Director resolution failed: {e}")
@@ -4241,10 +4509,11 @@ Provide an improved synthesis that addresses the critique by using these tools t
 
                 from src.substrate.energy import EnergyToken, MeasurementCost
 
-                workspace.ledger.record_transaction(MeasurementCost(
-                    energy=EnergyToken(Decimal("2.0"), "joules"),
-                    operation_name="constrain"
-                ))
+                workspace.ledger.record_transaction(
+                    MeasurementCost(
+                        energy=EnergyToken(Decimal("2.0"), "joules"), operation_name="constrain"
+                    )
+                )
 
             result = bridge.execute_monitored_operation(
                 operation="constrain",
@@ -4264,15 +4533,17 @@ Provide an improved synthesis that addresses the critique by using these tools t
 
                 from src.substrate.energy import EnergyToken, MeasurementCost
 
-                workspace.ledger.record_transaction(MeasurementCost(
-                    energy=EnergyToken(Decimal("10.0"), "joules"),
-                    operation_name="evolve_formula"
-                ))
+                workspace.ledger.record_transaction(
+                    MeasurementCost(
+                        energy=EnergyToken(Decimal("10.0"), "joules"),
+                        operation_name="evolve_formula",
+                    )
+                )
 
             result = evolve_formula_logic(
                 arguments["data_points"],
                 arguments.get("n_generations", 10),
-                arguments.get("hybrid", False)
+                arguments.get("hybrid", False),
             )
 
         elif name == "set_goal":
@@ -4282,10 +4553,11 @@ Provide an improved synthesis that addresses the critique by using these tools t
 
                 from src.substrate.energy import EnergyToken, MeasurementCost
 
-                workspace.ledger.record_transaction(MeasurementCost(
-                    energy=EnergyToken(Decimal("0.5"), "joules"),
-                    operation_name="set_goal"
-                ))
+                workspace.ledger.record_transaction(
+                    MeasurementCost(
+                        energy=EnergyToken(Decimal("0.5"), "joules"), operation_name="set_goal"
+                    )
+                )
             goal_id = workspace.set_goal(
                 goal_description=arguments["goal_description"],
                 utility_weight=arguments.get("utility_weight", 1.0),
@@ -4303,10 +4575,12 @@ Provide an improved synthesis that addresses the critique by using these tools t
 
                 from src.substrate.energy import EnergyToken, MeasurementCost
 
-                workspace.ledger.record_transaction(MeasurementCost(
-                    energy=EnergyToken(Decimal("5.0"), "joules"),
-                    operation_name="compress_to_tool"
-                ))
+                workspace.ledger.record_transaction(
+                    MeasurementCost(
+                        energy=EnergyToken(Decimal("5.0"), "joules"),
+                        operation_name="compress_to_tool",
+                    )
+                )
             result = bridge.execute_monitored_operation(
                 operation="compress_to_tool",
                 params={
@@ -4318,13 +4592,19 @@ Provide an improved synthesis that addresses the critique by using these tools t
 
             # Advisor Learning: Associate new tool with current advisor
             director = ctx.get_director()
-            if director and director.compass and director.compass.integrated_intelligence.current_advisor:
+            if (
+                director
+                and director.compass
+                and director.compass.integrated_intelligence.current_advisor
+            ):
                 advisor = director.compass.integrated_intelligence.current_advisor
                 tool_name = arguments["tool_name"]
                 if tool_name not in advisor.tools:
                     advisor.tools.append(tool_name)
                     director.compass.advisor_registry.save_advisors()
-                    result["advisor_learning"] = f"Tool '{tool_name}' added to advisor '{advisor.name}'"
+                    result["advisor_learning"] = (
+                        f"Tool '{tool_name}' added to advisor '{advisor.name}'"
+                    )
         elif name == "resolve_meta_paradox":
             # Metabolic Cost: Paradox Resolution is System 3 (10.0)
             if workspace.ledger:
@@ -4332,14 +4612,14 @@ Provide an improved synthesis that addresses the critique by using these tools t
 
                 from src.substrate.energy import EnergyToken, MeasurementCost
 
-                workspace.ledger.record_transaction(MeasurementCost(
-                    energy=EnergyToken(Decimal("10.0"), "joules"),
-                    operation_name="resolve_meta_paradox"
-                ))
+                workspace.ledger.record_transaction(
+                    MeasurementCost(
+                        energy=EnergyToken(Decimal("10.0"), "joules"),
+                        operation_name="resolve_meta_paradox",
+                    )
+                )
 
-            result = workspace.resolve_meta_paradox(
-                conflict=arguments["conflict"]
-            )
+            result = workspace.resolve_meta_paradox(conflict=arguments["conflict"])
         elif name == "create_advisor":
             director = ctx.get_director()
             if not director or not director.compass:
@@ -4351,7 +4631,7 @@ Provide an improved synthesis that addresses the critique by using these tools t
                 role=arguments["role"],
                 description=arguments["description"],
                 system_prompt=arguments["system_prompt"],
-                tools=arguments.get("tools", [])
+                tools=arguments.get("tools", []),
             )
             return [TextContent(type="text", text=result)]
         elif name == "delete_advisor":
@@ -4359,9 +4639,7 @@ Provide an improved synthesis that addresses the critique by using these tools t
             if not director or not director.compass:
                 return [TextContent(type="text", text="Error: COMPASS framework not initialized")]
 
-            result = director.compass.integrated_intelligence.delete_advisor(
-                id=arguments["id"]
-            )
+            result = director.compass.integrated_intelligence.delete_advisor(id=arguments["id"])
             return [TextContent(type="text", text=result)]
         elif name == "list_advisors":
             director = ctx.get_director()
@@ -4375,7 +4653,9 @@ Provide an improved synthesis that addresses the critique by using these tools t
                 result_lines.append(f"  Description: {advisor.description}")
                 result_lines.append(f"  Tools: {', '.join(advisor.tools)}")
                 if advisor.knowledge_node_ids:
-                    result_lines.append(f"  Knowledge Nodes: {len(advisor.knowledge_node_ids)} linked")
+                    result_lines.append(
+                        f"  Knowledge Nodes: {len(advisor.knowledge_node_ids)} linked"
+                    )
                 result_lines.append("")
 
             return [TextContent(type="text", text="\n".join(result_lines))]
@@ -4398,7 +4678,9 @@ Provide an improved synthesis that addresses the critique by using these tools t
             if not director or not director.compass:
                 return [TextContent(type="text", text="Error: COMPASS framework not initialized")]
 
-            knowledge = director.compass.advisor_registry.get_advisor_knowledge(arguments["advisor_id"])
+            knowledge = director.compass.advisor_registry.get_advisor_knowledge(
+                arguments["advisor_id"]
+            )
             return [TextContent(type="text", text=json.dumps(knowledge, indent=2))]
         elif name == "get_advisor_context":
             result = workspace.get_advisor_context(arguments["advisor_id"])
@@ -4408,19 +4690,22 @@ Provide an improved synthesis that addresses the critique by using these tools t
             results = bridge.history.search_history(
                 query=arguments.get("query"),
                 operation_type=arguments.get("operation_type"),
-                limit=arguments.get("limit", 10)
+                limit=arguments.get("limit", 10),
             )
             return [TextContent(type="text", text=json.dumps(results, indent=2, default=str))]
         elif name == "inspect_knowledge_graph":
             result = workspace.get_node_context(
-                node_id=arguments["node_id"],
-                depth=arguments.get("depth", 1)
+                node_id=arguments["node_id"], depth=arguments.get("depth", 1)
             )
             return [TextContent(type="text", text=json.dumps(result, indent=2, default=str))]
         elif name == "teach_cognitive_state":
             director = ctx.get_director()
             success = director.teach_state(arguments["label"])
-            msg = f"Learned state '{arguments['label']}'" if success else "Failed: No recent thought to learn from."
+            msg = (
+                f"Learned state '{arguments['label']}'"
+                if success
+                else "Failed: No recent thought to learn from."
+            )
             return [TextContent(type="text", text=msg)]
         elif name == "get_known_archetypes":
             director = ctx.get_director()
@@ -4437,21 +4722,23 @@ Provide an improved synthesis that addresses the critique by using these tools t
 
                 from src.substrate.energy import EnergyToken, MeasurementCost
 
-                workspace.ledger.record_transaction(MeasurementCost(
-                    energy=EnergyToken(Decimal("3.0"), "joules"),
-                    operation_name="consult_ruminator"
-                ))
+                workspace.ledger.record_transaction(
+                    MeasurementCost(
+                        energy=EnergyToken(Decimal("3.0"), "joules"),
+                        operation_name="consult_ruminator",
+                    )
+                )
 
             sleep_cycle = ctx.sleep_cycle
             if not sleep_cycle:
-                 return [TextContent(type="text", text="Error: Sleep Cycle component not initialized")]
+                return [
+                    TextContent(type="text", text="Error: Sleep Cycle component not initialized")
+                ]
 
             # Run in executor
             loop = asyncio.get_running_loop()
             result = await loop.run_in_executor(
-                None,
-                sleep_cycle.diagrammatic_ruminator,
-                arguments.get("focus_node_id")
+                None, sleep_cycle.diagrammatic_ruminator, arguments.get("focus_node_id")
             )
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
 
@@ -4475,10 +4762,13 @@ Provide an improved synthesis that addresses the critique by using these tools t
                 from decimal import Decimal
 
                 from src.substrate import EnergyToken, MeasurementCost
-                ctx.ledger.record_transaction(MeasurementCost(
-                    energy=EnergyToken(Decimal("1.0"), "joules"),
-                    operation_name="explore_for_utility"
-                ))
+
+                ctx.ledger.record_transaction(
+                    MeasurementCost(
+                        energy=EnergyToken(Decimal("1.0"), "joules"),
+                        operation_name="explore_for_utility",
+                    )
+                )
             result = workspace.explore_for_utility(
                 focus_area=arguments.get("focus_area"),
                 max_candidates=arguments.get("max_candidates", 10),
@@ -4498,10 +4788,13 @@ Provide an improved synthesis that addresses the critique by using these tools t
                 from decimal import Decimal
 
                 from src.substrate.energy import EnergyToken, MeasurementCost
-                workspace.ledger.record_transaction(MeasurementCost(
-                    energy=EnergyToken(Decimal("2.0"), "joules"),
-                    operation_name="compute_grok_depth"
-                ))
+
+                workspace.ledger.record_transaction(
+                    MeasurementCost(
+                        energy=EnergyToken(Decimal("2.0"), "joules"),
+                        operation_name="compute_grok_depth",
+                    )
+                )
 
             # Parse affect vectors with defaults
             speaker_affect_data = arguments.get("speaker_affect", {})
@@ -4510,12 +4803,12 @@ Provide an improved synthesis that addresses the critique by using these tools t
             speaker_affect = AffectVector(
                 valence=speaker_affect_data.get("valence", 0.0),
                 arousal=speaker_affect_data.get("arousal", 0.5),
-                dominance=speaker_affect_data.get("dominance", 0.5)
+                dominance=speaker_affect_data.get("dominance", 0.5),
             )
             listener_affect = AffectVector(
                 valence=listener_affect_data.get("valence", 0.0),
                 arousal=listener_affect_data.get("arousal", 0.5),
-                dominance=listener_affect_data.get("dominance", 0.5)
+                dominance=listener_affect_data.get("dominance", 0.5),
             )
 
             # Parse intent with default
@@ -4526,33 +4819,26 @@ Provide an improved synthesis that addresses the critique by using these tools t
                 "request": Intent.REQUEST,
                 "promise": Intent.PROMISE,
                 "express": Intent.EXPRESS,
-                "declare": Intent.DECLARE
+                "declare": Intent.DECLARE,
             }
             speaker_intent = intent_map.get(intent_str, Intent.ASSERT)
 
             # Build MindState objects
             speaker_state = MindState(
-                agent_id=arguments["speaker_id"],
-                affect=speaker_affect,
-                intent=speaker_intent
+                agent_id=arguments["speaker_id"], affect=speaker_affect, intent=speaker_intent
             )
             listener_state = MindState(
                 agent_id=arguments["listener_id"],
                 affect=listener_affect,
-                intent=Intent.ASSERT  # Default for listener
+                intent=Intent.ASSERT,  # Default for listener
             )
 
             # Build Utterance
-            utterance = Utterance(
-                content=arguments["utterance_raw"],
-                speaker_state=speaker_state
-            )
+            utterance = Utterance(content=arguments["utterance_raw"], speaker_state=speaker_state)
 
             # Compute Grok-Depth score
             calculator = GrokDepthCalculator(workspace.embedding_model)
-            grok_result = calculator.compute_grok_depth(
-                speaker_state, listener_state, utterance
-            )
+            grok_result = calculator.compute_grok_depth(speaker_state, listener_state, utterance)
 
             result = {
                 "total_score": round(grok_result["total_score"], 3),
@@ -4563,7 +4849,7 @@ Provide an improved synthesis that addresses the critique by using these tools t
                 "critical_gaps": [level.name for level in grok_result["critical_gaps"]],
                 "speaker_id": arguments["speaker_id"],
                 "listener_id": arguments["listener_id"],
-                "utterance": arguments["utterance_raw"]
+                "utterance": arguments["utterance_raw"],
             }
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
         elif name == "consult_computational_empathy":
@@ -4589,7 +4875,9 @@ Provide an improved synthesis that addresses the critique by using these tools t
             director = ctx.get_director()
 
             if not hasattr(pointer, "rnn"):
-                return [TextContent(type="text", text="Error: Pointer does not have an RNN to diagnose")]
+                return [
+                    TextContent(type="text", text="Error: Pointer does not have an RNN to diagnose")
+                ]
 
             # Extract weights based on RNN type
             weights = []
@@ -4618,7 +4906,7 @@ Provide an improved synthesis that addresses the critique by using these tools t
                 "can_resolve": diagnosis.cohomology.can_fully_resolve,
                 "overlap": diagnosis.harmonic_diffusive_overlap,
                 "escalation_recommended": diagnosis.escalation_recommended,
-                "messages": diagnosis.diagnostic_messages
+                "messages": diagnosis.diagnostic_messages,
             }
         elif name == "check_cognitive_state":
             # ==== MULTI-SIGNAL COGNITIVE STATE (Phase 8) ====
@@ -4629,13 +4917,19 @@ Provide an improved synthesis that addresses the critique by using these tools t
             entropy_history = bridge.history.get_entropy_history(limit=20)
             if entropy_history:
                 avg_entropy = sum(entropy_history) / len(entropy_history)
-                entropy_trend = entropy_history[-1] - entropy_history[0] if len(entropy_history) > 1 else 0.0
+                entropy_trend = (
+                    entropy_history[-1] - entropy_history[0] if len(entropy_history) > 1 else 0.0
+                )
             else:
                 avg_entropy = 0.0
                 entropy_trend = 0.0
 
             # --- Signal 2: Metabolic Energy from Ledger ---
-            metabolic_status = {"current_energy": "100.0", "max_energy": "100.0", "percentage": "100.0%"}  # Default
+            metabolic_status = {
+                "current_energy": "100.0",
+                "max_energy": "100.0",
+                "percentage": "100.0%",
+            }  # Default
             metabolic_pct = 100.0
             if workspace.ledger:
                 metabolic_status = workspace.ledger.get_status()
@@ -4661,23 +4955,38 @@ Provide an improved synthesis that addresses the critique by using these tools t
             dominant_op = max(op_counts, key=op_counts.get) if op_counts else "none"
 
             # --- Signal 4: Goal Alignment ---
-            active_goal = workspace.working_memory.current_goal if workspace.working_memory else None
+            active_goal = (
+                workspace.working_memory.current_goal if workspace.working_memory else None
+            )
 
             # --- Composite State Classification ---
             warnings = []
             if is_looping:
-                warnings.append(f"LOOPING DETECTED: Operation '{dominant_op}' repeated {op_counts.get(dominant_op, 0)} times in last 10 operations.")
+                warnings.append(
+                    f"LOOPING DETECTED: Operation '{dominant_op}' repeated {op_counts.get(dominant_op, 0)} times in last 10 operations."
+                )
 
             if avg_entropy > 2.0:
-                warnings.append(f"HIGH ENTROPY ({avg_entropy:.2f}): System shows confusion/uncertainty.")
+                warnings.append(
+                    f"HIGH ENTROPY ({avg_entropy:.2f}): System shows confusion/uncertainty."
+                )
             elif avg_entropy < 0.5 and len(entropy_history) > 5:
-                warnings.append(f"LOW ENTROPY ({avg_entropy:.2f}): System may be stuck in local minimum.")
+                warnings.append(
+                    f"LOW ENTROPY ({avg_entropy:.2f}): System may be stuck in local minimum."
+                )
 
             if metabolic_pct < 20:
-                warnings.append(f"LOW ENERGY ({metabolic_pct:.0f}%): Consider 'run_sleep_cycle' to recharge.")
+                warnings.append(
+                    f"LOW ENERGY ({metabolic_pct:.0f}%): Consider 'run_sleep_cycle' to recharge."
+                )
 
             # --- Dynamic Advice (LLM-Generated) ---
-            history_summary = "\n".join([f"- {h['operation']}: {h.get('result_summary', '')[:100]}" for h in recent_history[:5]])
+            history_summary = "\n".join(
+                [
+                    f"- {h['operation']}: {h.get('result_summary', '')[:100]}"
+                    for h in recent_history[:5]
+                ]
+            )
 
             advice_prompt = f"""Analyze this agent's cognitive state and provide ONE specific recommendation.
 
@@ -4697,7 +5006,7 @@ Provide a brief, actionable recommendation (1-2 sentences). Be specific about wh
             dynamic_advice = workspace._llm_generate(
                 system_prompt="You are an expert cognitive systems advisor. Be concise and specific.",
                 user_prompt=advice_prompt,
-                max_tokens=400
+                max_tokens=400,
             )
 
             # --- Meta-Commentary ---
@@ -4717,22 +5026,34 @@ Provide a brief first-person reflection on your cognitive state. Are you making 
             meta_commentary = workspace._llm_generate(
                 system_prompt="You are a reflective AI agent analyzing your own cognitive state.",
                 user_prompt=meta_prompt,
-                max_tokens=500
+                max_tokens=500,
             )
 
             result = {
                 "signals": {
                     "hopfield": {"state": hopfield_state, "energy": float(hopfield_energy)},
-                    "entropy": {"average": float(avg_entropy), "trend": float(entropy_trend), "sample_size": len(entropy_history)},
+                    "entropy": {
+                        "average": float(avg_entropy),
+                        "trend": float(entropy_trend),
+                        "sample_size": len(entropy_history),
+                    },
                     "metabolic": {"available_pct": float(metabolic_pct), "raw": metabolic_status},
-                    "patterns": {"is_looping": is_looping, "dominant_op": dominant_op, "op_counts": op_counts},
-                    "goal": active_goal
+                    "patterns": {
+                        "is_looping": is_looping,
+                        "dominant_op": dominant_op,
+                        "op_counts": op_counts,
+                    },
+                    "goal": active_goal,
                 },
-                "composite_state": "Looping" if is_looping else ("Confused" if avg_entropy > 2.0 else hopfield_state),
+                "composite_state": (
+                    "Looping"
+                    if is_looping
+                    else ("Confused" if avg_entropy > 2.0 else hopfield_state)
+                ),
                 "warnings": warnings,
                 "advice": dynamic_advice,
                 "meta_commentary": meta_commentary,
-                "message": f"Multi-signal state: Hopfield={hopfield_state}, Entropy={avg_entropy:.2f}, Metabolic={metabolic_pct:.0f}%, Looping={is_looping}"
+                "message": f"Multi-signal state: Hopfield={hopfield_state}, Entropy={avg_entropy:.2f}, Metabolic={metabolic_pct:.0f}%, Looping={is_looping}",
             }
             return [TextContent(type="text", text=json.dumps(result, indent=2, default=str))]
 
@@ -4761,14 +5082,22 @@ Provide a brief first-person reflection on your cognitive state. Are you making 
             h1_dim = diagnosis.cohomology.h1_dimension
             if h1_dim > 0:
                 signals.append(f"Detected {h1_dim} topological obstructions (H^1 > 0).")
-                adaptation_plan.append("GROWTH OPPORTUNITY: The current architecture cannot resolve these error patterns. Recommendation: Expand the Manifold capacity or add a new abstraction layer.")
+                adaptation_plan.append(
+                    "GROWTH OPPORTUNITY: The current architecture cannot resolve these error patterns. Recommendation: Expand the Manifold capacity or add a new abstraction layer."
+                )
 
                 # Spawn Explorer Agent
-                tool_name = agent_factory.spawn_agent("H1 Hole", f"Detected {h1_dim} irreducible error cycles.")
-                adaptation_plan.append(f"ACTION: Spawned specialized agent '{tool_name}' to explore missing concepts.")
+                tool_name = agent_factory.spawn_agent(
+                    "H1 Hole", f"Detected {h1_dim} irreducible error cycles."
+                )
+                adaptation_plan.append(
+                    f"ACTION: Spawned specialized agent '{tool_name}' to explore missing concepts."
+                )
 
             else:
-                signals.append("No topological obstructions detected (H^1 = 0). System is robust but potentially rigid.")
+                signals.append(
+                    "No topological obstructions detected (H^1 = 0). System is robust but potentially rigid."
+                )
 
             # Signal 2: H0 Cohomology (Graph Fragmentation)
             # If H^0 > vertex_dim (approx), it means the graph is disconnected.
@@ -4782,46 +5111,74 @@ Provide a brief first-person reflection on your cognitive state. Are you making 
             # Let's use a simpler check: If H0 > 0 and H1 == 0, we might be in a fragmented but consistent state.
 
             # If we have multiple components, H0 dim scales with K.
-            if h0_dim > 10: # Arbitrary threshold for "fragmented" for now, pending better calibration
-                 signals.append(f"High H^0 dimension ({h0_dim}). Possible graph fragmentation (disconnected islands).")
-                 adaptation_plan.append("FRAGMENTATION: Concepts are isolated. Recommendation: Build bridges between disconnected components.")
+            if (
+                h0_dim > 10
+            ):  # Arbitrary threshold for "fragmented" for now, pending better calibration
+                signals.append(
+                    f"High H^0 dimension ({h0_dim}). Possible graph fragmentation (disconnected islands)."
+                )
+                adaptation_plan.append(
+                    "FRAGMENTATION: Concepts are isolated. Recommendation: Build bridges between disconnected components."
+                )
 
-                 # Spawn Bridge Builder Agent
-                 tool_name = agent_factory.spawn_agent("Bridge Builder", f"Detected graph fragmentation (H^0={h0_dim}).")
-                 adaptation_plan.append(f"ACTION: Spawned specialized agent '{tool_name}' to connect islands.")
+                # Spawn Bridge Builder Agent
+                tool_name = agent_factory.spawn_agent(
+                    "Bridge Builder", f"Detected graph fragmentation (H^0={h0_dim})."
+                )
+                adaptation_plan.append(
+                    f"ACTION: Spawned specialized agent '{tool_name}' to connect islands."
+                )
 
             # Signal 3: Harmonic-Diffusive Overlap (Learning Capacity)
             overlap = diagnosis.harmonic_diffusive_overlap
             if overlap < 0.1:
-                signals.append(f"Low learning overlap ({overlap:.3f}). System is 'learning starved'.")
-                adaptation_plan.append("STRESSOR: Information is not diffusing to update gradients. Recommendation: Increase 'temperature' (beta) to encourage exploration.")
+                signals.append(
+                    f"Low learning overlap ({overlap:.3f}). System is 'learning starved'."
+                )
+                adaptation_plan.append(
+                    "STRESSOR: Information is not diffusing to update gradients. Recommendation: Increase 'temperature' (beta) to encourage exploration."
+                )
 
                 # Spawn Creative Agent
-                tool_name = agent_factory.spawn_agent("Low Overlap", f"Learning overlap is {overlap:.3f} (Starved).")
-                adaptation_plan.append(f"ACTION: Spawned specialized agent '{tool_name}' to bridge semantic gaps.")
+                tool_name = agent_factory.spawn_agent(
+                    "Low Overlap", f"Learning overlap is {overlap:.3f} (Starved)."
+                )
+                adaptation_plan.append(
+                    f"ACTION: Spawned specialized agent '{tool_name}' to bridge semantic gaps."
+                )
 
             else:
-                signals.append(f"Healthy learning overlap ({overlap:.3f}). System is plastic and adaptive.")
+                signals.append(
+                    f"Healthy learning overlap ({overlap:.3f}). System is plastic and adaptive."
+                )
 
             # Signal 3: Monodromy (Feedback Loops)
             if diagnosis.monodromy:
                 if diagnosis.monodromy.topology.value == "tension":
                     signals.append("Tension loop detected (conflicting feedback).")
-                    adaptation_plan.append("VOLATILITY: Internal contradiction. Recommendation: Use 'deconstruct' to break the loop into compatible sub-components.")
+                    adaptation_plan.append(
+                        "VOLATILITY: Internal contradiction. Recommendation: Use 'deconstruct' to break the loop into compatible sub-components."
+                    )
 
                     # Spawn Debater Agent
-                    tool_name = agent_factory.spawn_agent("Tension Loop", "Conflicting feedback loop detected (Monodromy: Tension).")
-                    adaptation_plan.append(f"ACTION: Spawned specialized agent '{tool_name}' to arbitrate conflict.")
+                    tool_name = agent_factory.spawn_agent(
+                        "Tension Loop", "Conflicting feedback loop detected (Monodromy: Tension)."
+                    )
+                    adaptation_plan.append(
+                        f"ACTION: Spawned specialized agent '{tool_name}' to arbitrate conflict."
+                    )
 
                 elif diagnosis.monodromy.topology.value == "resonance":
                     signals.append("Resonance loop detected (reinforcing feedback).")
-                    adaptation_plan.append("STABILITY: Self-reinforcing belief. Recommendation: Verify against external data to prevent hallucination.")
+                    adaptation_plan.append(
+                        "STABILITY: Self-reinforcing belief. Recommendation: Verify against external data to prevent hallucination."
+                    )
 
             result = {
                 "antifragility_score": overlap * (1.0 if h1_dim == 0 else 0.5),
                 "signals": signals,
                 "adaptation_plan": adaptation_plan,
-                "message": "Antifragility diagnosis complete."
+                "message": "Antifragility diagnosis complete.",
             }
 
         elif name == "prove":
@@ -4831,14 +5188,14 @@ Provide a brief first-person reflection on your cognitive state. Are you making 
 
                 from src.substrate.energy import EnergyToken, MeasurementCost
 
-                workspace.ledger.record_transaction(MeasurementCost(
-                    energy=EnergyToken(Decimal("5.0"), "joules"),
-                    operation_name="prove"
-                ))
+                workspace.ledger.record_transaction(
+                    MeasurementCost(
+                        energy=EnergyToken(Decimal("5.0"), "joules"), operation_name="prove"
+                    )
+                )
 
             result = workspace._prove(
-                premises=arguments["premises"],
-                conclusion=arguments["conclusion"]
+                premises=arguments["premises"], conclusion=arguments["conclusion"]
             )
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
 
@@ -4849,15 +5206,17 @@ Provide a brief first-person reflection on your cognitive state. Are you making 
 
                 from src.substrate.energy import EnergyToken, MeasurementCost
 
-                workspace.ledger.record_transaction(MeasurementCost(
-                    energy=EnergyToken(Decimal("5.0"), "joules"),
-                    operation_name="find_counterexample"
-                ))
+                workspace.ledger.record_transaction(
+                    MeasurementCost(
+                        energy=EnergyToken(Decimal("5.0"), "joules"),
+                        operation_name="find_counterexample",
+                    )
+                )
 
             result = workspace._find_counterexample(
                 premises=arguments["premises"],
                 conclusion=arguments["conclusion"],
-                domain_size=arguments.get("domain_size")
+                domain_size=arguments.get("domain_size"),
             )
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
 
@@ -4867,18 +5226,19 @@ Provide a brief first-person reflection on your cognitive state. Are you making 
                 from decimal import Decimal
 
                 from src.substrate.energy import EnergyToken, MeasurementCost
-                workspace.ledger.record_transaction(MeasurementCost(
-                    energy=EnergyToken(Decimal("2.0"), "joules"),
-                    operation_name="find_model"
-                ))
+
+                workspace.ledger.record_transaction(
+                    MeasurementCost(
+                        energy=EnergyToken(Decimal("2.0"), "joules"), operation_name="find_model"
+                    )
+                )
             result = workspace._find_model(
-                premises=arguments["premises"],
-                domain_size=arguments.get("domain_size")
+                premises=arguments["premises"], domain_size=arguments.get("domain_size")
             )
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
 
         elif name == "check_well_formed":
-             # Low cost
+            # Low cost
             result = workspace._check_well_formed(arguments["statements"])
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
 
@@ -4888,16 +5248,19 @@ Provide a brief first-person reflection on your cognitive state. Are you making 
                 from decimal import Decimal
 
                 from src.substrate.energy import EnergyToken, MeasurementCost
-                workspace.ledger.record_transaction(MeasurementCost(
-                    energy=EnergyToken(Decimal("3.0"), "joules"),
-                    operation_name="verify_commutativity"
-                ))
+
+                workspace.ledger.record_transaction(
+                    MeasurementCost(
+                        energy=EnergyToken(Decimal("3.0"), "joules"),
+                        operation_name="verify_commutativity",
+                    )
+                )
             result = workspace._verify_commutativity(
                 path_a=arguments["path_a"],
                 path_b=arguments["path_b"],
                 object_start=arguments["object_start"],
                 object_end=arguments["object_end"],
-                with_category_axioms=arguments.get("with_category_axioms", True)
+                with_category_axioms=arguments.get("with_category_axioms", True),
             )
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
 
@@ -4905,7 +5268,7 @@ Provide a brief first-person reflection on your cognitive state. Are you making 
             # Low cost
             result = workspace._get_category_axioms(
                 concept=arguments["concept"],
-                **{k: v for k, v in arguments.items() if k != "concept"}
+                **{k: v for k, v in arguments.items() if k != "concept"},
             )
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
 
@@ -4935,18 +5298,14 @@ Provide a brief first-person reflection on your cognitive state. Are you making 
 
             # Call LLM
             analysis_text = ctx.workspace._llm_generate(
-                system_prompt=analyzer.SYSTEM_PROMPT,
-                user_prompt=prompt
+                system_prompt=analyzer.SYSTEM_PROMPT, user_prompt=prompt
             )
 
             # Combine results
             result = {
-                "concepts": {
-                    "a": concept_a,
-                    "b": concept_b
-                },
+                "concepts": {"a": concept_a, "b": concept_b},
                 "vector_analysis": vector_analysis,
-                "qualitative_analysis": analysis_text
+                "qualitative_analysis": analysis_text,
             }
 
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
@@ -4985,8 +5344,12 @@ Provide a brief first-person reflection on your cognitive state. Are you making 
             constraints = arguments.get("constraints", [])
 
             # Use workspace embedding model
-            belief_emb = torch.tensor(workspace._embed_text(belief_text), dtype=torch.float32, device=ctx.device)
-            evidence_emb = torch.tensor(workspace._embed_text(evidence_text), dtype=torch.float32, device=ctx.device)
+            belief_emb = torch.tensor(
+                workspace._embed_text(belief_text), dtype=torch.float32, device=ctx.device
+            )
+            evidence_emb = torch.tensor(
+                workspace._embed_text(evidence_text), dtype=torch.float32, device=ctx.device
+            )
 
             # 3. Execute Hybrid Search (Operator C)
             result = director.hybrid_search.search(
@@ -4994,7 +5357,7 @@ Provide a brief first-person reflection on your cognitive state. Are you making 
                 evidence=evidence_emb,
                 constraints=constraints,
                 context={"operation": "revise_tool"},
-                force_ltn=True  # Force LTN refinement for revision
+                force_ltn=True,  # Force LTN refinement for revision
             )
 
             if result:
@@ -5009,7 +5372,9 @@ Provide a brief first-person reflection on your cognitive state. Are you making 
 
                     # Sanitize score for storage
                     score = result.selection_score
-                    if isinstance(score, float) and (score == float('inf') or score == float('-inf') or score != score):
+                    if isinstance(score, float) and (
+                        score == float("inf") or score == float("-inf") or score != score
+                    ):
                         score_val = 0.5
                     else:
                         score_val = float(score)
@@ -5020,13 +5385,12 @@ Provide a brief first-person reflection on your cognitive state. Are you making 
                         waypoint_description,
                         "revision",
                         confidence=score_val,
-                        embedding=result.best_pattern.cpu().tolist()
+                        embedding=result.best_pattern.cpu().tolist(),
                     )
 
                     # Query for similar existing thoughts to provide context (optional)
                     query_result = workspace.collection.query(
-                        query_embeddings=[result.best_pattern.cpu().tolist()],
-                        n_results=1
+                        query_embeddings=[result.best_pattern.cpu().tolist()], n_results=1
                     )
 
                     similar_thought = ""
@@ -5034,7 +5398,9 @@ Provide a brief first-person reflection on your cognitive state. Are you making 
                         similar_thought = query_result["documents"][0][0]
 
                 # Sanitize score for JSON output
-                if isinstance(score, float) and (score == float('inf') or score == float('-inf') or score != score):
+                if isinstance(score, float) and (
+                    score == float("inf") or score == float("-inf") or score != score
+                ):
                     score = str(score)
 
                 response = {
@@ -5051,15 +5417,18 @@ Provide a brief first-person reflection on your cognitive state. Are you making 
                         "LTN-generated waypoint stored as new thought node"
                         if result.strategy.value == "ltn"
                         else "K-NN retrieved pattern from existing memory"
-                    )
+                    ),
                 }
 
                 # Record in working memory
                 workspace.working_memory.record(
                     operation="revise",
                     input_data={"belief": belief_text[:300], "evidence": evidence_text[:300]},
-                    output_data={"revised": waypoint_description[:500], "strategy": result.strategy.value},
-                    node_ids=[revised_id]
+                    output_data={
+                        "revised": waypoint_description[:500],
+                        "strategy": result.strategy.value,
+                    },
+                    node_ids=[revised_id],
                 )
 
                 # Persist to SQLite history
@@ -5067,12 +5436,12 @@ Provide a brief first-person reflection on your cognitive state. Are you making 
                     operation="revise",
                     params={"belief": belief_text[:300], "evidence": evidence_text[:300]},
                     result={"revised_node_id": revised_id, "strategy": result.strategy.value},
-                    cognitive_state=workspace.working_memory.current_goal or "Unknown"
+                    cognitive_state=workspace.working_memory.current_goal or "Unknown",
                 )
             else:
                 response = {
                     "status": "failure",
-                    "message": "Revision failed. Could not find valid stable state."
+                    "message": "Revision failed. Could not find valid stable state.",
                 }
 
         elif name == "inspect_graph":
@@ -5082,14 +5451,20 @@ Provide a brief first-person reflection on your cognitive state. Are you making 
             if mode == "nodes":
                 label = arguments.get("label")
                 if not label:
-                    return [TextContent(type="text", text="Error: 'label' is required for node search.")]
+                    return [
+                        TextContent(type="text", text="Error: 'label' is required for node search.")
+                    ]
                 filters = arguments.get("filters", {})
                 results = workspace.search_nodes(label, filters, limit)
             elif mode == "relationships":
                 start_id = arguments.get("start_id")
-                rel_type = arguments.get("rel_type") # Optional now
+                rel_type = arguments.get("rel_type")  # Optional now
                 if not start_id:
-                    return [TextContent(type="text", text="Error: 'start_id' is required for traversal.")]
+                    return [
+                        TextContent(
+                            type="text", text="Error: 'start_id' is required for traversal."
+                        )
+                    ]
                 direction = arguments.get("direction", "OUTGOING")
                 results = workspace.traverse_relationships(start_id, rel_type, direction, limit)
             else:
@@ -5105,10 +5480,13 @@ Provide a brief first-person reflection on your cognitive state. Are you making 
                 from decimal import Decimal
 
                 from src.substrate import EnergyToken, MeasurementCost
-                ctx.ledger.record_transaction(MeasurementCost(
-                    energy=EnergyToken(Decimal("5.0"), "joules"),
-                    operation_name="consult_compass"
-                ))
+
+                ctx.ledger.record_transaction(
+                    MeasurementCost(
+                        energy=EnergyToken(Decimal("5.0"), "joules"),
+                        operation_name="consult_compass",
+                    )
+                )
             # Delegate to COMPASS framework via Director
             director = ctx.raa_context.get("director")
             if not director or not director.compass:
@@ -5156,12 +5534,20 @@ async def main():
 
         # DIAGNOSTIC: Verify tools loaded
         logger.info(f"External MCP initialized: {server_context.external_mcp.is_initialized}")
-        logger.info(f"External MCP tools loaded: {list(server_context.external_mcp.tools_map.keys())}")
+        logger.info(
+            f"External MCP tools loaded: {list(server_context.external_mcp.tools_map.keys())}"
+        )
 
         # Test get_available_tools
         all_tools = server_context.get_available_tools(include_external=True)
-        external_count = len(server_context.external_mcp.get_tools()) if server_context.external_mcp.is_initialized else 0
-        logger.info(f"Total tools available: {len(all_tools)} (External: {external_count}, Internal: {len(all_tools) - external_count})")
+        external_count = (
+            len(server_context.external_mcp.get_tools())
+            if server_context.external_mcp.is_initialized
+            else 0
+        )
+        logger.info(
+            f"Total tools available: {len(all_tools)} (External: {external_count}, Internal: {len(all_tools) - external_count})"
+        )
 
     try:
         async with stdio_server() as (read_stream, write_stream):

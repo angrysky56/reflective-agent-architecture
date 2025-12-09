@@ -10,7 +10,7 @@ Enables the Director to distinguish:
 
 import logging
 from dataclasses import dataclass
-from typing import Dict, Optional, Tuple
+from typing import Tuple
 
 import numpy as np
 
@@ -22,12 +22,15 @@ logger = logging.getLogger(__name__)
 @dataclass
 class EpistemicAssessment:
     """Result of epistemic discrimination."""
+
     complexity_score: float
     randomness_score: float
     complexity_type: str  # 'simple', 'complex', 'discontinuous'
     randomness_type: str  # 'structured', 'random'
-    recommendation: str   # 'attempt_solve', 'focused_search', 'suppress_then_solve', 'trigger_dissonance'
-    confidence: float     # How confident in this assessment
+    recommendation: (
+        str  # 'attempt_solve', 'focused_search', 'suppress_then_solve', 'trigger_dissonance'
+    )
+    confidence: float  # How confident in this assessment
 
 
 class EpistemicDiscriminator:
@@ -66,13 +69,13 @@ class EpistemicDiscriminator:
         # We use the promoted epistemic_metrics functions
         # Note: metrics expect list or array
         complexity_info = estimate_complexity(signal)
-        complexity_score = complexity_info['complexity_score']
-        complexity_type = complexity_info['type']
+        complexity_score = complexity_info["complexity_score"]
+        complexity_type = complexity_info["type"]
 
         # 2. Estimate randomness
         randomness_info = estimate_randomness(signal)
-        randomness_score = randomness_info['randomness_score']
-        randomness_type = randomness_info['type']
+        randomness_score = randomness_info["randomness_score"]
+        randomness_type = randomness_info["type"]
 
         # 3. Determine recommendation
         recommendation, confidence = self._determine_strategy(
@@ -85,14 +88,11 @@ class EpistemicDiscriminator:
             complexity_type=complexity_type,
             randomness_type=randomness_type,
             recommendation=recommendation,
-            confidence=confidence
+            confidence=confidence,
         )
 
     def _determine_strategy(
-        self,
-        complexity: float,
-        randomness: float,
-        complexity_type: str
+        self, complexity: float, randomness: float, complexity_type: str
     ) -> Tuple[str, float]:
         """
         Determine recommended cognitive strategy.
@@ -107,16 +107,16 @@ class EpistemicDiscriminator:
 
         confidence = 1.0 - abs(complexity - 0.5) * abs(randomness - 0.5)
 
-        if complexity_type == 'discontinuous':
-            return 'approximate_with_warning', 0.9
+        if complexity_type == "discontinuous":
+            return "approximate_with_warning", 0.9
 
         if randomness > self.randomness_threshold:
             if complexity > self.complexity_threshold:
-                return 'suppress_then_focused', confidence
+                return "suppress_then_focused", confidence
             else:
-                return 'suppress_then_solve', confidence
+                return "suppress_then_solve", confidence
 
         if complexity > self.complexity_threshold:
-            return 'focused_search', confidence
+            return "focused_search", confidence
 
-        return 'attempt_solve', confidence
+        return "attempt_solve", confidence

@@ -16,10 +16,11 @@ from .utils import COMPASSLogger
 
 class WorkflowType(Enum):
     """Available processing workflows."""
-    STANDARD = auto()   # Balanced approach
-    RESEARCH = auto()   # Heavy on deconstruction and information gathering
-    CREATIVE = auto()   # High temperature, emphasis on hypothesis/synthesis
-    DEBUG = auto()      # Strict constraints, detailed logging
+
+    STANDARD = auto()  # Balanced approach
+    RESEARCH = auto()  # Heavy on deconstruction and information gathering
+    CREATIVE = auto()  # High temperature, emphasis on hypothesis/synthesis
+    DEBUG = auto()  # Strict constraints, detailed logging
 
 
 class MetaController:
@@ -27,16 +28,20 @@ class MetaController:
     Adaptive orchestrator that selects and configures COMPASS workflows.
     """
 
-    def __init__(self, compass_instance: Optional[COMPASS] = None, logger: Optional[COMPASSLogger] = None):
+    def __init__(
+        self, compass_instance: Optional[COMPASS] = None, logger: Optional[COMPASSLogger] = None
+    ):
         self.compass = compass_instance
         self.logger = logger or COMPASSLogger("MetaController")
         self.current_workflow = WorkflowType.STANDARD
 
-    def set_compass(self, compass_instance: COMPASS):
+    def set_compass(self, compass_instance: COMPASS) -> None:
         """Set the COMPASS instance to control."""
         self.compass = compass_instance
 
-    async def process_task_adaptively(self, task: str, context: Optional[Dict] = None) -> Dict[str, Any]:
+    async def process_task_adaptively(
+        self, task: str, context: Optional[Dict] = None
+    ) -> Dict[str, Any]:
         """
         Analyze the task and execute it using the most appropriate workflow.
         """
@@ -62,7 +67,7 @@ class MetaController:
             # 4. Add Meta-Data to result
             result["meta"] = {
                 "workflow": workflow.name,
-                "adaptive_logic": "Heuristic-based selection"
+                "adaptive_logic": "Heuristic-based selection",
             }
             return result
 
@@ -87,7 +92,9 @@ class MetaController:
 
         return WorkflowType.STANDARD
 
-    def _configure_workflow(self, workflow: WorkflowType, base_config: COMPASSConfig) -> COMPASSConfig:
+    def _configure_workflow(
+        self, workflow: WorkflowType, base_config: COMPASSConfig
+    ) -> COMPASSConfig:
         """
         Generate a configuration object tailored to the selected workflow.
         """
@@ -102,32 +109,28 @@ class MetaController:
         if workflow == WorkflowType.RESEARCH:
             overrides["self_discover"] = {
                 "max_trials": 15,  # More iterations for deep research
-                "module_selection_strategy": "all"  # Use more reasoning modules
+                "module_selection_strategy": "all",  # Use more reasoning modules
             }
-            overrides["omcd"] = {
-                "min_confidence": 0.7  # Higher confidence required
-            }
+            overrides["omcd"] = {"min_confidence": 0.7}  # Higher confidence required
 
         elif workflow == WorkflowType.CREATIVE:
             overrides["self_discover"] = {
                 "module_selection_strategy": "random",  # Encourage diversity
-                "top_k_modules": 10
+                "top_k_modules": 10,
             }
             overrides["slap"] = {
                 "alpha": 0.2,  # Lower scrutiny
-                "beta": 0.8    # Higher improvement/novelty
+                "beta": 0.8,  # Higher improvement/novelty
             }
 
         elif workflow == WorkflowType.DEBUG:
             overrides["cgra"] = {
                 "governor": {
                     "enable_validation": True,
-                    "max_contradictions_allowed": 0  # Zero tolerance
+                    "max_contradictions_allowed": 0,  # Zero tolerance
                 }
             }
-            overrides["omcd"] = {
-                "alpha": 0.05  # Cheaper to think (encourage detailed steps)
-            }
+            overrides["omcd"] = {"alpha": 0.05}  # Cheaper to think (encourage detailed steps)
 
         # Apply overrides
         # Since we can't easily deep copy the whole config structure here without serialization,

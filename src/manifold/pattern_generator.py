@@ -16,7 +16,7 @@ Theoretical grounding:
 """
 
 import logging
-from typing import List, Optional, Tuple
+from typing import Any, List, Optional
 
 import torch
 import torch.nn.functional as f
@@ -67,9 +67,7 @@ class PatternGenerator:
             Blended pattern embedding
         """
         if pattern_a.shape != pattern_b.shape:
-            raise ValueError(
-                f"Pattern shapes must match: {pattern_a.shape} vs {pattern_b.shape}"
-            )
+            raise ValueError(f"Pattern shapes must match: {pattern_a.shape} vs {pattern_b.shape}")
 
         # Linear interpolation
         blended = (1 - blend_weight) * pattern_a + blend_weight * pattern_b
@@ -236,10 +234,7 @@ class PatternGenerator:
         return interpolated
 
     def generate_creative_variant(
-        self,
-        base_patterns: List[torch.Tensor],
-        strategy: str = "blend",
-        **kwargs
+        self, base_patterns: List[torch.Tensor], strategy: str = "blend", **kwargs: Any
     ) -> torch.Tensor:
         """
         High-level interface for creative pattern generation.
@@ -263,7 +258,7 @@ class PatternGenerator:
             return self.blend_patterns(
                 base_patterns[0],
                 base_patterns[1],
-                blend_weight=kwargs.get('blend_weight', 0.5),
+                blend_weight=kwargs.get("blend_weight", 0.5),
             )
 
         elif strategy == "slerp":
@@ -272,13 +267,13 @@ class PatternGenerator:
             return self.spherical_interpolation(
                 base_patterns[0],
                 base_patterns[1],
-                t=kwargs.get('t', 0.5),
+                t=kwargs.get("t", 0.5),
             )
 
         elif strategy == "compose":
             return self.compose_patterns(
                 base_patterns,
-                weights=kwargs.get('weights'),
+                weights=kwargs.get("weights"),
             )
 
         elif strategy == "perturb":
@@ -286,7 +281,7 @@ class PatternGenerator:
                 raise ValueError("Perturb requires exactly 1 pattern")
             return self.perturb_pattern(
                 base_patterns[0],
-                noise_scale=kwargs.get('noise_scale', 0.1),
+                noise_scale=kwargs.get("noise_scale", 0.1),
             )
 
         elif strategy == "analogy":
@@ -306,7 +301,7 @@ def create_novel_pattern_from_neighbors(
     neighbors: List[torch.Tensor],
     strategy: str = "compose",
     generator: Optional[PatternGenerator] = None,
-    **kwargs
+    **kwargs: Any,
 ) -> torch.Tensor:
     """
     Convenience function: generate novel pattern from k-NN search results.

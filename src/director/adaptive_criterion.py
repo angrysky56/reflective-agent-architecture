@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ParameterConfig:
     """Configuration for a single adaptive parameter."""
+
     name: str
     value: Union[float, int, str]
     min_value: Optional[float] = None
@@ -28,7 +29,7 @@ class ParameterConfig:
     history: List[Any] = field(default_factory=list)
     state_overrides: Dict[str, Any] = field(default_factory=dict)
 
-    def set_value(self, new_value: Any):
+    def set_value(self, new_value: Any) -> None:
         """Set value with type checking and clamping."""
         if self.param_type == "float":
             val = float(new_value)
@@ -56,6 +57,7 @@ class ParameterConfig:
 @dataclass
 class CriterionState:
     """Persistable state of the adaptive criterion."""
+
     parameters: Dict[str, ParameterConfig] = field(default_factory=dict)
     last_update_timestamp: float = 0.0
     update_count: int = 0
@@ -72,10 +74,7 @@ class AdaptiveCriterion:
     4. Persist learned criteria to disk.
     """
 
-    def __init__(
-        self,
-        persistence_path: Optional[Path] = None
-    ):
+    def __init__(self, persistence_path: Optional[Path] = None):
         self.persistence_path = persistence_path or Path.home() / ".raa" / "adaptive_criterion.json"
 
         # Initialize default state
@@ -86,7 +85,7 @@ class AdaptiveCriterion:
         if self.persistence_path.exists():
             self._load()
 
-    def _initialize_defaults(self):
+    def _initialize_defaults(self) -> None:
         """Initialize default parameters."""
         defaults = [
             ParameterConfig(
@@ -94,27 +93,13 @@ class AdaptiveCriterion:
                 value=2.0,
                 min_value=0.5,
                 max_value=4.0,
-                param_type="float"
+                param_type="float",
             ),
+            ParameterConfig(name="search_k", value=5, min_value=1, max_value=20, param_type="int"),
             ParameterConfig(
-                name="search_k",
-                value=5,
-                min_value=1,
-                max_value=20,
-                param_type="int"
+                name="search_depth", value=3, min_value=1, max_value=10, param_type="int"
             ),
-            ParameterConfig(
-                name="search_depth",
-                value=3,
-                min_value=1,
-                max_value=10,
-                param_type="int"
-            ),
-            ParameterConfig(
-                name="search_metric",
-                value="cosine",
-                param_type="categorical"
-            )
+            ParameterConfig(name="search_metric", value="cosine", param_type="categorical"),
         ]
 
         for param in defaults:
@@ -179,10 +164,10 @@ class AdaptiveCriterion:
                 elif multiplier is not None:
                     new_val = param.value * multiplier
                 elif insight.suggested_adjustment.get("is_multiplier", False):
-                     # Legacy/Alternative format support
-                     adj = insight.suggested_adjustment.get("value") # Here value is the multiplier
-                     if adj is not None:
-                         new_val = param.value * adj
+                    # Legacy/Alternative format support
+                    adj = insight.suggested_adjustment.get("value")  # Here value is the multiplier
+                    if adj is not None:
+                        new_val = param.value * adj
 
                 if new_val is not None:
                     param.set_value(new_val)
@@ -196,19 +181,19 @@ class AdaptiveCriterion:
 
         return False
 
-    def _save(self):
+    def _save(self) -> None:
         """Save state to disk."""
         try:
             self.persistence_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(self.persistence_path, 'w') as f:
+            with open(self.persistence_path, "w") as f:
                 json.dump(asdict(self.state), f, indent=2)
         except Exception as e:
             logger.error(f"Failed to save adaptive criterion: {e}")
 
-    def _load(self):
+    def _load(self) -> None:
         """Load state from disk with migration support."""
         try:
-            with open(self.persistence_path, 'r') as f:
+            with open(self.persistence_path, "r") as f:
                 data = json.load(f)
 
             # Migration: Check if this is the old format (has 'base_threshold')
@@ -216,8 +201,12 @@ class AdaptiveCriterion:
                 logger.info("Migrating legacy AdaptiveCriterion format...")
                 # Migrate base_threshold
                 self.state.parameters["entropy_threshold"].value = data.get("base_threshold", 2.0)
-                self.state.parameters["entropy_threshold"].min_value = data.get("min_threshold", 0.5)
-                self.state.parameters["entropy_threshold"].max_value = data.get("max_threshold", 4.0)
+                self.state.parameters["entropy_threshold"].min_value = data.get(
+                    "min_threshold", 0.5
+                )
+                self.state.parameters["entropy_threshold"].max_value = data.get(
+                    "max_threshold", 4.0
+                )
 
                 # Migrate overrides
                 overrides = data.get("state_overrides", {})

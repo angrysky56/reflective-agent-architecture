@@ -144,14 +144,11 @@ def energy_aware_knn_search(
         SearchResult with lowest-energy (most stable) pattern
     """
     # Step 1: Get k nearest neighbors geometrically
-    basic_result = knn_search(
-        current_state, memory_patterns, k, metric, exclude_threshold
-    )
+    basic_result = knn_search(current_state, memory_patterns, k, metric, exclude_threshold)
 
     # Step 2: Evaluate Hopfield energy for each neighbor
     best_pattern = None
-    best_energy = float('inf')
-    best_idx = None
+    best_energy = float("inf")
 
     for idx in basic_result.neighbor_indices:
         pattern = memory_patterns[idx]
@@ -164,7 +161,6 @@ def energy_aware_knn_search(
         if energy < best_energy:
             best_energy = energy
             best_pattern = pattern
-            best_idx = idx
 
     if best_pattern is None:
         raise ValueError("No valid pattern found during energy-aware selection.")
@@ -209,7 +205,7 @@ def search_with_entropy_selection(
 
     # Evaluate entropy for each neighbor
     best_pattern = None
-    best_entropy = float('inf')
+    best_entropy = float("inf")
 
     for idx in basic_result.neighbor_indices:
         pattern = memory_patterns[idx]

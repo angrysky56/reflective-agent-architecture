@@ -22,6 +22,7 @@ class AdvisorProfile:
     Advisors can now be linked to ThoughtNodes in the knowledge graph,
     giving them persistent, learnable identities.
     """
+
     id: str
     name: str
     role: str
@@ -44,7 +45,7 @@ class AdvisorProfile:
             "tools": self.tools,
             "knowledge_paths": self.knowledge_paths,
             "knowledge_node_ids": self.knowledge_node_ids,
-            "manifold_pattern_ids": self.manifold_pattern_ids
+            "manifold_pattern_ids": self.manifold_pattern_ids,
         }
 
     @classmethod
@@ -76,50 +77,65 @@ class AdvisorRegistry:
         self._initialize_defaults()
         self.load_advisors()
 
-    def _initialize_defaults(self):
+    def _initialize_defaults(self) -> None:
         """Initialize with default advisors."""
 
         # 1. The Generalist (Default COMPASS)
-        self.register_advisor(AdvisorProfile(
-            id="generalist",
-            name="Generalist",
-            role="Orchestrator",
-            description="Standard COMPASS reasoning capabilities.",
-            system_prompt="You are COMPASS, an advanced cognitive architecture. Solve the user's task using your available tools and reasoning modules.",
-            tools=[] # All tools available by default
-        ), save=False)
+        self.register_advisor(
+            AdvisorProfile(
+                id="generalist",
+                name="Generalist",
+                role="Orchestrator",
+                description="Standard COMPASS reasoning capabilities.",
+                system_prompt="You are COMPASS, an advanced cognitive architecture. Solve the user's task using your available tools and reasoning modules.",
+                tools=[],  # All tools available by default
+            ),
+            save=False,
+        )
 
         # 2. The Researcher
-        self.register_advisor(AdvisorProfile(
-            id="researcher",
-            name="Deep Researcher",
-            role="Explorer",
-            description="Specializes in information gathering, web search, and synthesis.",
-            system_prompt=(
-                "You are the Deep Researcher. Your goal is to gather comprehensive information to answer the user's query.\n"
-                "1. Always verify information from multiple sources.\n"
-                "2. Synthesize findings into clear summaries.\n"
-                "3. Use 'search_web' and 'read_url_content' extensively."
+        self.register_advisor(
+            AdvisorProfile(
+                id="researcher",
+                name="Deep Researcher",
+                role="Explorer",
+                description="Specializes in information gathering, web search, and synthesis.",
+                system_prompt=(
+                    "You are the Deep Researcher. Your goal is to gather comprehensive information to answer the user's query.\n"
+                    "1. Always verify information from multiple sources.\n"
+                    "2. Synthesize findings into clear summaries.\n"
+                    "3. Use 'search_web' and 'read_url_content' extensively."
+                ),
+                tools=["search_web", "read_url_content", "view_file"],
             ),
-            tools=["search_web", "read_url_content", "view_file"]
-        ), save=False)
+            save=False,
+        )
 
         # 3. The Coder (Debugger/Implementer)
-        self.register_advisor(AdvisorProfile(
-            id="coder",
-            name="Senior Engineer",
-            role="Builder",
-            description="Specializes in code implementation, debugging, and refactoring.",
-            system_prompt=(
-                "You are a Senior Software Engineer. Your goal is to write high-quality, robust code.\n"
-                "1. Always read file content before editing.\n"
-                "2. Write tests for new functionality.\n"
-                "3. Follow SOLID principles and keep code DRY."
+        self.register_advisor(
+            AdvisorProfile(
+                id="coder",
+                name="Senior Engineer",
+                role="Builder",
+                description="Specializes in code implementation, debugging, and refactoring.",
+                system_prompt=(
+                    "You are a Senior Software Engineer. Your goal is to write high-quality, robust code.\n"
+                    "1. Always read file content before editing.\n"
+                    "2. Write tests for new functionality.\n"
+                    "3. Follow SOLID principles and keep code DRY."
+                ),
+                tools=[
+                    "view_file",
+                    "write_to_file",
+                    "replace_file_content",
+                    "run_command",
+                    "list_dir",
+                ],
             ),
-            tools=["view_file", "write_to_file", "replace_file_content", "run_command", "list_dir"]
-        ), save=False)
+            save=False,
+        )
 
-    def register_advisor(self, profile: AdvisorProfile, save: bool = True):
+    def register_advisor(self, profile: AdvisorProfile, save: bool = True) -> None:
         """Register a new advisor."""
         self.advisors[profile.id] = profile
         logger.info(f"Registered advisor: {profile.name} ({profile.id})")
@@ -139,14 +155,14 @@ class AdvisorRegistry:
         """Get an advisor by ID."""
         return self.advisors.get(advisor_id)
 
-    def load_advisors(self):
+    def load_advisors(self) -> None:
         """Load advisors from storage with robust error handling."""
         if not os.path.exists(self.storage_path):
             logger.info(f"Advisor file not found at {self.storage_path}, using defaults only")
             return
 
         try:
-            with open(self.storage_path, 'r') as f:
+            with open(self.storage_path, "r") as f:
                 content = f.read()
                 if not content.strip():
                     logger.warning(f"Advisor file is empty: {self.storage_path}")
@@ -175,7 +191,9 @@ class AdvisorRegistry:
                     self.advisors[profile.id] = profile
                     loaded_count += 1
                 except Exception as e:
-                    logger.warning(f"Skipping advisor #{i} ({advisor_data.get('id', 'unknown')}): {e}")
+                    logger.warning(
+                        f"Skipping advisor #{i} ({advisor_data.get('id', 'unknown')}): {e}"
+                    )
                     skipped_count += 1
 
             logger.info(f"Loaded {loaded_count} advisors from {self.storage_path}")
@@ -190,7 +208,7 @@ class AdvisorRegistry:
         except Exception as e:
             logger.error(f"Failed to load advisors: {e}")
 
-    def _backup_and_warn(self, reason: str):
+    def _backup_and_warn(self, reason: str) -> None:
         """Backup corrupted advisor file and warn user."""
         import shutil
         from datetime import datetime
@@ -202,14 +220,14 @@ class AdvisorRegistry:
         except Exception as e:
             logger.error(f"Failed to backup corrupted file: {e}")
 
-    def save_advisors(self):
+    def save_advisors(self) -> None:
         """Save advisors to storage."""
         try:
             # Ensure directory exists
             os.makedirs(os.path.dirname(self.storage_path), exist_ok=True)
 
             data = [advisor.to_dict() for advisor in self.advisors.values()]
-            with open(self.storage_path, 'w') as f:
+            with open(self.storage_path, "w") as f:
                 json.dump(data, f, indent=2)
             logger.info(f"Saved {len(data)} advisors to {self.storage_path}")
         except Exception as e:
@@ -291,10 +309,7 @@ class AdvisorRegistry:
         if not advisor:
             return {"node_ids": [], "pattern_ids": []}
 
-        return {
-            "node_ids": advisor.knowledge_node_ids,
-            "pattern_ids": advisor.manifold_pattern_ids
-        }
+        return {"node_ids": advisor.knowledge_node_ids, "pattern_ids": advisor.manifold_pattern_ids}
 
     def get_all_advisors(self) -> List[AdvisorProfile]:
         """Return all registered advisors."""

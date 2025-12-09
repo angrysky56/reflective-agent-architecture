@@ -6,23 +6,26 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from src.llm.factory import LLMFactory
+from src.llm.provider import BaseLLMProvider
 
 logger = logging.getLogger(__name__)
+
 
 @dataclass
 class ThoughtNode:
     """
     Represents a single unit of thought or observation in the recursive hierarchy.
     """
+
     content: str
     level: int  # 0 = base thought, 1 = meta-thought, 2 = meta-meta-thought
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     timestamp: datetime = field(default_factory=datetime.now)
-    children: List['ThoughtNode'] = field(default_factory=list)
+    children: List["ThoughtNode"] = field(default_factory=list)
     parent_id: Optional[str] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
 
-    def add_child(self, child: 'ThoughtNode'):
+    def add_child(self, child: "ThoughtNode") -> None:
         child.parent_id = self.id
         self.children.append(child)
 
@@ -33,8 +36,9 @@ class ThoughtNode:
             "level": self.level,
             "timestamp": self.timestamp.isoformat(),
             "children": [child.to_dict() for child in self.children],
-            "metadata": self.metadata
+            "metadata": self.metadata,
         }
+
 
 class RecursiveObserver:
     """
@@ -42,17 +46,20 @@ class RecursiveObserver:
     Acts as the 'Meta-Layer' of the agent.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.root_thoughts: List[ThoughtNode] = []
-        self.active_context: List[ThoughtNode] = [] # Flat list of recent thoughts for context
+        self.active_context: List[ThoughtNode] = []  # Flat list of recent thoughts for context
+        self.llm_client: Optional[BaseLLMProvider] = None
 
         # Initialize the Observer LLM
         self._init_llm()
 
-    def _init_llm(self):
+    def _init_llm(self) -> None:
         """Initialize the LLM provider for meta-analysis."""
-        provider_name = os.getenv("OBSERVER_PROVIDER", os.getenv("LLM_PROVIDER", "ollama"))
-        model_name = os.getenv("OBSERVER_MODEL", os.getenv("LLM_MODEL", "qwen3:latest"))
+        provider_name = os.getenv("OBSERVER_PROVIDER", os.getenv("LLM_PROVIDER", "openrouter"))
+        model_name = os.getenv(
+            "OBSERVER_MODEL", os.getenv("LLM_MODEL", "deepseek/deepseek-v3.2-speciale")
+        )
 
         try:
             self.llm_client = LLMFactory.create_provider(provider_name, model_name)
@@ -106,27 +113,29 @@ class RecursiveObserver:
         # Construct prompt from recent context
         context_str = "\n".join(
             f"[{t.level}] {t.timestamp.strftime('%H:%M:%S')}: {t.content}"
-            for t in self.active_context[-10:] # Look at last 10 thoughts
+            for t in self.active_context[-10:]  # Look at last 10 thoughts
         )
 
-        prompt = (
-            f"You are the Meta-Observer of an AI agent. Analyze the following stream of thoughts:\n\n"
-            f"{context_str}\n\n"
-            f"Identify any logical loops, contradictions, or opportunities for deeper insight.\n"
-            f"If the agent is stuck or confused, you MUST recommend a remedial action.\n"
-            f"Output ONLY a JSON object with the following structure:\n"
-            f"{{\n"
-            f"  \"observation\": \"Concise critique of the reasoning process\",\n"
-            f"  \"action_type\": \"NONE\" | \"SWITCH_STRATEGY\" | \"ADJUST_THRESHOLD\" | \"TRIGGER_SLEEP\",\n"
-            f"  \"parameters\": {{ ... }} (optional parameters for the action)\n"
-            f"}}\n"
+        system_prompt = (
+            "You are the Meta-Observer of an AI agent. "
+            "Identify any logical loops, contradictions, or opportunities for deeper insight.\n"
+            "If the agent is stuck or confused, you MUST recommend a remedial action.\n"
+            "Output ONLY a JSON object with the following structure:\n"
+            "{\n"
+            '  "observation": "Concise critique of the reasoning process",\n'
+            '  "action_type": "NONE" | "SWITCH_STRATEGY" | "ADJUST_THRESHOLD" | "TRIGGER_SLEEP",\n'
+            '  "parameters": { ... } (optional parameters for the action)\n'
+            "}\n"
         )
+
+        user_prompt = f"Analyze the following stream of thoughts:\n\n{context_str}"
 
         try:
-            response = self.llm_client.generate(prompt)
+            response = self.llm_client.generate(system_prompt, user_prompt)
             if response:
                 # Parse JSON from response (handle potential markdown wrapping)
                 import json
+
                 clean_response = response.strip()
                 if clean_response.startswith("```json"):
                     clean_response = clean_response[7:-3]
@@ -134,7 +143,7 @@ class RecursiveObserver:
                     clean_response = clean_response[3:-3]
 
                 try:
-                    action_data = json.loads(clean_response)
+                    action_data: Dict[str, Any] = json.loads(clean_response)
                 except json.JSONDecodeError:
                     logger.warning(f"Failed to parse reflection JSON: {response}")
                     # Fallback for non-JSON response
@@ -145,7 +154,7 @@ class RecursiveObserver:
                 self.observe(
                     f"REFLECTION: {action_data.get('observation', 'No observation')}",
                     level=max_level + 1,
-                    metadata={"type": "reflection", "action": action_data}
+                    metadata={"type": "reflection", "action": action_data},
                 )
 
                 return action_data
@@ -158,4 +167,5 @@ class RecursiveObserver:
     def get_hierarchy_json(self) -> str:
         """Return the current thought hierarchy as a JSON string."""
         import json
+
         return json.dumps([t.to_dict() for t in self.root_thoughts], indent=2)

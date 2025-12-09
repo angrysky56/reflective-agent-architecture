@@ -251,7 +251,7 @@ constrain(node_id="...", mode="consistency",
 **Tool**: `consult_compass`
 
 - **When**: You encounter a task requiring multi-step reasoning, complex planning, or deep metacognitive analysis that exceeds simple tool usage.
-- **Action**: Call `consult_compass(task="...", context={...})`.
+- **Action**: Call `consult_compass(task="...", context={...})`. Give full paths for files, compass can do read/write work, utilize CLI, and web search for information.
 - **Mechanism**: Delegates the task to the **COMPASS** framework (SHAPE -> oMCD -> SLAP -> SMART -> Integrated Intelligence).
 - **Automatic Trigger**: The system will **automatically** trigger COMPASS if it detects high entropy (confusion) or high resource allocation needs (oMCD > 80.0). You may see "High Entropy Intervention" tasks appear in your context.
 

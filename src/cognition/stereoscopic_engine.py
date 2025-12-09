@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 import numpy as np
 
@@ -7,6 +7,7 @@ from src.cognition.plasticity_gate import PlasticityGate
 from src.integration.continuity_field import ContinuityField
 
 logger = logging.getLogger(__name__)
+
 
 class StereoscopicEngine:
     """
@@ -30,7 +31,7 @@ class StereoscopicEngine:
         # State
         self.current_state = np.zeros(embedding_dim)
 
-    def initialize_state(self, initial_vector: np.ndarray):
+    def initialize_state(self, initial_vector: np.ndarray) -> None:
         """Initialize the engine with a starting state."""
         if initial_vector.shape != (self.embedding_dim,):
             raise ValueError(f"Initial vector shape mismatch. Expected ({self.embedding_dim},)")
@@ -40,7 +41,9 @@ class StereoscopicEngine:
         self.continuity_field.add_anchor(initial_vector, metadata={"type": "initialization"})
         logger.info("StereoscopicEngine initialized and anchored.")
 
-    def process_intervention(self, intervention_vector: np.ndarray, context: str = "") -> Tuple[bool, float, str]:
+    def process_intervention(
+        self, intervention_vector: np.ndarray, context: str = ""
+    ) -> Tuple[bool, float, str]:
         """
         Apply a 'Top-Down Modulation' (Intervention) to the system.
         This acts as a Hypothesis Test against the Continuity Field.
@@ -57,7 +60,7 @@ class StereoscopicEngine:
         permit, gating_score = self.plasticity_gate.evaluate_modification(
             current_state=self.current_state,
             proposed_change=intervention_vector,
-            continuity_field=self.continuity_field
+            continuity_field=self.continuity_field,
         )
 
         if not permit:
@@ -71,12 +74,17 @@ class StereoscopicEngine:
 
         # 3. Integrate into Continuity Field (Meta-Cognitive Closure)
         # "The act of transformation is integrated into the field"
-        self.continuity_field.add_anchor(new_state, metadata={
-            "type": "intervention",
-            "context": context,
-            "gating_score": gating_score,
-            "causal_signature": float(np.linalg.norm(intervention_vector)) # Simplified signature
-        })
+        self.continuity_field.add_anchor(
+            new_state,
+            metadata={
+                "type": "intervention",
+                "context": context,
+                "gating_score": gating_score,
+                "causal_signature": float(
+                    np.linalg.norm(intervention_vector)
+                ),  # Simplified signature
+            },
+        )
 
         self.current_state = new_state
         msg = f"Intervention accepted. State evolved. Score: {gating_score:.3f}"
@@ -90,5 +98,5 @@ class StereoscopicEngine:
         return {
             "drift": drift,
             "anchors": len(self.continuity_field.anchors),
-            "modifications": len(self.plasticity_gate.modification_history)
+            "modifications": len(self.plasticity_gate.modification_history),
         }

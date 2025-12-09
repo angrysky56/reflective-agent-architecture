@@ -34,7 +34,15 @@ class IntegratedIntelligence:
     - Neural activation
     """
 
-    def __init__(self, config: IntegratedIntelligenceConfig, logger: Optional[COMPASSLogger] = None, llm_provider: Optional[Any] = None, mcp_client: Optional[Any] = None, stereoscopic_engine: Optional["StereoscopicEngine"] = None, advisor_registry: Optional[AdvisorRegistry] = None):
+    def __init__(
+        self,
+        config: IntegratedIntelligenceConfig,
+        logger: Optional[COMPASSLogger] = None,
+        llm_provider: Optional[Any] = None,
+        mcp_client: Optional[Any] = None,
+        stereoscopic_engine: Optional["StereoscopicEngine"] = None,
+        advisor_registry: Optional[AdvisorRegistry] = None,
+    ):
         """
         Initialize Integrated Intelligence.
 
@@ -59,32 +67,38 @@ class IntegratedIntelligence:
         if self.stereoscopic_engine:
             # Initialize Generative Function adapter if engine is present
             # Use the engine's embedding dim to ensure compatibility
-            self.generative_function = GenerativeFunction(embedding_dim=self.stereoscopic_engine.embedding_dim)
-            self.logger.info("IntegratedIntelligence: TKUI Stereoscopic Engine & Generative Function enabled")
+            self.generative_function = GenerativeFunction(
+                embedding_dim=self.stereoscopic_engine.embedding_dim
+            )
+            self.logger.info(
+                "IntegratedIntelligence: TKUI Stereoscopic Engine & Generative Function enabled"
+            )
 
         # Initialize Meta-System Verifier
         # We pass the workspace as the 'manifold' because it now exposes read_query/write_query
         # which the Governance module expects (Neo4j access).
         self.meta_verifier = None
-        if hasattr(mcp_client, "server") and hasattr(mcp_client.server, "workspace"):
-             self.meta_verifier = MetaSystemVerifier(mcp_client.server.workspace, self.advisor_registry)
-             self.logger.info("IntegratedIntelligence: Meta-System Verifier enabled")
-             # Bootstrap Meta-Graph
-             try:
-                 self.meta_verifier.bootstrap_meta_graph()
-             except Exception as e:
-                 self.logger.warning(f"Failed to bootstrap Meta-Graph: {e}")
+        if mcp_client and hasattr(mcp_client, "server") and hasattr(mcp_client.server, "workspace"):
+            self.meta_verifier = MetaSystemVerifier(
+                mcp_client.server.workspace, self.advisor_registry
+            )
+            self.logger.info("IntegratedIntelligence: Meta-System Verifier enabled")
+            # Bootstrap Meta-Graph
+            try:
+                self.meta_verifier.bootstrap_meta_graph()
+            except Exception as e:
+                self.logger.warning(f"Failed to bootstrap Meta-Graph: {e}")
 
         # Initialize learning memory (Q-table)
-        self.Q_table = {}
-        self.knowledge_base = {} # Initialize knowledge base
+        self.Q_table: Dict[Tuple[float, ...], float] = {}
+        self.knowledge_base: Dict[str, Any] = {}  # Initialize knowledge base
 
         # Current Advisor Profile (Default: None, uses standard behavior)
         self.current_advisor: Optional[AdvisorProfile] = None
 
         self.logger.info("Integrated Intelligence initialized")
 
-    def configure_advisor(self, profile: AdvisorProfile):
+    def configure_advisor(self, profile: AdvisorProfile) -> None:
         """
         Configure Integrated Intelligence to embody a specific Advisor.
 
@@ -92,9 +106,13 @@ class IntegratedIntelligence:
             profile: The AdvisorProfile to adopt.
         """
         self.current_advisor = profile
-        self.logger.info(f"IntegratedIntelligence configured as Advisor: {profile.name} ({profile.role})")
+        self.logger.info(
+            f"IntegratedIntelligence configured as Advisor: {profile.name} ({profile.role})"
+        )
 
-    async def make_decision(self, task: str, reasoning_plan: Dict, modules: List[int], resources: Dict, context: Dict) -> Dict[str, Any]:
+    async def make_decision(
+        self, task: str, reasoning_plan: Dict, modules: List[int], resources: Dict, context: Dict
+    ) -> Dict[str, Any]:
         """
         Make a decision using integrated intelligence.
 
@@ -111,10 +129,7 @@ class IntegratedIntelligence:
             Decision dictionary
         """
 
-
         self.logger.debug("Synthesizing decision with integrated intelligence")
-
-
 
         # Convert inputs to feature vector
         features = self._extract_features(task, reasoning_plan, modules, resources, context)
@@ -142,7 +157,9 @@ class IntegratedIntelligence:
 
         # 7. LLM Reasoning (if available)
         # DEBUG: IntegratedIntelligence llm_provider = {self.llm_provider}
-        self.logger.info(f"IntegratedIntelligence: llm_provider is {'SET' if self.llm_provider else 'None'}")
+        self.logger.info(
+            f"IntegratedIntelligence: llm_provider is {'SET' if self.llm_provider else 'None'}"
+        )
         if self.llm_provider:
             llm_score, llm_action = await self._llm_intelligence(task, reasoning_plan, context)
             intelligence_scores["llm"] = llm_score
@@ -154,10 +171,10 @@ class IntegratedIntelligence:
 
         # Meta-System Governance Check
         if self.meta_verifier and llm_action:
-             # In a real implementation, we would parse the action ID or create a proposed node first.
-             # For this MVP, we'll simulate checking the action text against constraints.
-             # Since we don't have an action ID yet, we might skip or check axioms.
-             pass
+            # In a real implementation, we would parse the action ID or create a proposed node first.
+            # For this MVP, we'll simulate checking the action text against constraints.
+            # Since we don't have an action ID yet, we might skip or check axioms.
+            pass
 
         # TKUI: Stereoscopic Regulation
         if self.stereoscopic_engine:
@@ -175,8 +192,7 @@ class IntegratedIntelligence:
                 intervention_vector = new_vec
 
             success, gate_score, msg = self.stereoscopic_engine.process_intervention(
-                intervention_vector,
-                context=f"Task: {task[:50]}..."
+                intervention_vector, context=f"Task: {task[:50]}..."
             )
 
             intelligence_scores["stereoscopic_gate"] = gate_score
@@ -187,9 +203,20 @@ class IntegratedIntelligence:
                 universal_score *= 0.5
 
         # Generate decision
-        action = llm_action if llm_action else self._generate_action(universal_score, reasoning_plan, modules)
+        action = (
+            llm_action
+            if llm_action
+            else self._generate_action(universal_score, reasoning_plan, modules)
+        )
 
-        decision = {"task": task, "action": action, "confidence": universal_score, "intelligence_breakdown": intelligence_scores, "reasoning": self._generate_reasoning(intelligence_scores, reasoning_plan), "estimated_quality": universal_score}
+        decision = {
+            "task": task,
+            "action": action,
+            "confidence": universal_score,
+            "intelligence_breakdown": intelligence_scores,
+            "reasoning": self._generate_reasoning(intelligence_scores, reasoning_plan),
+            "estimated_quality": universal_score,
+        }
 
         # Update learning
         self._update_learning(features, decision, universal_score)
@@ -197,10 +224,19 @@ class IntegratedIntelligence:
         self.logger.debug(f"Decision made with confidence {universal_score:.3f}")
         return decision
 
-    def _extract_features(self, task: str, reasoning_plan: Dict, modules: List[int], resources: Dict, context: Dict) -> np.ndarray:
+    def _extract_features(
+        self, task: str, reasoning_plan: Dict, modules: List[int], resources: Dict, context: Dict
+    ) -> np.ndarray:
         """Extract features for learning."""
         # Simple feature extraction: [task_len, plan_complexity, num_modules, resource_count]
-        features = np.array([len(task) / 100.0, len(str(reasoning_plan)) / 500.0, len(modules) / 6.0, len(resources) / 5.0])
+        features = np.array(
+            [
+                len(task) / 100.0,
+                len(str(reasoning_plan)) / 500.0,
+                len(modules) / 6.0,
+                len(resources) / 5.0,
+            ]
+        )
         return features
 
     def _learning_intelligence(self, features: np.ndarray, context: Dict) -> float:
@@ -211,7 +247,7 @@ class IntegratedIntelligence:
     def _reasoning_intelligence(self, features: np.ndarray, reasoning_plan: Dict) -> float:
         """Reasoning component score."""
         # Base score on advancement
-        return reasoning_plan.get("advancement", 0.5)
+        return float(reasoning_plan.get("advancement", 0.5))
 
     def _nlu_intelligence(self, task: str, context: Dict) -> float:
         """NLU component score."""
@@ -234,7 +270,15 @@ class IntegratedIntelligence:
     def _universal_intelligence(self, scores: Dict[str, float]) -> float:
         """Calculate universal intelligence score."""
         # Weighted average
-        weights = {"learning": 0.1, "reasoning": 0.2, "nlu": 0.1, "uncertainty": 0.1, "evolution": 0.1, "neural": 0.1, "llm": 0.3}
+        weights = {
+            "learning": 0.1,
+            "reasoning": 0.2,
+            "nlu": 0.1,
+            "uncertainty": 0.1,
+            "evolution": 0.1,
+            "neural": 0.1,
+            "llm": 0.3,
+        }
 
         total_score = 0.0
         total_weight = 0.0
@@ -246,7 +290,9 @@ class IntegratedIntelligence:
 
         return total_score / total_weight if total_weight > 0 else 0.5
 
-    async def _llm_intelligence(self, task: str, reasoning_plan: Dict, context: Dict) -> Tuple[float, Optional[str]]:
+    async def _llm_intelligence(
+        self, task: str, reasoning_plan: Dict, context: Dict
+    ) -> Tuple[float, Optional[str]]:
         """
         LLM-based intelligence component with Tool Execution capabilities.
 
@@ -269,20 +315,20 @@ class IntegratedIntelligence:
             # 1. Fetch available tools
             tools = []
 
-
-
             if self.mcp_client:
-                self.logger.info(f"Fetching tools from MCP client (type: {type(self.mcp_client).__name__})")
-
+                self.logger.info(
+                    f"Fetching tools from MCP client (type: {type(self.mcp_client).__name__})"
+                )
 
                 try:
                     from .mcp_tool_adapter import get_available_tools_for_llm
 
                     tools = await get_available_tools_for_llm(self.mcp_client)
-                    self.logger.info(f"IntegratedIntelligence: Successfully fetched {len(tools)} tools converted for LLM.")
+                    self.logger.info(
+                        f"IntegratedIntelligence: Successfully fetched {len(tools)} tools converted for LLM."
+                    )
                     if tools:
                         self.logger.debug(f"Tools list: {[t['function']['name'] for t in tools]}")
-
 
                 except ImportError as e:
                     self.logger.error(f"Could not import mcp_tool_adapter: {e}", exc_info=True)
@@ -290,13 +336,10 @@ class IntegratedIntelligence:
                 except Exception as e:
                     self.logger.error(f"Failed to fetch tools: {e}", exc_info=True)
 
-
             # 1.5 Add Internal Tools (e.g., create_advisor)
             if self.advisor_registry:
                 tools.append(self._get_create_advisor_tool_schema())
                 tools.append(self._get_delete_advisor_tool_schema())
-
-
 
             # 2. Construct prompt
             self.logger.info("Constructing LLM prompt")
@@ -321,7 +364,16 @@ class IntegratedIntelligence:
 
             if context.get("smart_objectives"):
                 objs = context["smart_objectives"]
-                user_prompt += "**Objectives (SMART)**:\n" + "\n".join([f"- {o.get('description')} (Target: {o.get('target_value')})" for o in objs]) + "\n\n"
+                user_prompt += (
+                    "**Objectives (SMART)**:\n"
+                    + "\n".join(
+                        [
+                            f"- {o.get('description')} (Target: {o.get('target_value')})"
+                            for o in objs
+                        ]
+                    )
+                    + "\n\n"
+                )
 
             # Add Trajectory (History of previous actions)
             if context.get("trajectory") and context["trajectory"].get("steps"):
@@ -348,7 +400,9 @@ class IntegratedIntelligence:
 
             user_prompt += "Reasoning Plan Summary (Current Step):\n"
             if "conceptualization" in reasoning_plan:
-                user_prompt += f"- Concept: {reasoning_plan['conceptualization'].get('primary_concept')}\n"
+                user_prompt += (
+                    f"- Concept: {reasoning_plan['conceptualization'].get('primary_concept')}\n"
+                )
             if "advancement" in reasoning_plan:
                 user_prompt += f"- Advancement Score: {reasoning_plan['advancement']:.2f}\n"
 
@@ -356,17 +410,22 @@ class IntegratedIntelligence:
 
             from .adapters import Message
 
-            messages = [Message(role="system", content=system_prompt), Message(role="user", content=user_prompt)]
+            messages = [
+                Message(role="system", content=system_prompt),
+                Message(role="user", content=user_prompt),
+            ]
 
             # 3. Call LLM with tools
             response_content = ""
             tool_calls = []
 
-            self.logger.info(f"IntegratedIntelligence: Calling LLM with {len(tools) if tools else 0} tools")
+            self.logger.info(
+                f"IntegratedIntelligence: Calling LLM with {len(tools) if tools else 0} tools"
+            )
 
             # We need to handle both text chunks and tool call chunks
             # Filter tools based on Advisor profile if active
-            tools_to_use = tools
+            tools_to_use: Optional[List[Dict[str, Any]]] = tools
             # DISABLED: User requested that agents inherit all tools.
             # if self.current_advisor and self.current_advisor.tools:
             #     # Only allow tools listed in the advisor's profile
@@ -379,7 +438,9 @@ class IntegratedIntelligence:
 
             tools_to_use = tools_to_use if (tools_to_use and self.config.enable_tools) else None
 
-            async for chunk in self.llm_provider.chat_completion(messages, stream=False, temperature=0.3, max_tokens=16000, tools=tools_to_use):
+            async for chunk in self.llm_provider.chat_completion(
+                messages, stream=False, temperature=0.3, max_tokens=16000, tools=tools_to_use
+            ):
                 try:
                     # Check if chunk is a tool call JSON
                     if chunk.strip().startswith('{"tool_calls":'):
@@ -401,29 +462,39 @@ class IntegratedIntelligence:
                 # Determine what to validate (tool calls or text action)
                 proposed_intervention_text = ""
                 if tool_calls:
-                    proposed_intervention_text = f"Execute tools: {[tc['function']['name'] for tc in tool_calls]}"
+                    proposed_intervention_text = (
+                        f"Execute tools: {[tc['function']['name'] for tc in tool_calls]}"
+                    )
                 else:
                     proposed_intervention_text = response_content
 
                 # Generate intervention vector
-                intervention_vector = self.generative_function.text_to_intervention(proposed_intervention_text)
+                intervention_vector = self.generative_function.text_to_intervention(
+                    proposed_intervention_text
+                )
 
                 if intervention_vector is not None:
                     # Process intervention
                     success, score, msg = self.stereoscopic_engine.process_intervention(
-                        intervention_vector=intervention_vector,
-                        context=f"Task: {task}"
+                        intervention_vector=intervention_vector, context=f"Task: {task}"
                     )
 
                     if not success:
                         self.logger.warning(f"Stereoscopic Engine REJECTED intervention: {msg}")
-                        return 0.1, f"Action Rejected by Plasticity Gate: {msg}. Please revise approach."
+                        return (
+                            0.1,
+                            f"Action Rejected by Plasticity Gate: {msg}. Please revise approach.",
+                        )
                     else:
-                        self.logger.info(f"Stereoscopic Engine ACCEPTED intervention (Score: {score:.3f})")
+                        self.logger.info(
+                            f"Stereoscopic Engine ACCEPTED intervention (Score: {score:.3f})"
+                        )
 
             # 5. Execute Tools if present
             if tool_calls:
-                self.logger.info(f"Integrated Intelligence decided to execute {len(tool_calls)} tools")
+                self.logger.info(
+                    f"Integrated Intelligence decided to execute {len(tool_calls)} tools"
+                )
                 results = []
 
                 from .mcp_tool_adapter import format_tool_call_for_mcp
@@ -433,6 +504,8 @@ class IntegratedIntelligence:
                     self.logger.info(f"Executing tool: {name} with args: {args}")
 
                     try:
+                        if self.mcp_client is None:
+                            raise ValueError("MCP Client not available for tool execution")
                         # Execute via MCP client
                         # Note: We assume mcp_client has a session or similar mechanism
                         # Based on api_server.py usage: await mcp_client.session.call_tool(name, args)
@@ -447,12 +520,20 @@ class IntegratedIntelligence:
                         if isinstance(result, dict) and "content" in result:
                             # Handle dictionary response (legacy or serialized)
                             content_list = result.get("content", [])
-                            text_parts = [item.get("text", "") for item in content_list if item.get("type") == "text"]
+                            text_parts = [
+                                item.get("text", "")
+                                for item in content_list
+                                if item.get("type") == "text"
+                            ]
                             content_str = "\n".join(text_parts)
                         elif hasattr(result, "content"):
                             # Handle MCP CallToolResult object
                             content_list = result.content
-                            text_parts = [item.text for item in content_list if hasattr(item, "type") and item.type == "text"]
+                            text_parts = [
+                                item.text
+                                for item in content_list
+                                if hasattr(item, "type") and item.type == "text"
+                            ]
                             content_str = "\n".join(text_parts)
                         else:
                             content_str = str(result)
@@ -469,11 +550,13 @@ class IntegratedIntelligence:
                     name = tool_call["function"]["name"]
                     if name == "create_advisor":
                         import json
+
                         args = json.loads(tool_call["function"]["arguments"])
                         result = self.create_advisor(**args)
                         results.append(f"Tool 'create_advisor' output: {result}")
                     elif name == "delete_advisor":
                         import json
+
                         args = json.loads(tool_call["function"]["arguments"])
                         result = self.delete_advisor(**args)
                         results.append(f"Tool 'delete_advisor' output: {result}")
@@ -483,6 +566,7 @@ class IntegratedIntelligence:
 
             # 6. Parse standard JSON response
             from .utils import extract_json_from_text
+
             data = extract_json_from_text(response_content)
 
             if data:
@@ -516,7 +600,7 @@ class IntegratedIntelligence:
 
         return reasoning
 
-    def _update_learning(self, features: np.ndarray, decision: Dict, score: float):
+    def _update_learning(self, features: np.ndarray, decision: Dict, score: float) -> None:
         """
         Update learning component based on decision outcome.
 
@@ -562,7 +646,7 @@ class IntegratedIntelligence:
 
         return transferred
 
-    def reset(self):
+    def reset(self) -> None:
         """Reset intelligence state."""
         self.Q_table.clear()
         self.knowledge_base.clear()
@@ -578,16 +662,35 @@ class IntegratedIntelligence:
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "id": {"type": "string", "description": "Unique ID for the advisor (e.g., 'socrates')"},
-                        "name": {"type": "string", "description": "Display name (e.g., 'Socrates')"},
-                        "role": {"type": "string", "description": "Role description (e.g., 'Philosopher')"},
-                        "description": {"type": "string", "description": "Brief description of capabilities"},
-                        "system_prompt": {"type": "string", "description": "The system prompt that defines the advisor's behavior"},
-                        "tools": {"type": "array", "items": {"type": "string"}, "description": "List of tool names this advisor should have access to"}
+                        "id": {
+                            "type": "string",
+                            "description": "Unique ID for the advisor (e.g., 'socrates')",
+                        },
+                        "name": {
+                            "type": "string",
+                            "description": "Display name (e.g., 'Socrates')",
+                        },
+                        "role": {
+                            "type": "string",
+                            "description": "Role description (e.g., 'Philosopher')",
+                        },
+                        "description": {
+                            "type": "string",
+                            "description": "Brief description of capabilities",
+                        },
+                        "system_prompt": {
+                            "type": "string",
+                            "description": "The system prompt that defines the advisor's behavior",
+                        },
+                        "tools": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "List of tool names this advisor should have access to",
+                        },
                     },
-                    "required": ["id", "name", "role", "description", "system_prompt"]
-                }
-            }
+                    "required": ["id", "name", "role", "description", "system_prompt"],
+                },
+            },
         }
 
     def _get_delete_advisor_tool_schema(self) -> Dict:
@@ -600,14 +703,25 @@ class IntegratedIntelligence:
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "id": {"type": "string", "description": "Unique ID of the advisor to delete"}
+                        "id": {
+                            "type": "string",
+                            "description": "Unique ID of the advisor to delete",
+                        }
                     },
-                    "required": ["id"]
-                }
-            }
+                    "required": ["id"],
+                },
+            },
         }
 
-    def create_advisor(self, id: str, name: str, role: str, description: str, system_prompt: str, tools: List[str] = None) -> str:
+    def create_advisor(
+        self,
+        id: str,
+        name: str,
+        role: str,
+        description: str,
+        system_prompt: str,
+        tools: Optional[List[str]] = None,
+    ) -> str:
         """
         Create and register a new advisor.
         """
@@ -621,7 +735,7 @@ class IntegratedIntelligence:
                 role=role,
                 description=description,
                 system_prompt=system_prompt,
-                tools=tools or []
+                tools=tools or [],
             )
             self.advisor_registry.register_advisor(profile)
             return f"Successfully created advisor: {name} ({role})"

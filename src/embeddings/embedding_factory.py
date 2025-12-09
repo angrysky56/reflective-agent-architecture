@@ -1,12 +1,13 @@
 import logging
 import os
-from typing import Optional
+from typing import Any, Optional
 
 import torch
 
 from src.embeddings.base_embedding_provider import BaseEmbeddingProvider
 from src.embeddings.lmstudio_embedding_provider import LMStudioEmbeddingProvider
 from src.embeddings.ollama_embedding_provider import OllamaEmbeddingProvider
+from src.embeddings.openrouter_embedding_provider import OpenRouterEmbeddingProvider
 from src.embeddings.sentence_transformer_provider import SentenceTransformerProvider
 
 logger = logging.getLogger(__name__)
@@ -24,7 +25,7 @@ class EmbeddingFactory:
         provider_name: Optional[str] = None,
         model_name: Optional[str] = None,
         device: Optional[str] = None,
-        **kwargs
+        **kwargs: Any,
     ) -> BaseEmbeddingProvider:
         """
         Create an embedding provider (cached).
@@ -38,8 +39,16 @@ class EmbeddingFactory:
         Returns:
             Embedding provider instance (cached singleton per config)
         """
-        provider_name = provider_name or os.getenv("EMBEDDING_PROVIDER", "sentence-transformers")
-        model_name = model_name or os.getenv("EMBEDDING_MODEL", "BAAI/bge-large-en-v1.5")
+        provider_name = (
+            provider_name
+            or os.getenv("EMBEDDING_PROVIDER", "sentence-transformers")
+            or "sentence-transformers"
+        )
+        model_name = (
+            model_name
+            or os.getenv("EMBEDDING_MODEL", "BAAI/bge-large-en-v1.5")
+            or "BAAI/bge-large-en-v1.5"
+        )
 
         # Auto-detect device if not specified
         if device is None:
@@ -54,7 +63,9 @@ class EmbeddingFactory:
             logger.debug(f"Using cached embedding provider: {provider_name}/{model_name}")
             return _PROVIDER_CACHE[cache_key]
 
-        logger.info(f"Creating embedding provider: {provider_name} with model: {model_name} on {device}")
+        logger.info(
+            f"Creating embedding provider: {provider_name} with model: {model_name} on {device}"
+        )
 
         # Create provider
         provider: BaseEmbeddingProvider
@@ -62,16 +73,38 @@ class EmbeddingFactory:
             provider = EmbeddingFactory._create_sentence_transformer(model_name, device, **kwargs)
 
         elif provider_name == "ollama":
-            base_url = kwargs.get("base_url") or os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+            base_url = str(
+                kwargs.get("base_url") or os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+            )
             provider = OllamaEmbeddingProvider(model_name, base_url=base_url, device=device)
 
         elif provider_name == "lm_studio" or provider_name == "lmstudio":
-            base_url = kwargs.get("base_url") or os.getenv("LMSTUDIO_BASE_URL", "http://localhost:1234/v1")
-            api_key = kwargs.get("api_key") or os.getenv("LMSTUDIO_API_KEY", "lm-studio")
-            provider = LMStudioEmbeddingProvider(model_name, base_url=base_url, api_key=api_key, device=device)
+            base_url = str(
+                kwargs.get("base_url") or os.getenv("LMSTUDIO_BASE_URL", "http://localhost:1234/v1")
+            )
+            api_key = str(kwargs.get("api_key") or os.getenv("LMSTUDIO_API_KEY", "lm-studio"))
+            provider = LMStudioEmbeddingProvider(
+                model_name, base_url=base_url, api_key=api_key, device=device
+            )
+
+        elif provider_name == "openrouter":
+            base_url = str(
+                kwargs.get("base_url")
+                or os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
+            )
+            api_key = str(kwargs.get("api_key") or os.getenv("OPENROUTER_API_KEY"))
+
+            if not api_key or api_key == "None":
+                logger.warning("OpenRouter API key is missing. Please set OPENROUTER_API_KEY.")
+
+            provider = OpenRouterEmbeddingProvider(
+                model_name, api_key=api_key, base_url=base_url, device=device
+            )
 
         else:
-            logger.warning(f"Unknown embedding provider '{provider_name}', defaulting to sentence-transformers")
+            logger.warning(
+                f"Unknown embedding provider '{provider_name}', defaulting to sentence-transformers"
+            )
             provider = EmbeddingFactory._create_sentence_transformer(model_name, device, **kwargs)
 
         # Store in cache
@@ -79,7 +112,9 @@ class EmbeddingFactory:
         return provider
 
     @staticmethod
-    def _create_sentence_transformer(model_name: str, device: str, **kwargs) -> SentenceTransformerProvider:
+    def _create_sentence_transformer(
+        model_name: str, device: str, **kwargs: Any
+    ) -> SentenceTransformerProvider:
         """
         Create SentenceTransformer provider with optimizations.
 
@@ -117,7 +152,7 @@ class EmbeddingFactory:
                 model_name,
                 device=device,
                 model_kwargs=model_kwargs if model_kwargs else None,
-                tokenizer_kwargs=tokenizer_kwargs if tokenizer_kwargs else None
+                tokenizer_kwargs=tokenizer_kwargs if tokenizer_kwargs else None,
             )
         except Exception as e:
             # If optimizations fail, try basic initialization

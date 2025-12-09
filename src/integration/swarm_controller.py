@@ -1,10 +1,11 @@
 import asyncio
 import logging
-from typing import Any, Dict, List
+from typing import Dict, List
 
 from .agent_factory import AgentFactory
 
 logger = logging.getLogger(__name__)
+
 
 class SwarmController:
     """
@@ -45,7 +46,9 @@ class SwarmController:
         # We use the factory's execute_agent method
         async def query_agent(tool_name: str) -> Dict[str, str]:
             try:
-                response = await self.factory.execute_agent(tool_name, {"query": f"{context}\n\nTask: {task}"})
+                response = await self.factory.execute_agent(
+                    tool_name, {"query": f"{context}\n\nTask: {task}"}
+                )
                 return {"agent": tool_name, "response": response}
             except Exception as e:
                 return {"agent": tool_name, "error": str(e)}
@@ -84,9 +87,10 @@ class SwarmController:
         )
 
         from src.compass.adapters import Message
+
         messages = [
             Message(role="system", content="You are an expert dialetic synthesizer."),
-            Message(role="user", content=prompt)
+            Message(role="user", content=prompt),
         ]
 
         # Use the factory's provider for synthesis

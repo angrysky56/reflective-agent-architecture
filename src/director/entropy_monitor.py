@@ -9,7 +9,7 @@ Based on:
 """
 
 import math
-from typing import List
+from typing import Any, List
 
 import torch
 import torch.nn.functional as f
@@ -76,7 +76,7 @@ class EntropyMonitor:
 
         # Keep only recent history
         if len(self.entropy_history) > self.history_size:
-            self.entropy_history = self.entropy_history[-self.history_size:]
+            self.entropy_history = self.entropy_history[-self.history_size :]
 
     def get_threshold(self) -> float:
         """
@@ -93,11 +93,10 @@ class EntropyMonitor:
 
         # Compute adaptive threshold from recent history
         threshold = torch.quantile(
-            torch.tensor(self.entropy_history),
-            self.threshold_percentile
+            torch.tensor(self.entropy_history), self.threshold_percentile
         ).item()
 
-        return threshold
+        return float(threshold)
 
     def is_clash(self, entropy: float, add_to_history: bool = True) -> bool:
         """
@@ -144,7 +143,7 @@ class EntropyMonitor:
 
         return is_clash_detected, entropy_value
 
-    def get_statistics(self) -> dict:
+    def get_statistics(self) -> dict[str, Any]:
         """
         Get statistics about entropy history.
 

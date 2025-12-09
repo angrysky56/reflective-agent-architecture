@@ -1,6 +1,4 @@
-
 import logging
-from collections import deque
 from decimal import Decimal
 from typing import List, Optional
 
@@ -11,11 +9,17 @@ from src.substrate import EnergyToken, MeasurementCost, MeasurementLedger
 
 logger = logging.getLogger(__name__)
 
+
 class AllostaticConfig(BaseModel):
     history_window: int = Field(default=10, description="Number of past entropy values to track")
     prediction_horizon: int = Field(default=3, description="How many steps ahead to predict")
-    gradient_threshold: float = Field(default=0.5, description="Entropy increase rate (dS/dt) that triggers alert")
-    critical_threshold: float = Field(default=2.5, description="Absolute entropy value considered 'Crash'")
+    gradient_threshold: float = Field(
+        default=0.5, description="Entropy increase rate (dS/dt) that triggers alert"
+    )
+    critical_threshold: float = Field(
+        default=2.5, description="Absolute entropy value considered 'Crash'"
+    )
+
 
 class AllostaticState(BaseModel):
     entropy_history: List[float] = Field(default_factory=list)
@@ -23,17 +27,19 @@ class AllostaticState(BaseModel):
     last_intervention_step: int = 0
     current_step: int = 0
 
+
 class AllostaticController:
     """
     Implements Predictive Regulation (Allostasis).
     Monitors entropy trends and triggers pre-emptive interventions.
     """
+
     def __init__(self, config: AllostaticConfig, ledger: Optional[MeasurementLedger] = None):
         self.config = config
         self.state = AllostaticState()
         self.ledger = ledger
 
-    def record_entropy(self, entropy_value: float):
+    def record_entropy(self, entropy_value: float) -> None:
         """Record a new entropy measurement and update history."""
         self.state.current_step += 1
         self.state.entropy_history.append(entropy_value)
@@ -48,8 +54,7 @@ class AllostaticController:
         # Metabolic Cost: Prediction is expensive
         if self.ledger:
             cost = MeasurementCost(
-                energy=EnergyToken(Decimal("2.0"), "joules"),
-                operation_name="entropy_prediction"
+                energy=EnergyToken(Decimal("2.0"), "joules"), operation_name="entropy_prediction"
             )
             self.ledger.record_transaction(cost)
 
@@ -58,12 +63,12 @@ class AllostaticController:
             return history[-1] if history else 0.0
 
         # Simple Linear Regression: y = mx + c
-        X = np.arange(len(history))
+        x = np.arange(len(history))
         y = np.array(history)
 
         # Calculate slope (m) and intercept (c)
-        A = np.vstack([X, np.ones(len(X))]).T
-        m, c = np.linalg.lstsq(A, y, rcond=None)[0]
+        a = np.vstack([x, np.ones(len(x))]).T
+        m, c = np.linalg.lstsq(a, y, rcond=None)[0]
 
         # Predict
         future_x = len(history) + self.config.prediction_horizon
@@ -83,8 +88,8 @@ class AllostaticController:
         # Check if we are heading for a crash
         # Trigger if predicted entropy exceeds survival threshold AND we haven't intervened recently
         if self.state.predicted_entropy > self.config.critical_threshold:
-             # Basic hysteresis / debounce could go here
-             return "PROACTIVE_ECC"
+            # Basic hysteresis / debounce could go here
+            return "PROACTIVE_ECC"
 
         # Check for rapid destabilization (steep slope)
         history = self.state.entropy_history

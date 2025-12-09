@@ -11,7 +11,8 @@ import math
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from types import TracebackType
+from typing import Any, Dict, List, Optional, Type, cast
 
 import numpy as np
 
@@ -71,7 +72,7 @@ def calculate_cost(z: float, alpha: float, nu: float) -> float:
     if z < 0:
         raise ValueError("Resource allocation must be non-negative")
 
-    return alpha * (z**nu)
+    return float(alpha * (z**nu))
 
 
 def calculate_benefit(z: float, r: float, confidence: float) -> float:
@@ -104,7 +105,9 @@ def update_precision(initial_precision: float, resources: float, beta: float) ->
     return initial_precision + beta * resources
 
 
-def advancement_score(truth: float, scrutiny: float, improvement: float, alpha: float = 0.4, beta: float = 0.6) -> float:
+def advancement_score(
+    truth: float, scrutiny: float, improvement: float, alpha: float = 0.4, beta: float = 0.6
+) -> float:
     """
     Calculate advancement score (SLAP model).
 
@@ -163,23 +166,27 @@ class COMPASSLogger:
             handler.setFormatter(formatter)
             self.logger.addHandler(handler)
 
-    def debug(self, message: str, **kwargs):
+    def debug(self, message: str, **kwargs: Any) -> None:
         """Log debug message."""
         self.logger.debug(message, extra=kwargs)
 
-    def info(self, message: str, **kwargs):
+    def info(self, message: str, **kwargs: Any) -> None:
         """Log info message."""
         self.logger.info(message, extra=kwargs)
 
-    def warning(self, message: str, **kwargs):
+    def warning(self, message: str, **kwargs: Any) -> None:
         """Log warning message."""
         self.logger.warning(message, extra=kwargs)
 
-    def error(self, message: str, **kwargs):
+    def error(self, message: str, **kwargs: Any) -> None:
         """Log error message."""
         self.logger.error(message, extra=kwargs)
 
-    def log_trajectory(self, trajectory: List[Dict], filename: Optional[str] = None):
+    def critical(self, message: str, **kwargs: Any) -> None:
+        """Log critical message."""
+        self.logger.critical(message, extra=kwargs)
+
+    def log_trajectory(self, trajectory: List[Dict], filename: Optional[str] = None) -> None:
         """
         Log a complete trajectory.
 
@@ -206,22 +213,27 @@ class Trajectory:
 
     steps: List[tuple[Any, Any]]  # List of (action, observation) pairs
     score: Optional[float] = None
-    timestamp: datetime = None
+    timestamp: Optional[datetime] = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.timestamp is None:
             self.timestamp = datetime.now()
 
-    def add_step(self, action: Any, observation: Any):
+    def add_step(self, action: Any, observation: Any) -> None:
         """Add a step to the trajectory."""
         self.steps.append((action, observation))
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.steps)
 
     def to_dict(self) -> Dict:
         """Convert trajectory to dictionary."""
-        return {"steps": self.steps, "score": self.score, "timestamp": self.timestamp.isoformat(), "length": len(self.steps)}
+        return {
+            "steps": self.steps,
+            "score": self.score,
+            "timestamp": self.timestamp.isoformat() if self.timestamp else None,
+            "length": len(self.steps),
+        }
 
 
 @dataclass
@@ -233,15 +245,22 @@ class SelfReflection:
     insights: List[str]
     improvements: List[str]
     context_awareness: Dict[str, Any] = field(default_factory=dict)
-    timestamp: datetime = None
+    timestamp: Optional[datetime] = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.timestamp is None:
             self.timestamp = datetime.now()
 
     def to_dict(self) -> Dict:
         """Convert reflection to dictionary."""
-        return {"trajectory_id": self.trajectory_id, "content": self.content, "insights": self.insights, "improvements": self.improvements, "context_awareness": self.context_awareness, "timestamp": self.timestamp.isoformat()}
+        return {
+            "trajectory_id": self.trajectory_id,
+            "content": self.content,
+            "insights": self.insights,
+            "improvements": self.improvements,
+            "context_awareness": self.context_awareness,
+            "timestamp": self.timestamp.isoformat() if self.timestamp else None,
+        }
 
 
 @dataclass
@@ -251,14 +270,23 @@ class Goal:
     id: str
     description: str
     priority: float  # 0.0 to 1.0
-    created_at: datetime = None
+    created_at: Optional[datetime] = None
     status: str = "active"  # active, completed, suspended, failed
     parent_id: Optional[str] = None
     subgoals: List[str] = field(default_factory=list)
     progress: float = 0.0
 
     def to_dict(self) -> Dict:
-        return {"id": self.id, "description": self.description, "priority": self.priority, "created_at": self.created_at.isoformat(), "status": self.status, "parent_id": self.parent_id, "subgoals": self.subgoals, "progress": self.progress}
+        return {
+            "id": self.id,
+            "description": self.description,
+            "priority": self.priority,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "status": self.status,
+            "parent_id": self.parent_id,
+            "subgoals": self.subgoals,
+            "progress": self.progress,
+        }
 
 
 @dataclass
@@ -407,7 +435,7 @@ def load_json(filepath: str) -> Dict:
         Loaded data
     """
     with open(filepath, "r") as f:
-        return json.load(f)
+        return cast(Dict[str, Any], json.load(f))
 
 
 def extract_json_from_text(text: str) -> Optional[Dict]:
@@ -424,13 +452,13 @@ def extract_json_from_text(text: str) -> Optional[Dict]:
         # 1. Try finding markdown blocks
         if "```json" in text:
             content = text.split("```json")[1].split("```")[0].strip()
-            return json.loads(content)
+            return cast(Dict[str, Any], json.loads(content))
         elif "```" in text:
             content = text.split("```")[1].split("```")[0].strip()
             try:
-                return json.loads(content)
+                return cast(Dict[str, Any], json.loads(content))
             except json.JSONDecodeError:
-                pass # Continue to other methods
+                pass  # Continue to other methods
 
         # 2. Try finding the first '{' and last '}'
         start_idx = text.find("{")
@@ -438,10 +466,10 @@ def extract_json_from_text(text: str) -> Optional[Dict]:
 
         if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
             content = text[start_idx : end_idx + 1]
-            return json.loads(content)
+            return cast(Dict[str, Any], json.loads(content))
 
         # 3. Try parsing the whole text
-        return json.loads(text)
+        return cast(Dict[str, Any], json.loads(text))
 
     except (json.JSONDecodeError, ValueError):
         return None
@@ -458,16 +486,24 @@ class Timer:
     def __init__(self, name: str = "Operation", logger: Optional[COMPASSLogger] = None):
         self.name = name
         self.logger = logger
-        self.start_time = None
-        self.end_time = None
+        self.start_time: Optional[datetime] = None
+        self.end_time: Optional[datetime] = None
 
-    def __enter__(self):
+    def __enter__(self) -> "Timer":
         self.start_time = datetime.now()
         return self
 
-    def __exit__(self, *args):
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> None:
         self.end_time = datetime.now()
-        duration = (self.end_time - self.start_time).total_seconds()
+        if self.start_time:
+            duration = (self.end_time - self.start_time).total_seconds()
+        else:
+            duration = 0.0
         message = f"{self.name} completed in {duration:.3f}s"
 
         if self.logger:

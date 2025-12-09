@@ -6,9 +6,16 @@ Handles bootstrapping and conceptual graph generation.
 import logging
 from typing import Any, Dict
 
-from .queries import BOOTSTRAP_AGENCY, BOOTSTRAP_CLEAN_CORE, BOOTSTRAP_HARM, BOOTSTRAP_IMPERATIVE, BOOTSTRAP_SOURCE_DAG
+from .queries import (
+    BOOTSTRAP_AGENCY,
+    BOOTSTRAP_CLEAN_CORE,
+    BOOTSTRAP_HARM,
+    BOOTSTRAP_IMPERATIVE,
+    BOOTSTRAP_SOURCE_DAG,
+)
 
 logger = logging.getLogger(__name__)
+
 
 class OntologyManager:
     """
@@ -20,7 +27,7 @@ class OntologyManager:
         self.advisor_system = advisor_system
         self.logger = logging.getLogger("OntologyManager")
 
-    def bootstrap(self):
+    def bootstrap(self) -> None:
         """
         Bootstrap the Meta-Graph with the Immutable Core and Source DAG.
         """
@@ -41,7 +48,7 @@ class OntologyManager:
         except Exception as e:
             self.logger.error(f"Failed to bootstrap Meta-Graph: {e}")
 
-    def bootstrap_sources(self):
+    def bootstrap_sources(self) -> None:
         """
         Bootstrap the Source DAG (Epistemic Provenance).
         """
@@ -81,12 +88,19 @@ class OntologyManager:
             response = self.advisor_system.consult_advisor("socrates", prompt)
 
             # Basic parsing to extract Cypher lines (assuming the LLM might be chatty)
-            cypher_lines = [line.strip() for line in response.split('\\n')
-                           if line.strip().startswith('MERGE') or line.strip().startswith('CREATE')]
+            cypher_lines = [
+                line.strip()
+                for line in response.split("\\n")
+                if line.strip().startswith("MERGE") or line.strip().startswith("CREATE")
+            ]
 
             if not cypher_lines:
                 self.logger.warning("No valid Cypher queries generated.")
-                return {"status": "failed", "reason": "No Cypher generated", "raw_response": response}
+                return {
+                    "status": "failed",
+                    "reason": "No Cypher generated",
+                    "raw_response": response,
+                }
 
             # Execute queries
             for query in cypher_lines:

@@ -26,7 +26,13 @@ class PrecuneusIntegrator(nn.Module):
         # Learnable "Default Mode" bias
         self.default_mode_bias = nn.Parameter(torch.zeros(dim))
 
-    def forward(self, vectors: dict, energies: dict, causal_signature: torch.Tensor = None, cognitive_state: Any = None) -> torch.Tensor:
+    def forward(
+        self,
+        vectors: dict,
+        energies: dict,
+        causal_signature: torch.Tensor = None,
+        cognitive_state: Any = None,
+    ) -> torch.Tensor:
         """
         Integrate the tripartite streams.
 
@@ -42,9 +48,9 @@ class PrecuneusIntegrator(nn.Module):
 
         # 1. Normalize Energies to Gating Weights (0 to 1)
         # We invert energy: High energy (confusion) -> Low weight
-        state_w = self._energy_to_gate(energies['state'])
-        agent_w = self._energy_to_gate(energies['agent'])
-        action_w = self._energy_to_gate(energies['action'])
+        state_w = self._energy_to_gate(energies["state"])
+        agent_w = self._energy_to_gate(energies["agent"])
+        action_w = self._energy_to_gate(energies["action"])
 
         # 1.5 Apply Continuity Field (Causal Signature)
         # If a causal signature is provided, it modulates the weights.
@@ -73,7 +79,7 @@ class PrecuneusIntegrator(nn.Module):
             # If entropy is high (e.g. > 2.0), we reduce state_w.
             # If entropy is low (e.g. < 0.5), we boost state_w.
 
-            entropy = getattr(cognitive_state, 'entropy', 1.0)
+            entropy = getattr(cognitive_state, "entropy", 1.0)
 
             # Sigmoid-like modulation centered at 1.0
             # entropy 0 -> boost
@@ -98,9 +104,9 @@ class PrecuneusIntegrator(nn.Module):
         action_w = action_w / total_w
 
         # 2. Gate the signals
-        state_gated = vectors['state'] * state_w
-        agent_gated = vectors['agent'] * agent_w
-        action_gated = vectors['action'] * action_w
+        state_gated = vectors["state"] * state_w
+        agent_gated = vectors["agent"] * agent_w
+        action_gated = vectors["action"] * action_w
 
         # 3. Concatenate (Fragment integration)
         concatenated = torch.cat([state_gated, agent_gated, action_gated], dim=-1)
@@ -111,14 +117,19 @@ class PrecuneusIntegrator(nn.Module):
 
         # 5. Compute Coherence Info (for self-awareness)
         coherence_info = {
-            "context_weight": float(state_w),    # How much State contributes
-            "perspective_weight": float(agent_w), # How much Agent contributes
+            "context_weight": float(state_w),  # How much State contributes
+            "perspective_weight": float(agent_w),  # How much Agent contributes
             "operation_weight": float(action_w),  # How much Action contributes
-            "balance": 1.0 - float(torch.std(torch.tensor([state_w, agent_w, action_w]))),  # High = balanced
+            "balance": 1.0
+            - float(torch.std(torch.tensor([state_w, agent_w, action_w]))),  # High = balanced
             "dominant_stream": max(
-                [("context", float(state_w)), ("perspective", float(agent_w)), ("operation", float(action_w))],
-                key=lambda x: x[1]
-            )[0]
+                [
+                    ("context", float(state_w)),
+                    ("perspective", float(agent_w)),
+                    ("operation", float(action_w)),
+                ],
+                key=lambda x: x[1],
+            )[0],
         }
 
         return integrated, coherence_info
@@ -137,4 +148,4 @@ class PrecuneusIntegrator(nn.Module):
         else:
             e_tensor = energy.float()
 
-        return torch.sigmoid(-e_tensor * distinctiveness)
+        return float(torch.sigmoid(-e_tensor * distinctiveness).item())

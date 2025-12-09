@@ -1,9 +1,9 @@
 import logging
-import random
 from collections import deque
-from typing import Dict, List, Optional
+from typing import Any, Deque, Optional
 
 logger = logging.getLogger(__name__)
+
 
 class CuriosityModule:
     """
@@ -13,19 +13,19 @@ class CuriosityModule:
     Also tracks 'Boredom' to trigger exploration when the system is stuck in a loop or inactive.
     """
 
-    def __init__(self, workspace):
+    def __init__(self, workspace: Any):
         self.workspace = workspace
         # Short-term memory of recent operations to detect loops/boredom
-        self.recent_operations = deque(maxlen=20)
+        self.recent_operations: Deque[tuple[str, str]] = deque(maxlen=20)
         self.boredom_threshold = 0.7
         self.current_boredom = 0.0
 
-    def record_activity(self, activity_type: str, details: str):
+    def record_activity(self, activity_type: str, details: str) -> None:
         """Record an activity to update boredom state."""
         self.recent_operations.append((activity_type, details))
         self._update_boredom()
 
-    def _update_boredom(self):
+    def _update_boredom(self) -> None:
         """
         Calculate boredom based on repetition and inactivity.
         Simple heuristic: High repetition = High boredom.

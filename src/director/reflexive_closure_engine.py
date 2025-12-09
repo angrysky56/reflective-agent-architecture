@@ -33,7 +33,7 @@ class ReflexiveClosureEngine:
         analyzer: Optional[MetaPatternAnalyzer] = None,
         criterion: Optional[AdaptiveCriterion] = None,
         analysis_interval: int = 50,  # Analyze every N interventions
-        exploration_rate: float = 0.05  # 5% chance to perturb threshold
+        exploration_rate: float = 0.05,  # 5% chance to perturb threshold
     ):
         self.tracker = tracker or InterventionTracker()
         self.analyzer = analyzer or MetaPatternAnalyzer()
@@ -61,19 +61,21 @@ class ReflexiveClosureEngine:
             return None
 
         # Epsilon-greedy exploration
-        if random.random() < self.exploration_rate:
+        if random.random() < self.exploration_rate:  # nosec B311
             if isinstance(base_value, float):
                 # Perturb float by +/- 20%
-                perturbation = random.uniform(0.8, 1.2)
+                perturbation = random.uniform(0.8, 1.2)  # nosec B311
                 explored_value = base_value * perturbation
-                logger.info(f"Reflexive Exploration ({name}): {base_value:.2f} -> {explored_value:.2f}")
+                logger.info(
+                    f"Reflexive Exploration ({name}): {base_value:.2f} -> {explored_value:.2f}"
+                )
                 return explored_value
 
             elif isinstance(base_value, int):
                 # Perturb int by +/- 1 step (or more for larger values)
                 step = max(1, int(base_value * 0.2))
-                delta = random.choice([-step, step])
-                explored_value = max(1, base_value + delta) # Assuming positive ints usually
+                delta = random.choice([-step, step])  # nosec B311
+                explored_value = max(1, base_value + delta)  # Assuming positive ints usually
                 logger.info(f"Reflexive Exploration ({name}): {base_value} -> {explored_value}")
                 return explored_value
 
@@ -88,11 +90,11 @@ class ReflexiveClosureEngine:
         val = self.get_parameter("entropy_threshold", cognitive_state)
         return float(val) if val is not None else 2.0
 
-    def record_intervention_start(self, **kwargs) -> str:
+    def record_intervention_start(self, **kwargs: Any) -> str:
         """Proxy to tracker.start_intervention."""
         return self.tracker.start_intervention(**kwargs).episode_id
 
-    def record_intervention_end(self, **kwargs):
+    def record_intervention_end(self, **kwargs: Any) -> None:
         """
         Proxy to tracker.finish_intervention, but also triggers analysis loop.
         """
@@ -102,7 +104,7 @@ class ReflexiveClosureEngine:
         if self._interventions_since_analysis >= self.analysis_interval:
             self._run_reflexive_analysis()
 
-    def _run_reflexive_analysis(self):
+    def _run_reflexive_analysis(self) -> None:
         """
         Run the meta-analysis and update criteria.
         This is the "Reflexive Closure" moment where the system modifies itself.
@@ -131,6 +133,8 @@ class ReflexiveClosureEngine:
         if updates_applied > 0:
             logger.info(f"Reflexive Closure Complete: Applied {updates_applied} updates.")
         else:
-            logger.info("Reflexive Closure Complete: No updates applied (low confidence or bounds).")
+            logger.info(
+                "Reflexive Closure Complete: No updates applied (low confidence or bounds)."
+            )
 
         self._interventions_since_analysis = 0

@@ -1,7 +1,8 @@
 import logging
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
+
 
 class AgentFactory:
     """
@@ -11,7 +12,11 @@ class AgentFactory:
     in response to topological obstructions identified by Sheaf Diagnostics.
     """
 
-    def __init__(self, llm_provider: Any, tool_executor: Callable[[str, Dict[str, Any]], Any]):
+    def __init__(
+        self,
+        llm_provider: Any,
+        tool_executor: Optional[Callable[[str, Dict[str, Any]], Any]] = None,
+    ):
         """
         Initialize the factory.
 
@@ -20,12 +25,12 @@ class AgentFactory:
             tool_executor: Async callback to execute tools. Signature: async (name, args) -> result
         """
         self.llm_provider = llm_provider
-        self.llm_provider = llm_provider
         self.tool_executor = tool_executor
         self.active_agents: Dict[str, Dict[str, Any]] = {}
 
         # Initialize Registry
         from src.compass.advisors.registry import AdvisorRegistry
+
         self.registry = AdvisorRegistry()
 
     async def spawn_agent(self, signal_type: str, context: str) -> str:
@@ -54,9 +59,13 @@ class AgentFactory:
         )
 
         from src.compass.adapters import Message
+
         messages = [
-            Message(role="system", content="You are an expert AI Architect. Create specialized agent personas."),
-            Message(role="user", content=generation_prompt)
+            Message(
+                role="system",
+                content="You are an expert AI Architect. Create specialized agent personas.",
+            ),
+            Message(role="user", content=generation_prompt),
         ]
 
         persona = ""
@@ -88,11 +97,11 @@ class AgentFactory:
                 "properties": {
                     "query": {
                         "type": "string",
-                        "description": "The question or task for this specialized agent."
+                        "description": "The question or task for this specialized agent.",
                     }
                 },
-                "required": ["query"]
-            }
+                "required": ["query"],
+            },
         }
 
         # 3. Register
@@ -100,7 +109,7 @@ class AgentFactory:
             "persona": persona,
             "def": tool_def,
             "signal_type": signal_type,
-            "created_at": "now"
+            "created_at": "now",
         }
 
         logger.info(f"Spawned dynamic tool: {tool_name}")
@@ -130,13 +139,10 @@ class AgentFactory:
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "query": {
-                        "type": "string",
-                        "description": f"Ask {profile.name} for help."
-                    }
+                    "query": {"type": "string", "description": f"Ask {profile.name} for help."}
                 },
-                "required": ["query"]
-            }
+                "required": ["query"],
+            },
         }
 
         self.active_agents[tool_name] = {
@@ -144,7 +150,7 @@ class AgentFactory:
             "def": tool_def,
             "signal_type": "advisor_spawn",
             "created_at": "now",
-            "tools": profile.tools
+            "tools": profile.tools,
         }
 
         logger.info(f"Spawned advisor: {tool_name}")
@@ -175,10 +181,8 @@ class AgentFactory:
         logger.info(f"Executing dynamic agent {tool_name} with query: {query[:50]}...")
 
         from src.compass.adapters import Message
-        messages = [
-            Message(role="system", content=persona),
-            Message(role="user", content=query)
-        ]
+
+        messages = [Message(role="system", content=persona), Message(role="user", content=query)]
 
         # Define available tools for the agent.
         # Currently, we explicitly allow access to 'consult_compass'.
@@ -191,13 +195,10 @@ class AgentFactory:
                     "description": "Delegate a complex task to the COMPASS cognitive framework.",
                     "parameters": {
                         "type": "object",
-                        "properties": {
-                            "task": {"type": "string"},
-                            "context": {"type": "object"}
-                        },
-                        "required": ["task"]
-                    }
-                }
+                        "properties": {"task": {"type": "string"}, "context": {"type": "object"}},
+                        "required": ["task"],
+                    },
+                },
             }
         ]
 
@@ -212,10 +213,13 @@ class AgentFactory:
             tool_calls = []
 
             # Call LLM
-            async for chunk in self.llm_provider.chat_completion(messages, stream=False, tools=agent_tools):
+            async for chunk in self.llm_provider.chat_completion(
+                messages, stream=False, tools=agent_tools
+            ):
                 try:
                     if chunk.strip().startswith('{"tool_calls":'):
                         import json
+
                         data = json.loads(chunk)
                         if "tool_calls" in data:
                             tool_calls.extend(data["tool_calls"])
@@ -230,7 +234,9 @@ class AgentFactory:
                 break
 
             # Execute Tools
-            messages.append(Message(role="assistant", content=response_content)) # Add thought/content
+            messages.append(
+                Message(role="assistant", content=response_content)
+            )  # Add thought/content
 
             # We need to add tool calls to history properly for some LLMs,
             # but for our simple loop, we'll just add the results.
@@ -242,6 +248,7 @@ class AgentFactory:
                 func = tool_call.get("function", {})
                 name = func.get("name")
                 import json
+
                 try:
                     args_str = func.get("arguments", "{}")
                     if isinstance(args_str, str):
@@ -255,8 +262,11 @@ class AgentFactory:
 
                 # Execute
                 try:
-                    result = await self.tool_executor(name, t_args)
-                    result_str = str(result)
+                    if self.tool_executor:
+                        result = await self.tool_executor(name, t_args)
+                        result_str = str(result)
+                    else:
+                        result_str = "Error: No tool executor configured for this agent factory."
                 except Exception as e:
                     result_str = f"Error: {str(e)}"
 

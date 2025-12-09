@@ -26,19 +26,21 @@ import numpy as np
 
 class CognitiveLevel(Enum):
     """The six evolutionary levels of Grok-Lang."""
-    SIGNAL = 0      # L0: Raw sensory data (tone, rhythm, pace)
-    SYMBOL = 1      # L1: Naming things (lexical units)
-    SYNTAX = 2      # L2: Grammar and structure
-    SEMANTICS = 3   # L3: Meaning and truth
+
+    SIGNAL = 0  # L0: Raw sensory data (tone, rhythm, pace)
+    SYMBOL = 1  # L1: Naming things (lexical units)
+    SYNTAX = 2  # L2: Grammar and structure
+    SEMANTICS = 3  # L3: Meaning and truth
     PRAGMATICS = 4  # L4: Context and intent
-    META = 5        # L5: Language about language
+    META = 5  # L5: Language about language
 
 
 @dataclass
 class AffectVector:
     """Affective state representation (VAD model)."""
-    valence: float = 0.0    # -1 (negative) to +1 (positive)
-    arousal: float = 0.0    # 0 (calm) to 1 (excited)
+
+    valence: float = 0.0  # -1 (negative) to +1 (positive)
+    arousal: float = 0.0  # 0 (calm) to 1 (excited)
     dominance: float = 0.5  # 0 (submissive) to 1 (dominant)
 
     def to_array(self) -> np.ndarray:
@@ -53,14 +55,15 @@ class AffectVector:
 
 class Intent(Enum):
     """Speech act intent taxonomy (extended Searle classification)."""
+
     # Core speech acts
-    ASSERT = "assert"        # Stating a fact
-    INFORM = "inform"        # Providing information
-    QUESTION = "question"    # Requesting information
-    REQUEST = "request"      # Asking for action
-    PROMISE = "promise"      # Committing to action
-    EXPRESS = "express"      # Expressing emotion
-    DECLARE = "declare"      # Making something so by saying it
+    ASSERT = "assert"  # Stating a fact
+    INFORM = "inform"  # Providing information
+    QUESTION = "question"  # Requesting information
+    REQUEST = "request"  # Asking for action
+    PROMISE = "promise"  # Committing to action
+    EXPRESS = "express"  # Expressing emotion
+    DECLARE = "declare"  # Making something so by saying it
     # Extended for empathetic communication
     REASSURE = "reassure"
     DEFEND = "defend"
@@ -81,6 +84,7 @@ class MindState:
     - Δ (delta): Active derivation/transition state
     - Σ (sigma): Semantic mappings - goals, beliefs, world model
     """
+
     # Identity
     agent_id: str
 
@@ -115,6 +119,7 @@ class Utterance:
 
     Pairs the content (what is said) with the state indices (how it's meant).
     """
+
     content: str
 
     # Level-specific representations
@@ -152,7 +157,7 @@ class GrokDepthCalculator:
     def __init__(
         self,
         weights: Optional[Dict[CognitiveLevel, float]] = None,
-        embedding_model=None
+        embedding_model: Optional[Any] = None,
     ):
         self.weights = weights or self.DEFAULT_WEIGHTS
         self.embedding_model = embedding_model
@@ -166,7 +171,7 @@ class GrokDepthCalculator:
         mind_a: MindState,
         mind_b: MindState,
         utterance_a: Optional[Utterance] = None,
-        utterance_b: Optional[Utterance] = None
+        utterance_b: Optional[Utterance] = None,
     ) -> Dict[str, Any]:
         """
         Compute the Grok-Depth Score between two mind-states.
@@ -211,10 +216,7 @@ class GrokDepthCalculator:
         )
 
         # Compute weighted total
-        total_score = sum(
-            self.weights[level] * score
-            for level, score in level_scores.items()
-        )
+        total_score = sum(self.weights[level] * score for level, score in level_scores.items())
 
         # Find strongest and weakest levels
         sorted_levels = sorted(level_scores.items(), key=lambda x: x[1])
@@ -236,12 +238,11 @@ class GrokDepthCalculator:
             "weakest_level": weakest[0],
             "critical_gaps": critical_gaps,
             "alignment_vector": [level_scores[CognitiveLevel(i)] for i in range(6)],
-            "weights_used": {level.name: w for level, w in self.weights.items()}
+            "weights_used": {level.name: w for level, w in self.weights.items()},
         }
 
     def _signal_alignment(
-        self, m_a: MindState, m_b: MindState,
-        u_a: Optional[Utterance], u_b: Optional[Utterance]
+        self, m_a: MindState, m_b: MindState, u_a: Optional[Utterance], u_b: Optional[Utterance]
     ) -> float:
         """
         Somatic Resonance: "I feel your physical state before I know your words."
@@ -251,8 +252,7 @@ class GrokDepthCalculator:
         return m_a.affect.similarity(m_b.affect)
 
     def _symbol_alignment(
-        self, m_a: MindState, m_b: MindState,
-        u_a: Optional[Utterance], u_b: Optional[Utterance]
+        self, m_a: MindState, m_b: MindState, u_a: Optional[Utterance], u_b: Optional[Utterance]
     ) -> float:
         """
         Lexical Alignment: "Does 'pain' mean the same thing to you as to me?"
@@ -268,8 +268,7 @@ class GrokDepthCalculator:
         return len(shared) / len(total) if total else 0.5
 
     def _syntax_alignment(
-        self, m_a: MindState, m_b: MindState,
-        u_a: Optional[Utterance], u_b: Optional[Utterance]
+        self, m_a: MindState, m_b: MindState, u_a: Optional[Utterance], u_b: Optional[Utterance]
     ) -> float:
         """
         Pattern Recognition: "I see how you structure your reality."
@@ -282,8 +281,7 @@ class GrokDepthCalculator:
         return 0.5
 
     def _semantic_alignment(
-        self, m_a: MindState, m_b: MindState,
-        u_a: Optional[Utterance], u_b: Optional[Utterance]
+        self, m_a: MindState, m_b: MindState, u_a: Optional[Utterance], u_b: Optional[Utterance]
     ) -> float:
         """
         Perspective Taking: "I understand this is true from your view."
@@ -295,10 +293,7 @@ class GrokDepthCalculator:
             shared_beliefs = set(m_a.beliefs.keys()) & set(m_b.beliefs.keys())
             if shared_beliefs:
                 # Compute confidence alignment for shared beliefs
-                alignments = [
-                    1.0 - abs(m_a.beliefs[k] - m_b.beliefs[k])
-                    for k in shared_beliefs
-                ]
+                alignments = [1.0 - abs(m_a.beliefs[k] - m_b.beliefs[k]) for k in shared_beliefs]
                 belief_score = sum(alignments) / len(alignments)
             else:
                 belief_score = 0.3
@@ -306,17 +301,19 @@ class GrokDepthCalculator:
             belief_score = 0.5
 
         # Utterance semantic similarity (if available)
-        if u_a and u_b and u_a.semantic_embedding is not None and u_b.semantic_embedding is not None:
-            semantic_score = self._cosine_similarity(
-                u_a.semantic_embedding, u_b.semantic_embedding
-            )
+        if (
+            u_a
+            and u_b
+            and u_a.semantic_embedding is not None
+            and u_b.semantic_embedding is not None
+        ):
+            semantic_score = self._cosine_similarity(u_a.semantic_embedding, u_b.semantic_embedding)
             return 0.5 * belief_score + 0.5 * semantic_score
 
         return belief_score
 
     def _pragmatic_alignment(
-        self, m_a: MindState, m_b: MindState,
-        u_a: Optional[Utterance], u_b: Optional[Utterance]
+        self, m_a: MindState, m_b: MindState, u_a: Optional[Utterance], u_b: Optional[Utterance]
     ) -> float:
         """
         Functional Empathy: "I know WHY you are telling me this now."
@@ -334,16 +331,14 @@ class GrokDepthCalculator:
             goal_score = 0.5
 
         # Trust and intimacy alignment
-        relational_score = 1.0 - (
-            abs(m_a.trust - m_b.trust) +
-            abs(m_a.intimacy - m_b.intimacy)
-        ) / 2.0
+        relational_score = (
+            1.0 - (abs(m_a.trust - m_b.trust) + abs(m_a.intimacy - m_b.intimacy)) / 2.0
+        )
 
         return 0.4 * intent_match + 0.3 * goal_score + 0.3 * relational_score
 
     def _meta_alignment(
-        self, m_a: MindState, m_b: MindState,
-        u_a: Optional[Utterance], u_b: Optional[Utterance]
+        self, m_a: MindState, m_b: MindState, u_a: Optional[Utterance], u_b: Optional[Utterance]
     ) -> float:
         """
         Joint Attention: "We are now discussing HOW we are communicating."
@@ -352,16 +347,19 @@ class GrokDepthCalculator:
         and willingness to repair misalignment.
         """
         # Both agents at meta level indicates joint attention
-        level_match = 1.0 if (
-            m_a.current_level == CognitiveLevel.META and
-            m_b.current_level == CognitiveLevel.META
-        ) else 0.5
+        level_match = (
+            1.0
+            if (
+                m_a.current_level == CognitiveLevel.META
+                and m_b.current_level == CognitiveLevel.META
+            )
+            else 0.5
+        )
 
         # Check for meta-repair intent
-        repair_bonus = 0.2 if (
-            m_a.intent == Intent.META_REPAIR or
-            m_b.intent == Intent.META_REPAIR
-        ) else 0.0
+        repair_bonus = (
+            0.2 if (m_a.intent == Intent.META_REPAIR or m_b.intent == Intent.META_REPAIR) else 0.0
+        )
 
         # High trust + intimacy indicates established joint attention
         relational_base = (m_a.trust + m_b.trust + m_a.intimacy + m_b.intimacy) / 4.0
@@ -376,9 +374,7 @@ class GrokDepthCalculator:
         return float(np.dot(a.flatten(), b.flatten()) / norm)
 
     def _generate_diagnosis(
-        self,
-        level_scores: Dict[CognitiveLevel, float],
-        total_score: float
+        self, level_scores: Dict[CognitiveLevel, float], total_score: float
     ) -> str:
         """Generate a human-readable diagnosis of the grok-depth."""
 
@@ -412,11 +408,13 @@ class GrokDepthCalculator:
         else:
             rec = "No critical gaps detected."
 
-        return f"{assessment}. Strongest: {strongest[0].name} ({strongest[1]:.2f}). " \
-               f"Weakest: {weakest[0].name} ({weakest[1]:.2f}). {rec}"
+        return (
+            f"{assessment}. Strongest: {strongest[0].name} ({strongest[1]:.2f}). "
+            f"Weakest: {weakest[0].name} ({weakest[1]:.2f}). {rec}"
+        )
 
 
-def demonstrate_grok_lang():
+def demonstrate_grok_lang() -> Dict[str, Any]:
     """Demonstrate the Grok-Lang system with the 'Fine' example."""
 
     # Create two mind-states for the "Fine" scenario
@@ -428,7 +426,7 @@ def demonstrate_grok_lang():
         beliefs={"relationship_stable": 0.4},
         goals=["avoid_conflict", "receive_comfort"],
         trust=0.6,
-        intimacy=0.5
+        intimacy=0.5,
     )
 
     listener = MindState(
@@ -439,13 +437,13 @@ def demonstrate_grok_lang():
         beliefs={"relationship_stable": 0.8},
         goals=["check_in"],
         trust=0.6,
-        intimacy=0.5
+        intimacy=0.5,
     )
 
     utterance = Utterance(
         content="Fine.",
         pragmatic_intent=Intent.DEFEND,
-        meta_commentary="Acknowledging relational strain"
+        meta_commentary="Acknowledging relational strain",
     )
 
     # Compute grok-depth
@@ -455,7 +453,7 @@ def demonstrate_grok_lang():
     print("=== Grok-Lang Analysis: 'Fine.' ===")
     print(f"\nTotal Grok-Depth: {result['total_score']:.3f}")
     print("\nPer-Level Alignment:")
-    for level, score in result['level_scores'].items():
+    for level, score in result["level_scores"].items():
         print(f"  {level}: {score:.3f}")
     print(f"\nDiagnosis: {result['diagnosis']}")
 

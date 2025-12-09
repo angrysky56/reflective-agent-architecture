@@ -21,7 +21,7 @@ Usage:
 
 import logging
 from dataclasses import dataclass
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, TypedDict, cast
 
 import torch
 
@@ -31,6 +31,16 @@ from .embedding_mapper import EmbeddingMapper
 from .entropy_calculator import EntropyCalculator, cwd_to_logits
 
 logger = logging.getLogger(__name__)
+
+
+class IntegrationMetrics(TypedDict):
+    """Type definition for integration metrics."""
+
+    operations_monitored: int
+    entropy_spikes_detected: int
+    searches_triggered: int
+    alternatives_found: int
+    integration_events: list[dict[str, Any]]
 
 
 @dataclass
@@ -76,9 +86,9 @@ class CWDRAABridge:
 
     def __init__(
         self,
-        cwd_server,  # CWD server instance (or API client)
-        raa_director,  # RAA Director instance
-        manifold,  # RAA Manifold (Hopfield network)
+        cwd_server: Any,  # CWD server instance (or API client)
+        raa_director: Any,  # RAA Director instance
+        manifold: Any,  # RAA Manifold (Hopfield network)
         config: Optional[BridgeConfig] = None,
         pointer: Optional[Any] = None,  # Optional GoalController (Pointer)
         processor: Optional[Any] = None,  # Optional Processor for shadow monitoring
@@ -115,9 +125,12 @@ class CWDRAABridge:
                 elif hasattr(self.cwd_server, "_embed_text"):
                     sample = self.cwd_server._embed_text("bridge dim probe")
                     inferred_dim = int(len(sample))
-        except Exception:
+        except Exception as e:
             # Fallback to provided config
-            pass
+            logger.debug(
+                f"Could not infer embedding dimension from CWD server: {e}. "
+                f"Using config default: {inferred_dim}"
+            )
 
         # Update config embedding_dim if inferred from server
         self.config.embedding_dim = inferred_dim
@@ -136,7 +149,7 @@ class CWDRAABridge:
         self.pattern_idx_to_tool: dict[int, str] = {}
 
         # Integration metrics
-        self.metrics = {
+        self.metrics: IntegrationMetrics = {
             "operations_monitored": 0,
             "entropy_spikes_detected": 0,
             "searches_triggered": 0,
@@ -273,7 +286,7 @@ class CWDRAABridge:
             result=result,
             cognitive_state=cognitive_state,
             energy=energy,
-            diagnostics=diagnostics
+            diagnostics=diagnostics,
         )
 
         return result
@@ -293,7 +306,12 @@ class CWDRAABridge:
             # Generate synthetic attention based on operation
             if operation in ["deconstruct", "synthesize", "constrain"]:
                 # Focused (Diagonal)
-                attention = torch.eye(seq_len, device=device).unsqueeze(0).unsqueeze(0).repeat(1, heads, 1, 1)
+                attention = (
+                    torch.eye(seq_len, device=device)
+                    .unsqueeze(0)
+                    .unsqueeze(0)
+                    .repeat(1, heads, 1, 1)
+                )
                 # Add noise
                 attention = attention + 0.1 * torch.rand_like(attention)
                 attention = attention / attention.sum(dim=-1, keepdim=True)
@@ -308,7 +326,7 @@ class CWDRAABridge:
                 attention = torch.zeros((1, heads, seq_len, seq_len), device=device)
                 for i in range(seq_len):
                     if i > 0:
-                        attention[0, :, i, i-1] = 1.0
+                        attention[0, :, i, i - 1] = 1.0
                 attention = attention + 0.1 * torch.rand_like(attention)
                 attention = attention / (attention.sum(dim=-1, keepdim=True) + 1e-6)
 
@@ -337,7 +355,11 @@ class CWDRAABridge:
         Returns:
             Number of tools synchronized
         """
-        if not self.cwd_server or not hasattr(self.cwd_server, "workspace") or not self.cwd_server.workspace:
+        if (
+            not self.cwd_server
+            or not hasattr(self.cwd_server, "workspace")
+            or not self.cwd_server.workspace
+        ):
             logger.warning("Cannot sync tools: No workspace available in CWD server")
             return 0
 
@@ -364,7 +386,7 @@ class CWDRAABridge:
                     "id": tool_id,
                     "name": tool_data.get("name", "unknown"),
                     "type": "tool",
-                    "source": "sync"
+                    "source": "sync",
                 }
 
                 # Check if store_pattern accepts metadata (it should)
@@ -402,7 +424,7 @@ class CWDRAABridge:
             op_fn = getattr(self.cwd_server, operation)
             if callable(op_fn):
                 # Let exceptions propagate - don't silently fall back to mock
-                return op_fn(**params)  # type: ignore[misc]
+                return cast("dict[str, Any] | list[dict[str, Any]]", op_fn(**params))
 
         logger.warning(f"Mock CWD execution for {operation}")
 
@@ -444,7 +466,7 @@ class CWDRAABridge:
         }
         self.metrics["integration_events"].append(event)
 
-    def get_metrics(self) -> dict[str, Any]:
+    def get_metrics(self) -> IntegrationMetrics:
         """Get integration metrics."""
         return self.metrics.copy()
 

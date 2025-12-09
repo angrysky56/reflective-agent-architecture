@@ -7,8 +7,9 @@ and adaptive learning from feedback.
 
 import re
 from collections import defaultdict
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
+from .config import SHAPEConfig
 from .utils import COMPASSLogger
 
 
@@ -20,7 +21,12 @@ class SHAPEProcessor:
     and continuous adaptation based on feedback.
     """
 
-    def __init__(self, config, logger: Optional[COMPASSLogger] = None, llm_provider: Optional[any] = None):
+    def __init__(
+        self,
+        config: SHAPEConfig,
+        logger: Optional[COMPASSLogger] = None,
+        llm_provider: Optional[Any] = None,
+    ):
         """
         Initialize SHAPE processor.
 
@@ -37,12 +43,12 @@ class SHAPEProcessor:
         self.shorthand_dict = dict(self.config.shorthand_dict)
 
         # Usage statistics for adaptation
-        self.shorthand_usage = defaultdict(int)
-        self.expansion_feedback = []
+        self.shorthand_usage: Dict[str, int] = defaultdict(int)
+        self.expansion_feedback: List[Dict[str, Any]] = []
 
         self.logger.info("SHAPE processor initialized")
 
-    async def process_user_input(self, user_input: str) -> Dict[str, any]:
+    async def process_user_input(self, user_input: str) -> Dict[str, Any]:
         """
         Process user's prompt request and identify shorthand elements.
         Uses LLM if available for deeper semantic analysis.
@@ -62,10 +68,22 @@ class SHAPEProcessor:
         shorthand_elements = []
         for i, token in enumerate(tokens):
             if token.lower() in self.shorthand_dict:
-                shorthand_elements.append({"position": i, "shorthand": token, "expansion": self.shorthand_dict[token.lower()], "context": self._get_context(tokens, i)})
+                shorthand_elements.append(
+                    {
+                        "position": i,
+                        "shorthand": token,
+                        "expansion": self.shorthand_dict[token.lower()],
+                        "context": self._get_context(tokens, i),
+                    }
+                )
                 self.shorthand_usage[token.lower()] += 1
 
-        result = {"original": user_input, "tokens": tokens, "shorthand_elements": shorthand_elements, "has_shorthand": len(shorthand_elements) > 0}
+        result = {
+            "original": user_input,
+            "tokens": tokens,
+            "shorthand_elements": shorthand_elements,
+            "has_shorthand": len(shorthand_elements) > 0,
+        }
 
         # LLM Semantic Enrichment (The "Intelligent" Part)
         if self.llm_provider:
@@ -83,13 +101,19 @@ Identify:
 
 Return JSON: {{ "intent": "string", "entities": ["list"], "constraints": ["list"], "goals": ["list"] }}"""
 
-                messages = [Message(role="system", content="You are the SHAPE analysis module."), Message(role="user", content=prompt)]
+                messages = [
+                    Message(role="system", content="You are the SHAPE analysis module."),
+                    Message(role="user", content=prompt),
+                ]
 
                 response_content = ""
-                async for chunk in self.llm_provider.chat_completion(messages, stream=False, temperature=0.2):
+                async for chunk in self.llm_provider.chat_completion(
+                    messages, stream=False, temperature=0.2
+                ):
                     response_content += chunk
 
                 from .utils import extract_json_from_text
+
                 analysis = extract_json_from_text(response_content)
 
                 if not analysis:
@@ -99,7 +123,7 @@ Return JSON: {{ "intent": "string", "entities": ["list"], "constraints": ["list"
                         "intent": self._extract_intent(user_input),
                         "entities": self._extract_entities(user_input),
                         "constraints": self._extract_constraints(user_input),
-                        "goals": self._extract_goals(user_input)
+                        "goals": self._extract_goals(user_input),
                     }
 
                 result["llm_analysis"] = analysis
@@ -112,7 +136,7 @@ Return JSON: {{ "intent": "string", "entities": ["list"], "constraints": ["list"
                     "intent": self._extract_intent(user_input),
                     "entities": self._extract_entities(user_input),
                     "constraints": self._extract_constraints(user_input),
-                    "goals": self._extract_goals(user_input)
+                    "goals": self._extract_goals(user_input),
                 }
 
         self.logger.debug(f"Found {len(shorthand_elements)} shorthand elements")
@@ -129,7 +153,7 @@ Return JSON: {{ "intent": "string", "entities": ["list"], "constraints": ["list"
             Expanded prompt string
         """
         if not processed_input["has_shorthand"]:
-            return processed_input["original"]
+            return str(processed_input["original"])
 
         tokens = processed_input["tokens"].copy()
 
@@ -149,7 +173,98 @@ Return JSON: {{ "intent": "string", "entities": ["list"], "constraints": ["list"
 
         return expanded
 
-    def map_semantics(self, expanded_prompt: str, context: Optional[Dict] = None) -> Dict[str, any]:
+    def optimize_agent_prompt(
+        self, task: str, context: Optional[Dict] = None, agent_role: str = "Assistant"
+    ) -> str:
+        """
+        Optimize a raw task prompt for a specific agent role using SHAPE.
+
+        Args:
+            task: The raw task description
+            context: Optional execution context
+            agent_role: The role/persona of the agent (e.g., "Critic", "Creative")
+
+        Returns:
+            Optimized prompt string
+        """
+        context = context or {}
+
+        # 1. Expand standard shorthands (e.g., "opt" -> "optimize")
+        # We wrap the task in a dummy processed input structure to reuse expand_shorthand
+        # In a real v2, we'd refactor this.
+        processed: Dict[str, Any] = {
+            "original": task,
+            "tokens": self._tokenize(task),
+            "shorthand_elements": [],
+            "has_shorthand": False,
+        }
+
+        # Quick scan for shorthands
+        # (Reusing logic from process_user_input but simplified for speed)
+        tokens: List[str] = processed["tokens"]
+        found_shorthand = False
+        for i, token in enumerate(tokens):
+            if token.lower() in self.shorthand_dict:
+                elements: List[Dict[str, Any]] = processed["shorthand_elements"]
+                elements.append(
+                    {
+                        "position": i,
+                        "shorthand": token,
+                        "expansion": self.shorthand_dict[token.lower()],
+                        "context": {},
+                    }
+                )
+                found_shorthand = True
+        processed["has_shorthand"] = found_shorthand
+
+        expanded_task = self.expand_shorthand(processed)
+
+        # 2. Semantic Analysis
+        semantics = {
+            "intent": self._extract_intent(expanded_task),
+            "entities": self._extract_entities(expanded_task),
+            "constraints": self._extract_constraints(expanded_task),
+            "goals": self._extract_goals(expanded_task),
+        }
+
+        # 3. Protocol Enforcement (The "Shape" of the prompt)
+        # We inject specific instructions based on role and past feedback
+
+        protocol_instructions = []
+
+        # Base protocol: JSON output is mandatory
+        protocol_instructions.append(
+            "CRITICAL: Return your response in PURE JSON format (no markdown)."
+        )
+
+        # Role-based optimization
+        if "critic" in agent_role.lower():
+            protocol_instructions.append("Adopt a critical, skeptical perspective. Look for flaws.")
+        elif "creative" in agent_role.lower():
+            protocol_instructions.append("Think divergently. Explore novel connections.")
+
+        # Feedback-based Adaptation (Validation loop)
+        # If this type of task has failed recently, add safeguards.
+        # Simple heuristic: if we have negative feedback for similar tasks
+        recent_failures = [f for f in self.expansion_feedback if f["score"] < 0.5]
+        if recent_failures and len(recent_failures) > 2:
+            protocol_instructions.append("Think step-by-step before answering.")
+
+        # 4. Construct Final Prompt
+        optimized_prompt = f"""
+System Role: {agent_role}
+
+Task: {expanded_task}
+
+Context Entities: {', '.join(semantics['entities'][:5])}
+Implicit Goal: {', '.join(semantics['goals'][:2])}
+
+Directives:
+{chr(10).join([f'- {i}' for i in protocol_instructions])}
+"""
+        return optimized_prompt
+
+    def map_semantics(self, expanded_prompt: str, context: Optional[Dict] = None) -> Dict[str, Any]:
         """
         Refine expanded prompts for AI semantic alignment.
 
@@ -163,15 +278,25 @@ Return JSON: {{ "intent": "string", "entities": ["list"], "constraints": ["list"
         context = context or {}
 
         # Extract semantic elements
-        semantic_elements = {"intent": self._extract_intent(expanded_prompt), "entities": self._extract_entities(expanded_prompt), "constraints": self._extract_constraints(expanded_prompt), "goals": self._extract_goals(expanded_prompt), "context": context}
+        semantic_elements = {
+            "intent": self._extract_intent(expanded_prompt),
+            "entities": self._extract_entities(expanded_prompt),
+            "constraints": self._extract_constraints(expanded_prompt),
+            "goals": self._extract_goals(expanded_prompt),
+            "context": context,
+        }
 
         # Build semantically rich representation
-        result = {"prompt": expanded_prompt, "semantic_elements": semantic_elements, "enriched_prompt": self._build_enriched_prompt(expanded_prompt, semantic_elements)}
+        result = {
+            "prompt": expanded_prompt,
+            "semantic_elements": semantic_elements,
+            "enriched_prompt": self._build_enriched_prompt(expanded_prompt, semantic_elements),
+        }
 
         self.logger.debug(f"Semantic mapping complete: intent={semantic_elements['intent']}")
         return result
 
-    def collect_feedback(self, original_input: str, processed_output: any, score: float):
+    def collect_feedback(self, original_input: str, processed_output: Any, score: float) -> None:
         """
         Collect feedback for adaptation and evolution.
 
@@ -188,7 +313,7 @@ Return JSON: {{ "intent": "string", "entities": ["list"], "constraints": ["list"
         if len(self.expansion_feedback) >= 10:
             self._adapt_shorthand_dictionary()
 
-    def _adapt_shorthand_dictionary(self):
+    def _adapt_shorthand_dictionary(self) -> None:
         """
         Update shorthand dictionary based on feedback.
 
@@ -207,7 +332,7 @@ Return JSON: {{ "intent": "string", "entities": ["list"], "constraints": ["list"
         # Clear old feedback (keep only recent)
         self.expansion_feedback = self.expansion_feedback[-20:]
 
-    def _ml_based_adaptation(self, high_score_inputs: List[Dict]):
+    def _ml_based_adaptation(self, high_score_inputs: List[Dict]) -> None:
         """
         Machine learning based shorthand adaptation.
 
@@ -233,7 +358,10 @@ Return JSON: {{ "intent": "string", "entities": ["list"], "constraints": ["list"
         """
         window = self.config.context_window_size
 
-        return {"before": tokens[max(0, position - window) : position], "after": tokens[position + 1 : position + 1 + window]}
+        return {
+            "before": tokens[max(0, position - window) : position],
+            "after": tokens[position + 1 : position + 1 + window],
+        }
 
     def _context_aware_expansion(self, shorthand: str, context: Dict) -> str:
         """
@@ -251,7 +379,23 @@ Return JSON: {{ "intent": "string", "entities": ["list"], "constraints": ["list"
         Simple heuristic-based extraction.
         """
         # Look for action verbs
-        action_verbs = ["create", "build", "implement", "design", "optimize", "analyze", "evaluate", "solve", "find", "calculate", "generate", "develop", "test", "debug", "refactor"]
+        action_verbs = [
+            "create",
+            "build",
+            "implement",
+            "design",
+            "optimize",
+            "analyze",
+            "evaluate",
+            "solve",
+            "find",
+            "calculate",
+            "generate",
+            "develop",
+            "test",
+            "debug",
+            "refactor",
+        ]
 
         prompt_lower = prompt.lower()
         for verb in action_verbs:
@@ -280,7 +424,14 @@ Return JSON: {{ "intent": "string", "entities": ["list"], "constraints": ["list"
         constraints = []
 
         # Look for constraint keywords
-        constraint_patterns = [r"must \w+", r"should \w+", r"cannot \w+", r"within \w+", r"using \w+", r"without \w+"]
+        constraint_patterns = [
+            r"must \w+",
+            r"should \w+",
+            r"cannot \w+",
+            r"within \w+",
+            r"using \w+",
+            r"without \w+",
+        ]
 
         for pattern in constraint_patterns:
             matches = re.findall(pattern, prompt, re.IGNORECASE)

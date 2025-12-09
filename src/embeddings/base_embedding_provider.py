@@ -14,7 +14,7 @@ class BaseEmbeddingProvider(ABC):
         batch_size: int = 32,
         show_progress_bar: bool = False,
         convert_to_numpy: bool = True,
-        **kwargs
+        **kwargs: Any,
     ) -> Union[np.ndarray, List[np.ndarray], Any]:
         """
         Encode sentences into embeddings.
@@ -37,6 +37,6 @@ class BaseEmbeddingProvider(ABC):
         pass
 
     @abstractmethod
-    def to(self, device: str):
+    def to(self, device: str) -> None:
         """Move model to device (cpu/cuda)."""
         pass

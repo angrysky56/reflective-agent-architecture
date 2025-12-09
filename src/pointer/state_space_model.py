@@ -61,11 +61,13 @@ class StateSpaceGoalController(nn.Module):
 
         if self.state is None:
             self.reset(batch_size)
-        assert self.state is not None, "Internal error: state should be initialized after reset()"
+        if self.state is None:
+            raise ValueError("Internal error: state should be initialized after reset()")
 
         # Update state based on goal
         # x = x + B @ goal
         self.state = self.state + f.linear(goal_vector, self.B.T)
+
     def get_current_goal(self) -> torch.Tensor:
         """
         Get current goal from state.
@@ -75,7 +77,8 @@ class StateSpaceGoalController(nn.Module):
         """
         if self.state is None:
             return torch.zeros(1, self.embedding_dim).to(self.device)
-        assert self.state is not None, "Internal error: state should not be None here"
+        if self.state is None:
+            raise ValueError("Internal error: state should not be None here")
 
         # y = C @ x
         goal = f.linear(self.state, self.C)
@@ -100,7 +103,8 @@ class StateSpaceGoalController(nn.Module):
         batch_size = input_vec.shape[0]
         if self.state is None:
             self.reset(batch_size)
-        assert self.state is not None, "Internal error: state should be initialized after reset()"
+        if self.state is None:
+            raise ValueError("Internal error: state should be initialized after reset()")
 
         # Discretize continuous-time system (Euler method)
         # x_{t+1} = x_t + dt * (A @ x_t + B @ u_t)

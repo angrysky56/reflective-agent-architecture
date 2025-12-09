@@ -1,11 +1,10 @@
-
 import logging
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
-import numpy as np
+from src.llm.factory import LLMFactory
 
 from .advisors import AdvisorRegistry
-from .config import ExecutiveControllerConfig, SelfDiscoverConfig, oMCDConfig
+from .config import ExecutiveControllerConfig, OMCDConfig, SelfDiscoverConfig, SHAPEConfig
 from .executive_controller import ExecutiveController
 
 
@@ -13,7 +12,8 @@ class ConsensusEngine:
     """
     Implements 'Maynard-Cross Learning' to aggregate swarm hypotheses.
     """
-    def __init__(self):
+
+    def __init__(self) -> None:
         self.logger = logging.getLogger("ConsensusEngine")
 
     def aggregate(self, agent_outputs: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -57,18 +57,21 @@ class ConsensusEngine:
             "consensus_prediction": consensus_prediction,
             "best_hypothesis": best_hypothesis,
             "confidence": max_weight,
-            "divergence_spread": [o.get("divergence") for o in agent_outputs]
+            "divergence_spread": [o.get("divergence") for o in agent_outputs],
         }
+
 
 class SwarmController:
     """
     Manages a swarm of RAA Agents with distinct priors.
     """
-    def __init__(self, advisor_ids: List[str] = None):
+
+    def __init__(self, advisor_ids: Optional[List[str]] = None):
         self.agents = []
         self.consensus_engine = ConsensusEngine()
         self.logger = logging.getLogger("SwarmController")
         self.advisor_registry = AdvisorRegistry()
+        self.llm_provider = LLMFactory.create_provider()
 
         # Default advisors if none provided
         if not advisor_ids:
@@ -76,20 +79,35 @@ class SwarmController:
 
         for advisor_id in advisor_ids:
             config = ExecutiveControllerConfig()
-            omcd_config = oMCDConfig()
+            omcd_config = OMCDConfig()
             self_discover_config = SelfDiscoverConfig()
+            shape_config = SHAPEConfig()  # Initialized with defaults
 
             # Instantiate Agent
-            agent = ExecutiveController(config, omcd_config, self_discover_config, self.advisor_registry)
+            agent = ExecutiveController(
+                config,
+                omcd_config,
+                self_discover_config,
+                self.advisor_registry,
+                shape_config=shape_config,
+                llm_provider=self.llm_provider,
+            )
 
             # Fetch and Assign Advisor Profile
             profile = self.advisor_registry.get_advisor(advisor_id)
             if not profile:
-                self.logger.warning(f"Advisor '{advisor_id}' not found in registry. Using Generalist.")
+                self.logger.warning(
+                    f"Advisor '{advisor_id}' not found in registry. Using Generalist."
+                )
                 profile = self.advisor_registry.get_advisor("generalist")
 
+            if not profile:
+                self.logger.error(
+                    f"Failed to load advisor '{advisor_id}' or fallback. Skipping Agent."
+                )
+                continue
+
             # Manually set the active advisor (Architectural Integration)
-            # In a real execution, this profile's system prompt would be used.
             agent.active_advisor = profile
 
             self.agents.append(agent)
@@ -102,59 +120,14 @@ class SwarmController:
         agent_outputs = []
 
         for agent in self.agents:
-            # 1. Simulate Agent Processing
-            # In a full system, we would call: agent.coordinate_iteration(task)
-            # Here, we simulate the outcome based on the assigned Advisor Profile.
+            if not agent.active_advisor:
+                self.logger.warning("Agent execution skipped: No active advisor.")
+                continue
 
-            output = self._simulate_agent_behavior(agent, task, data)
+            self.logger.info(f"Executing reasoning for agent: {agent.active_advisor.id}")
+            output = agent.execute_reasoning(task, data)
             agent_outputs.append(output)
 
         # 2. Aggregate
         consensus = self.consensus_engine.aggregate(agent_outputs)
         return consensus
-
-    def _simulate_agent_behavior(self, agent: ExecutiveController, task: str, data: List[float]) -> Dict[str, Any]:
-        """
-        Simulates how an agent with a specific prior reacts to Alien Physics data.
-        """
-        # Alien Physics: tanh(tanh(y)) * sin(x) -> Non-linear, Periodic
-        advisor_id = agent.active_advisor.id
-        print(f"DEBUG: Simulating behavior for Advisor ID: '{advisor_id}'")
-
-        if advisor_id == "linearist":
-            # Tries Linear Regression -> Fails
-            # High Confidence (it's numbers), High Resistance (it's non-linear)
-            return {
-                "agent": agent.active_advisor.name,
-                "hypothesis": "Linear Trend",
-                "prediction": 0.0, # Bad prediction
-                "confidence": 0.9,
-                "resistance": 0.9, # High error
-                "divergence": 0.8  # |0.9 - (1-0.9)| = 0.8 -> Delusion
-            }
-
-        elif advisor_id == "periodicist":
-            # Tries Fourier -> Succeeds
-            # Medium Confidence (complex), Low Resistance (good fit)
-            return {
-                "agent": agent.active_advisor.name,
-                "hypothesis": "Fourier Series",
-                "prediction": -0.42, # Good prediction
-                "confidence": 0.7,
-                "resistance": 0.1,
-                "divergence": 0.2 # |0.7 - 0.9| = 0.2 -> Healthy
-            }
-
-        elif advisor_id == "evolutionist":
-            # Tries Symbolic Regression -> Succeeds perfectly
-            # Low Confidence (hard search), Zero Resistance (perfect fit)
-            return {
-                "agent": agent.active_advisor.name,
-                "hypothesis": "tanh(tanh(y)) * sin(x)",
-                "prediction": -0.4205, # Perfect prediction
-                "confidence": 0.5,
-                "resistance": 0.0,
-                "divergence": 0.5 # |0.5 - 1.0| = 0.5 -> Healthy
-            }
-
-        return {}

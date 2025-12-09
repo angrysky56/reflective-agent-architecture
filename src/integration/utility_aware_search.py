@@ -17,9 +17,10 @@ easier to retrieve during RAA search.
 """
 
 import logging
-from typing import Any
 
 import torch
+
+from src.manifold import Manifold
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +74,7 @@ class UtilityAwareSearch:
 def utility_biased_energy(
     state: torch.Tensor,
     pattern: torch.Tensor,
-    manifold,
+    manifold: Manifold,
     utility_score: float,
     utility_weight: float = 0.3,
 ) -> float:

@@ -61,7 +61,7 @@ class EmbeddingMapper:
             logger.info(f"EmbeddingMapper initialized with dim={embedding_dim}, model={model_name}")
 
     @property
-    def embedding_model(self):
+    def embedding_model(self) -> Any:
         """Lazy load embedding model on first use."""
         if self._embedding_model is None:
             try:
@@ -80,8 +80,11 @@ class EmbeddingMapper:
             # Ensure device placement is correct
             try:
                 self._embedding_model.to(self.device)  # type: ignore[attr-defined]
-            except Exception:
-                pass
+            except (AttributeError, RuntimeError) as e:
+                logger.debug(
+                    f"Could not move preloaded model to device '{self.device}': {e}. "
+                    "Model may not support device placement or device may be unavailable."
+                )
         return self._embedding_model
 
     def cwd_node_to_vector(
@@ -268,4 +271,4 @@ class EmbeddingMapper:
             vec1.unsqueeze(0),
             vec2.unsqueeze(0),
         )
-        return similarity.item()
+        return float(similarity.item())

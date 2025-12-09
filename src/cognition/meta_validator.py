@@ -1,6 +1,6 @@
 import math
 import re
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict
 
 
 class MetaValidator:
@@ -16,20 +16,18 @@ class MetaValidator:
         """
         specificity_indicators = {
             # Formulas and equations
-            "formula_count": len(re.findall(r'[=<>∈∀∃∫∑]', text)),
-
+            "formula_count": len(re.findall(r"[=<>∈∀∃∫∑]", text)),
             # Concrete numbers and values
-            "number_count": len(re.findall(r'\b\d+(\.\d+)?\b', text)),
-
+            "number_count": len(re.findall(r"\b\d+(\.\d+)?\b", text)),
             # Explicit examples
-            "example_markers": len(re.findall(r'\b(e\.g\.|for example|such as|specifically)\b', text, re.I)),
-
+            "example_markers": len(
+                re.findall(r"\b(e\.g\.|for example|such as|specifically)\b", text, re.I)
+            ),
             # Defined thresholds
-            "threshold_markers": len(re.findall(r'\b(≥|≤|<|>|threshold|cutoff)\b', text)),
-
+            "threshold_markers": len(re.findall(r"\b(≥|≤|<|>|threshold|cutoff)\b", text)),
             # Concrete names and terms (heuristic: capitalized words not at start of sentence)
             # This is a simple approximation
-            "proper_nouns": len(re.findall(r'\b[A-Z][a-z]+\b', text))
+            "proper_nouns": len(re.findall(r"\b[A-Z][a-z]+\b", text)),
         }
 
         # Normalize by text length
@@ -44,14 +42,22 @@ class MetaValidator:
         """
         Measure argumentative structure via discourse markers.
         """
-        premise_markers = len(re.findall(r'\b(given|assume|suppose|if|since|because)\b', text, re.I))
-        inference_markers = len(re.findall(r'\b(therefore|thus|hence|consequently|implies)\b', text, re.I))
-        conclusion_markers = len(re.findall(r'\b(conclude|follows|shows|proves|demonstrates)\b', text, re.I))
+        premise_markers = len(
+            re.findall(r"\b(given|assume|suppose|if|since|because)\b", text, re.I)
+        )
+        inference_markers = len(
+            re.findall(r"\b(therefore|thus|hence|consequently|implies)\b", text, re.I)
+        )
+        conclusion_markers = len(
+            re.findall(r"\b(conclude|follows|shows|proves|demonstrates)\b", text, re.I)
+        )
 
         # Check for logical structure: premises -> inference -> conclusion
-        has_structure = (premise_markers > 0 and inference_markers > 0 and conclusion_markers > 0)
+        has_structure = premise_markers > 0 and inference_markers > 0 and conclusion_markers > 0
 
-        depth_score = (premise_markers + inference_markers + conclusion_markers) / max(len(text.split()), 1)
+        depth_score = (premise_markers + inference_markers + conclusion_markers) / max(
+            len(text.split()), 1
+        )
 
         # Boost if complete logical structure present
         if has_structure:
@@ -81,10 +87,10 @@ class MetaValidator:
 
         response = llm_func("You are a logical coherence analyzer.", prompt)
         try:
-            match = re.search(r'(\d\.\d+)', response)
+            match = re.search(r"(\d\.\d+)", response)
             if match:
                 return float(match.group(1))
-            return 0.5 # Default if parse fails
+            return 0.5  # Default if parse fails
         except Exception:
             return 0.5
 
@@ -103,39 +109,41 @@ class MetaValidator:
         return rigor
 
     @staticmethod
-    def calculate_unified_score(C: float, R: float, context: str = "comprehensive_analysis") -> Dict[str, Any]:
+    def calculate_unified_score(
+        c: float, r: float, context: str = "comprehensive_analysis"
+    ) -> Dict[str, Any]:
         """
         Unified quality score respecting orthogonal dimensions.
         """
 
         # Multiplicative interaction term (penalizes severe weakness in either dimension)
-        interaction = math.sqrt(C * R)
+        interaction = math.sqrt(c * r)
 
         # Geometric mean (balanced quality)
-        geometric_mean = math.sqrt(C * R)
+        geometric_mean = math.sqrt(c * r)
 
         # Context-weighted combination
         if context == "executive_summary":
             # Breadth-first: weight coverage higher
-            unified_score = 0.7 * C + 0.3 * R
+            unified_score = 0.7 * c + 0.3 * r
         elif context == "technical_proof":
             # Depth-first: weight rigor higher
-            unified_score = 0.3 * C + 0.7 * R
+            unified_score = 0.3 * c + 0.7 * r
         elif context == "comprehensive_analysis":
             # Balanced: require both (multiplicative penalty for weakness)
-            unified_score = 0.5 * (C + R) * interaction
+            unified_score = 0.5 * (c + r) * interaction
         else:
             # Default: geometric mean (neutral balance)
             unified_score = geometric_mean
 
         # Quadrant classification
-        if C >= 0.80 and R >= 0.80:
+        if c >= 0.80 and r >= 0.80:
             quadrant = "Q2_IDEAL"
             validity = "VALID"
-        elif C >= 0.80 and R < 0.60:
+        elif c >= 0.80 and r < 0.60:
             quadrant = "Q1_SHALLOW"
             validity = "CONDITIONAL"
-        elif C < 0.60 and R >= 0.80:
+        elif c < 0.60 and r >= 0.80:
             quadrant = "Q4_DEEP"
             validity = "CONDITIONAL"
         else:
@@ -143,55 +151,55 @@ class MetaValidator:
             validity = "INVALID"
 
         return {
-            "coverage": C,
-            "rigor": R,
+            "coverage": c,
+            "rigor": r,
             "unified_score": unified_score,
             "quadrant": quadrant,
-            "validity": validity
+            "validity": validity,
         }
 
     @staticmethod
-    def reconcile(C: float, R: float, context: str = "comprehensive_analysis") -> Dict[str, str]:
+    def reconcile(c: float, r: float, context: str = "comprehensive_analysis") -> Dict[str, str]:
         """
         IF-THEN rules for resolving validator disagreements.
         """
-        if C >= 0.80 and R >= 0.80:
+        if c >= 0.80 and r >= 0.80:
             return {
                 "decision": "APPROVE",
-                "reason": "Both validators agree: high coverage and high rigor"
+                "reason": "Both validators agree: high coverage and high rigor",
             }
 
-        elif C >= 0.80 and R < 0.60:
+        elif c >= 0.80 and r < 0.60:
             if context in ["executive_summary", "survey"]:
                 return {
                     "decision": "APPROVE_CONDITIONAL",
                     "reason": "Shallow but appropriate for context (breadth-first)",
-                    "action": "None (Context Approved)"
+                    "action": "None (Context Approved)",
                 }
             else:
                 return {
                     "decision": "REVISE_FOR_RIGOR",
                     "reason": "High coverage but insufficient rigor for context",
-                    "action": "Add: explicit premises, inference steps, concrete examples"
+                    "action": "Add: explicit premises, inference steps, concrete examples",
                 }
 
-        elif C < 0.60 and R >= 0.80:
+        elif c < 0.60 and r >= 0.80:
             if context in ["technical_proof", "focused_analysis"]:
                 return {
                     "decision": "APPROVE_CONDITIONAL",
                     "reason": "Deep but narrow—appropriate for specialized context",
-                    "action": "None (Context Approved)"
+                    "action": "None (Context Approved)",
                 }
             else:
                 return {
                     "decision": "REVISE_FOR_COVERAGE",
                     "reason": "High rigor but insufficient coverage for context",
-                    "action": "Add: missing topics from constraint requirements"
+                    "action": "Add: missing topics from constraint requirements",
                 }
 
-        else:  # C < 0.60 and R < 0.60
+        else:  # c < 0.60 and r < 0.60
             return {
                 "decision": "REJECT",
                 "reason": "Both validators fail: insufficient coverage AND insufficient rigor",
-                "action": "Complete rewrite required"
+                "action": "Complete rewrite required",
             }

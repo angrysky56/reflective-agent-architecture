@@ -6,13 +6,13 @@ including oMCD resource allocation, SLAP weights, SMART metrics, and Self-Discov
 """
 
 from dataclasses import dataclass, field
-from typing import Dict, List
+from typing import Any, Dict, List
 
 import numpy as np
 
 
 @dataclass
-class oMCDConfig:
+class OMCDConfig:
     """Configuration for oMCD (online Metacognitive Control of Decisions) model."""
 
     # Cost parameters
@@ -45,12 +45,23 @@ class SLAPConfig:
     beta: float = 0.6  # Weight for improvement importance
 
     # Validation
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if not np.isclose(self.alpha + self.beta, 1.0):
             raise ValueError(f"SLAP weights must sum to 1.0, got {self.alpha + self.beta}")
 
     # Pipeline stages
-    stages: List[str] = field(default_factory=lambda: ["Conceptualization", "Representation", "Facts", "Scrutiny", "Derivation", "RuleBased", "Model", "SemanticFormalization"])
+    stages: List[str] = field(
+        default_factory=lambda: [
+            "Conceptualization",
+            "Representation",
+            "Facts",
+            "Scrutiny",
+            "Derivation",
+            "RuleBased",
+            "Model",
+            "SemanticFormalization",
+        ]
+    )
 
     # MCTS parameters for entity identification
     mcts_iterations: int = 1000
@@ -62,10 +73,24 @@ class SMARTConfig:
     """Configuration for SMART (Strategic Management & Resource Tracking) system."""
 
     # Objective categories
-    objective_categories: List[str] = field(default_factory=lambda: ["decision-making", "ethical-compliance", "learning-capabilities", "performance-optimization"])
+    objective_categories: List[str] = field(
+        default_factory=lambda: [
+            "decision-making",
+            "ethical-compliance",
+            "learning-capabilities",
+            "performance-optimization",
+        ]
+    )
 
     # Metrics configuration
-    metrics: Dict[str, str] = field(default_factory=lambda: {"decision-making": "Speed and accuracy metrics", "ethical-compliance": "Compliance level metric", "learning-capabilities": "Improvement rate metric", "performance-optimization": "Efficiency and resource usage metrics"})
+    metrics: Dict[str, str] = field(
+        default_factory=lambda: {
+            "decision-making": "Speed and accuracy metrics",
+            "ethical-compliance": "Compliance level metric",
+            "learning-capabilities": "Improvement rate metric",
+            "performance-optimization": "Efficiency and resource usage metrics",
+        }
+    )
 
     # Timeline defaults (in days)
     default_timeline_days: int = 90
@@ -121,13 +146,25 @@ class SHAPEConfig:
     learning_rate: float = 0.01
     feedback_weight: float = 0.5
 
+    # Agent optimization
+    agent_optimization_mode: str = "balanced"  # 'speed', 'accuracy', 'balanced'
+
 
 @dataclass
 class IntegratedIntelligenceConfig:
     """Configuration for Integrated Intelligence multi-modal reasoning."""
 
     # Universal intelligence weights (for linear and interaction terms)
-    linear_weights: Dict[str, float] = field(default_factory=lambda: {"learning": 0.2, "reasoning": 0.25, "nlu": 0.15, "uncertainty": 0.15, "evolution": 0.15, "neural": 0.1})
+    linear_weights: Dict[str, float] = field(
+        default_factory=lambda: {
+            "learning": 0.2,
+            "reasoning": 0.25,
+            "nlu": 0.15,
+            "uncertainty": 0.15,
+            "evolution": 0.15,
+            "neural": 0.1,
+        }
+    )
 
     # Interaction weights (for pairwise function interactions)
     interaction_weight: float = 0.3
@@ -147,7 +184,9 @@ class IntegratedIntelligenceConfig:
     enable_tools: bool = True  # Enable MCP tools for research and information gathering
 
     # LLM Configuration
-    llm_model: str = field(default_factory=lambda: __import__("os").getenv("COMPASS_MODEL", "kimi-k2-thinking:cloud"))
+    llm_model: str = field(
+        default_factory=lambda: __import__("os").getenv("COMPASS_MODEL", "kimi-k2-thinking:cloud")
+    )
 
 
 @dataclass
@@ -179,7 +218,17 @@ class DynamicWorkspaceConfig:
     """Configuration for Dynamic Workspace (Representation Flexibility)."""
 
     default_representation: str = "sequential"
-    allowed_representations: List[str] = field(default_factory=lambda: ["sequential", "hierarchical", "network", "ordinal", "causal", "temporal", "spatial"])
+    allowed_representations: List[str] = field(
+        default_factory=lambda: [
+            "sequential",
+            "hierarchical",
+            "network",
+            "ordinal",
+            "causal",
+            "temporal",
+            "spatial",
+        ]
+    )
     enable_adaptive_switching: bool = True
     switching_threshold: float = 0.6
 
@@ -213,7 +262,7 @@ class COMPASSConfig:
     """Master configuration for the entire COMPASS framework."""
 
     # Sub-configurations
-    omcd: oMCDConfig = field(default_factory=oMCDConfig)
+    omcd: OMCDConfig = field(default_factory=OMCDConfig)
     slap: SLAPConfig = field(default_factory=SLAPConfig)
     smart: SMARTConfig = field(default_factory=SMARTConfig)
     self_discover: SelfDiscoverConfig = field(default_factory=SelfDiscoverConfig)
@@ -245,7 +294,7 @@ def get_config() -> COMPASSConfig:
     return DEFAULT_CONFIG
 
 
-def create_custom_config(**kwargs) -> COMPASSConfig:
+def create_custom_config(**kwargs: Any) -> COMPASSConfig:
     """
     Create a custom configuration by overriding default values.
 

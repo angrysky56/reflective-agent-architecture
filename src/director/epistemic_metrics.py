@@ -1,20 +1,21 @@
 import zlib
+from typing import Any
 
 import numpy as np
 
 
-def estimate_lyapunov_exponent(data, dataset_step=1):
+def estimate_lyapunov_exponent(data: np.ndarray, dataset_step: int = 1) -> float:
     """
     Estimate the largest Lyapunov exponent using Rosenstein's algorithm (simplified).
     Positive LE indicates chaos.
     """
-    N = len(data)
+    n = len(data)
     m = 3  # Embedding dimension
-    tau = 1 # Time delay
+    tau = 1  # Time delay
 
     # Reconstruct phase space
     # X = [x(t), x(t+tau), ..., x(t+(m-1)tau)]
-    if N < (m - 1) * tau + 2:
+    if n < (m - 1) * tau + 2:
         return 0.0
 
     # Simplified: Just look at divergence of nearest neighbors
@@ -27,27 +28,29 @@ def estimate_lyapunov_exponent(data, dataset_step=1):
     sorted_data = data[idx]
 
     divergence = []
-    for i in range(N - 1):
+    for i in range(n - 1):
         # Neighbor in value space
-        d0 = abs(sorted_data[i+1] - sorted_data[i])
-        if d0 < 1e-6: continue
+        d0 = abs(sorted_data[i + 1] - sorted_data[i])
+        if d0 < 1e-6:
+            continue
 
         # Look at their next iteration (using original indices)
         # We need to find where these values appeared in time
         t1 = idx[i]
-        t2 = idx[i+1]
+        t2 = idx[i + 1]
 
-        if t1 + 1 < N and t2 + 1 < N:
-            d1 = abs(data[t1+1] - data[t2+1])
+        if t1 + 1 < n and t2 + 1 < n:
+            d1 = abs(data[t1 + 1] - data[t2 + 1])
             if d1 > 1e-6:
-                divergence.append(np.log(d1/d0))
+                divergence.append(np.log(d1 / d0))
 
     if not divergence:
         return 0.0
 
-    return np.mean(divergence)
+    return float(np.mean(divergence))
 
-def estimate_complexity(y):
+
+def estimate_complexity(y: Any) -> dict[str, Any]:
     """
     Composite complexity estimation using multiple signals.
     Returns: dict with complexity score and diagnostic info
@@ -64,7 +67,7 @@ def estimate_complexity(y):
     # Robust statistics: use median and MAD to avoid outliers skewing the threshold
     median_grad = np.median(dy_jumps)
     mad_grad = np.median(np.abs(dy_jumps - median_grad))
-    jump_threshold = median_grad + 5 * mad_grad # Conservative threshold
+    jump_threshold = median_grad + 5 * mad_grad  # Conservative threshold
 
     # Fallback for low variance
     if mad_grad < 1e-6:
@@ -73,10 +76,10 @@ def estimate_complexity(y):
     if np.any(dy_jumps > jump_threshold):
         jump_locations = np.where(dy_jumps > jump_threshold)[0]
         return {
-            'complexity_score': 0.9,  # very high
-            'type': 'discontinuous',
-            'jump_locations': jump_locations.tolist(),
-            'recommendation': 'piecewise_fitting'
+            "complexity_score": 0.9,  # very high
+            "type": "discontinuous",
+            "jump_locations": jump_locations.tolist(),
+            "recommendation": "piecewise_fitting",
         }
 
     # Kolmogorov proxy (compressibility)
@@ -96,7 +99,7 @@ def estimate_complexity(y):
 
     # Spectral complexity (frequency richness)
     fft = np.fft.fft(y)
-    power = np.abs(fft)**2
+    power = np.abs(fft) ** 2
     # Normalize power to sum to 1
     p_norm = power / (np.sum(power) + 1e-10)
     # Entropy of power spectrum
@@ -105,21 +108,26 @@ def estimate_complexity(y):
 
     # Composite score
     # We weight compressibility higher as it's a good general proxy
-    complexity_score = np.mean([
-        compressibility,
-        min(max(lyapunov, 0.0), 1.0),  # cap at 1, floor at 0
-        spectral_entropy_normalized
-    ])
+    complexity_score = float(
+        np.mean(
+            [
+                compressibility,
+                min(max(lyapunov, 0.0), 1.0),  # cap at 1, floor at 0
+                spectral_entropy_normalized,
+            ]
+        )
+    )
 
     return {
-        'complexity_score': complexity_score,
-        'type': 'smooth' if complexity_score < 0.7 else 'complex',
-        'compressibility': compressibility,
-        'lyapunov': lyapunov,
-        'spectral_entropy': spectral_entropy_normalized
+        "complexity_score": complexity_score,
+        "type": "smooth" if complexity_score < 0.7 else "complex",
+        "compressibility": compressibility,
+        "lyapunov": lyapunov,
+        "spectral_entropy": spectral_entropy_normalized,
     }
 
-def estimate_randomness(y):
+
+def estimate_randomness(y: Any) -> dict[str, Any]:
     """
     Composite randomness estimation.
     Returns: dict with randomness score and diagnostic info
@@ -129,7 +137,7 @@ def estimate_randomness(y):
     # Entropy rate (unpredictability of first difference)
     dy = np.diff(y)
     # Binning
-    hist, _ = np.histogram(dy, bins=min(50, max(1, len(dy)//4)), density=True)
+    hist, _ = np.histogram(dy, bins=min(50, max(1, len(dy) // 4)), density=True)
     hist = hist[hist > 0]
     entropy = -np.sum(hist * np.log2(hist))
     max_entropy = np.log2(len(hist))
@@ -141,12 +149,12 @@ def estimate_randomness(y):
     if np.std(y) < 1e-9:
         acf = np.ones_like(y)
     else:
-        acf = np.correlate(y_centered, y_centered, mode='full')
-        acf = acf[len(acf)//2:]
+        acf = np.correlate(y_centered, y_centered, mode="full")
+        acf = acf[len(acf) // 2 :]
         acf = acf / (acf[0] + 1e-10)
 
     # Find decay rate (first time it drops below 1/e or 0.1)
-    decay_indices = np.where(np.abs(acf[1:]) < 0.36)[0] # 1/e approx
+    decay_indices = np.where(np.abs(acf[1:]) < 0.36)[0]  # 1/e approx
     if len(decay_indices) > 0:
         memory_length = decay_indices[0]
         # Score: 1.0 for length 0 (random), 0.0 for length N (periodic/constant)
@@ -156,25 +164,21 @@ def estimate_randomness(y):
         memory_score = 0.0  # long memory = structured
 
     # Spectral flatness (white noise indicator)
-    spectrum = np.abs(np.fft.fft(y))**2 + 1e-10
+    spectrum = np.abs(np.fft.fft(y)) ** 2 + 1e-10
     # Only use first half (real signal)
-    spectrum = spectrum[:len(spectrum)//2]
+    spectrum = spectrum[: len(spectrum) // 2]
 
     geometric_mean = np.exp(np.mean(np.log(spectrum)))
     arithmetic_mean = np.mean(spectrum)
     spectral_flatness = geometric_mean / arithmetic_mean
 
     # Composite score
-    randomness_score = np.mean([
-        entropy_normalized,
-        memory_score,
-        spectral_flatness
-    ])
+    randomness_score = float(np.mean([entropy_normalized, memory_score, spectral_flatness]))
 
     return {
-        'randomness_score': randomness_score,
-        'type': 'random' if randomness_score > 0.6 else 'structured',
-        'entropy_rate': entropy_normalized,
-        'memory_length': memory_length,
-        'spectral_flatness': spectral_flatness
+        "randomness_score": randomness_score,
+        "type": "random" if randomness_score > 0.6 else "structured",
+        "entropy_rate": entropy_normalized,
+        "memory_length": memory_length,
+        "spectral_flatness": spectral_flatness,
     }

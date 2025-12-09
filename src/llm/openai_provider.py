@@ -1,4 +1,3 @@
-import json
 import logging
 import os
 from typing import AsyncGenerator, Dict, List, Optional
@@ -16,21 +15,24 @@ from src.llm.provider import BaseLLMProvider, Message
 
 logger = logging.getLogger(__name__)
 
+
 class OpenAIProvider(BaseLLMProvider):
     """OpenAI implementation of LLM provider (also works for LM Studio)."""
 
-    def __init__(self, model_name: str, api_key: Optional[str] = None, base_url: Optional[str] = None):
+    def __init__(
+        self, model_name: str, api_key: Optional[str] = None, base_url: Optional[str] = None
+    ):
         self.model_name = model_name
         self.api_key = api_key or os.getenv("OPENAI_API_KEY")
         self.base_url = base_url or os.getenv("OPENAI_BASE_URL")
 
         if not self.api_key and not self.base_url:
-             # LM Studio might not need a key, but OpenAI does.
-             # If base_url is set (e.g. localhost for LM Studio), we can default key to "lm-studio".
-             if self.base_url:
-                 self.api_key = "lm-studio"
-             else:
-                 logger.warning("OpenAI API key not found. Please set OPENAI_API_KEY.")
+            # LM Studio might not need a key, but OpenAI does.
+            # If base_url is set (e.g. localhost for LM Studio), we can default key to "lm-studio".
+            if self.base_url:
+                self.api_key = "lm-studio"
+            else:
+                logger.warning("OpenAI API key not found. Please set OPENAI_API_KEY.")
 
     @retry(
         retry=retry_if_exception_type((RateLimitError, APIConnectionError, APITimeoutError)),
@@ -38,7 +40,13 @@ class OpenAIProvider(BaseLLMProvider):
         stop=stop_after_attempt(5),
         before_sleep=before_sleep_log(logger, logging.WARNING),
     )
-    def generate(self, system_prompt: str, user_prompt: str, max_tokens: int = 16000, tools: Optional[List[Dict]] = None) -> str:
+    def generate(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        max_tokens: int = 16000,
+        tools: Optional[List[Dict]] = None,
+    ) -> str:
         try:
             client = OpenAI(api_key=self.api_key, base_url=self.base_url)
             response = client.chat.completions.create(
@@ -48,9 +56,9 @@ class OpenAIProvider(BaseLLMProvider):
                     {"role": "user", "content": user_prompt},
                 ],
                 max_tokens=max_tokens,
-                temperature=0.7
+                temperature=0.7,
             )
-            return response.choices[0].message.content
+            return response.choices[0].message.content or ""
         except (RateLimitError, APIConnectionError, APITimeoutError):
             raise  # Re-raise for tenacity to handle
         except Exception as e:
@@ -69,7 +77,7 @@ class OpenAIProvider(BaseLLMProvider):
         stream: bool = False,
         temperature: float = 0.7,
         max_tokens: int = 16000,
-        tools: Optional[List[Dict]] = None
+        tools: Optional[List[Dict]] = None,
     ) -> AsyncGenerator[str, None]:
 
         client = AsyncOpenAI(api_key=self.api_key, base_url=self.base_url)
@@ -82,7 +90,7 @@ class OpenAIProvider(BaseLLMProvider):
                 temperature=temperature,
                 max_tokens=max_tokens,
                 tools=tools if tools else None,
-                stream=True
+                stream=True,
             )
 
             async for chunk in response:

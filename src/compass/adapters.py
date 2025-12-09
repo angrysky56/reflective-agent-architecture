@@ -1,28 +1,33 @@
 """
 Adapters for integrating COMPASS with RAA infrastructure.
 """
+
 import logging
-from dataclasses import dataclass
-from typing import Any, AsyncGenerator, Callable, Dict, List, Optional
+from typing import Any, AsyncGenerator, Callable, Dict, List, Optional, cast
 
 from src.llm.factory import LLMFactory
-from src.llm.provider import BaseLLMProvider, Message
+from src.llm.provider import Message
 
 logger = logging.getLogger(__name__)
+
 
 class RAALLMProvider:
     """
     Adapter for RAA's LLM to be used by COMPASS.
     """
+
     def __init__(self, model_name: Optional[str] = None):
         import os
+
         self.model_name = model_name or os.getenv("COMPASS_MODEL", "google/gemini-3-pro-preview")
         self.provider_name = os.getenv("COMPASS_PROVIDER", os.getenv("LLM_PROVIDER", "openrouter"))
         # Use factory to get provider. COMPASS might use a different model/provider if configured.
-        self.provider = LLMFactory.create_provider(provider_name=self.provider_name, model_name=self.model_name)
+        self.provider = LLMFactory.create_provider(
+            provider_name=self.provider_name, model_name=self.model_name
+        )
         self.dynamic_temperature_fn: Optional[Callable[[], float]] = None
 
-    def set_dynamic_temperature_fn(self, fn: Callable[[], float]):
+    def set_dynamic_temperature_fn(self, fn: Callable[[], float]) -> None:
         """Set a callback to retrieve dynamic temperature based on cognitive state."""
         self.dynamic_temperature_fn = fn
 
@@ -32,7 +37,7 @@ class RAALLMProvider:
         stream: bool = False,
         temperature: float = 0.7,
         max_tokens: int = 2000,
-        tools: Optional[List[Dict]] = None
+        tools: Optional[List[Dict]] = None,
     ) -> AsyncGenerator[str, None]:
         """
         Chat completion wrapper using the configured provider.
@@ -52,15 +57,12 @@ class RAALLMProvider:
                 stream=stream,
                 temperature=current_temp,
                 max_tokens=max_tokens,
-                tools=tools
+                tools=tools,
             ):
                 yield chunk
 
         except Exception as e:
-            # logger.error(f"Error in RAALLMProvider: {e}", exc_info=True)
-            with open("/tmp/llm_exception.log", "w") as f:
-                import traceback
-                traceback.print_exc(file=f)
+            logger.error(f"Error in RAALLMProvider: {e}", exc_info=True)
             yield f"Error: {str(e)}"
 
     def generate(self, system_prompt: str, user_prompt: str, max_tokens: int = 8000) -> str:
@@ -82,6 +84,7 @@ class RAAMCPClient:
     Adapter for RAA's tool system to look like an MCP client.
     Wraps the RAAServer instance to expose get_available_tools and call_tool.
     """
+
     def __init__(self, server: Any):
         self.server = server
 
@@ -91,7 +94,7 @@ class RAAMCPClient:
     def get_available_tools(self) -> List[Any]:
         """Get available tools from the server."""
         if hasattr(self.server, "get_available_tools"):
-            return self.server.get_available_tools()
+            return cast(List[Any], self.server.get_available_tools())
         logger.warning(f"RAAMCPClient: Server {type(self.server)} has no get_available_tools")
         return []
 
@@ -103,4 +106,3 @@ class RAAMCPClient:
         logger.error(f"RAAMCPClient: Server {type(self.server)} has no call_tool")
         raise AttributeError(f"Server {type(self.server)} has no call_tool")
         raise NotImplementedError(f"Server does not support call_tool: {type(self.server)}")
-

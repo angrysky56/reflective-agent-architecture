@@ -8,6 +8,7 @@ from sklearn.decomposition import TruncatedSVD
 
 logger = logging.getLogger(__name__)
 
+
 class ContinuityField:
     """
     Implements the Identity Manifold as a Fiber Bundle (E, B, pi, F) per TKUI Formalization.
@@ -24,7 +25,13 @@ class ContinuityField:
     - Transformation History: Weighted sum of past modifications.
     """
 
-    def __init__(self, embedding_dim: int, k_neighbors: int = 5, neo4j_uri: Optional[str] = None, neo4j_auth: Optional[Tuple[str, str]] = None):
+    def __init__(
+        self,
+        embedding_dim: int,
+        k_neighbors: int = 5,
+        neo4j_uri: Optional[str] = None,
+        neo4j_auth: Optional[Tuple[str, str]] = None,
+    ):
         self.embedding_dim = embedding_dim
         self.k_neighbors = k_neighbors
         self.anchors: List[np.ndarray] = []
@@ -32,7 +39,7 @@ class ContinuityField:
 
         # TKUI Parameters
         self.temporal_connection_strength = 1.0  # Delta t weight
-        self.spatial_coherence_threshold = 0.7   # Sigma threshold
+        self.spatial_coherence_threshold = 0.7  # Sigma threshold
 
         # Neo4j Integration
         self.driver = None
@@ -43,7 +50,7 @@ class ContinuityField:
             except Exception as e:
                 logger.warning(f"Failed to connect to Neo4j: {e}")
 
-    def close(self):
+    def close(self) -> None:
         if self.driver:
             self.driver.close()
 
@@ -52,7 +59,9 @@ class ContinuityField:
         Adds a state vector to the manifold (Identity).
         """
         if vector.shape != (self.embedding_dim,):
-            raise ValueError(f"Vector dimension mismatch. Expected {self.embedding_dim}, got {vector.shape}")
+            raise ValueError(
+                f"Vector dimension mismatch. Expected {self.embedding_dim}, got {vector.shape}"
+            )
 
         self.anchors.append(vector)
         self._anchor_matrix = np.array(self.anchors)
@@ -60,22 +69,28 @@ class ContinuityField:
         if self.driver and metadata:
             self._persist_anchor(vector, metadata)
 
-    def _persist_anchor(self, vector: np.ndarray, metadata: Dict[str, Any]):
+    def _persist_anchor(self, vector: np.ndarray, metadata: Dict[str, Any]) -> None:
         """Persist anchor to Neo4j as part of the Continuity Field."""
+        if self.driver is None:
+            logger.warning("Cannot persist anchor: Neo4j driver not initialized")
+            return
         with self.driver.session() as session:
-            session.run("""
+            session.run(
+                """
                 CREATE (c:ContinuityField {
                     timestamp: $timestamp,
                     embedding: $embedding,
                     agent_id: $agent_id,
                     causal_signature: $causal_signature
                 })
-            """, {
-                "timestamp": time.time(),
-                "embedding": vector.tolist(),
-                "agent_id": metadata.get("agent_id", "unknown"),
-                "causal_signature": metadata.get("causal_signature", 0.0)
-            })
+            """,
+                {
+                    "timestamp": time.time(),
+                    "embedding": vector.tolist(),
+                    "agent_id": metadata.get("agent_id", "unknown"),
+                    "causal_signature": metadata.get("causal_signature", 0.0),
+                },
+            )
 
     def compute_projection(self, query_vector: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """
@@ -87,7 +102,7 @@ class ContinuityField:
             return query_vector, np.zeros_like(query_vector)
 
         if self._anchor_matrix is None:
-             self._anchor_matrix = np.array(self.anchors)
+            self._anchor_matrix = np.array(self.anchors)
 
         if len(self.anchors) < self.k_neighbors:
             neighbors = self._anchor_matrix
@@ -149,7 +164,7 @@ class ContinuityField:
 
         return float(coherence)
 
-    def inject_ontology(self, ontology_vector: np.ndarray):
+    def inject_ontology(self, ontology_vector: np.ndarray) -> None:
         """
         Injects a new ontological frame into the field (Plasticity).
         """

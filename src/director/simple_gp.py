@@ -1,17 +1,17 @@
 import math
 import operator
 import random
-from typing import Any, Callable, Dict, List, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from scipy.optimize import minimize
 
 # Define Focused Primitive Sets (Attention Mechanism)
-TRIG_OPS = [
+TRIG_OPS: List[Tuple[Callable[[float, float], float], str]] = [
     (operator.add, "+"),
     (operator.sub, "-"),
     (operator.mul, "*"),
 ]
-TRIG_UNARY_OPS = [
+TRIG_UNARY_OPS: List[Tuple[Callable[[float], float], str]] = [
     (math.sin, "sin"),
     (math.cos, "cos"),
 ]
@@ -22,7 +22,7 @@ class Node:
     def evaluate(self, context: Dict[str, float]) -> float:
         raise NotImplementedError
 
-    def extract_constants(self) -> List['Constant']:
+    def extract_constants(self) -> List["Constant"]:
         """Return a list of all Constant nodes in the subtree."""
         return []
 
@@ -36,6 +36,7 @@ class Node:
     def __str__(self) -> str:
         raise NotImplementedError
 
+
 class Constant(Node):
     def __init__(self, value: float):
         self.value = value
@@ -43,7 +44,7 @@ class Constant(Node):
     def evaluate(self, context: Dict[str, float]) -> float:
         return self.value
 
-    def extract_constants(self) -> List['Constant']:
+    def extract_constants(self) -> List["Constant"]:
         return [self]
 
     def update_constants(self, values: List[float]) -> int:
@@ -55,6 +56,7 @@ class Constant(Node):
     def __str__(self) -> str:
         return f"{self.value:.2f}"
 
+
 class Variable(Node):
     def __init__(self, name: str):
         self.name = name
@@ -65,8 +67,9 @@ class Variable(Node):
     def __str__(self) -> str:
         return self.name
 
+
 class BinaryOp(Node):
-    def __init__(self, left: Node, right: Node, op: Callable, symbol: str):
+    def __init__(self, left: Node, right: Node, op: Callable[[float, float], float], symbol: str):
         self.left = left
         self.right = right
         self.op = op
@@ -76,11 +79,11 @@ class BinaryOp(Node):
         try:
             return self.op(self.left.evaluate(context), self.right.evaluate(context))
         except ZeroDivisionError:
-            return 1.0 # Protect against division by zero
+            return 1.0  # Protect against division by zero
         except OverflowError:
-            return 1e6 # Cap overflow
+            return 1e6  # Cap overflow
 
-    def extract_constants(self) -> List['Constant']:
+    def extract_constants(self) -> List["Constant"]:
         return self.left.extract_constants() + self.right.extract_constants()
 
     def update_constants(self, values: List[float]) -> int:
@@ -93,8 +96,9 @@ class BinaryOp(Node):
             return f"hypot({self.left}, {self.right})"
         return f"({self.left} {self.symbol} {self.right})"
 
+
 class UnaryOp(Node):
-    def __init__(self, child: Node, op: Callable, symbol: str):
+    def __init__(self, child: Node, op: Callable[[float], float], symbol: str):
         self.child = child
         self.op = op
         self.symbol = symbol
@@ -103,11 +107,11 @@ class UnaryOp(Node):
         try:
             return self.op(self.child.evaluate(context))
         except ValueError:
-            return 0.0 # Domain error
+            return 0.0  # Domain error
         except OverflowError:
             return 1e6
 
-    def extract_constants(self) -> List['Constant']:
+    def extract_constants(self) -> List["Constant"]:
         return self.child.extract_constants()
 
     def update_constants(self, values: List[float]) -> int:
@@ -116,25 +120,33 @@ class UnaryOp(Node):
     def __str__(self) -> str:
         return f"{self.symbol}({self.child})"
 
+
 # Operations
-OPS = [
+OPS: List[Tuple[Callable[[float, float], float], str]] = [
     (operator.add, "+"),
     (operator.sub, "-"),
     (operator.mul, "*"),
     (math.hypot, "hypot"),
 ]
 
-UNARY_OPS = [
+UNARY_OPS: List[Tuple[Callable[[float], float], str]] = [
     (math.sin, "sin"),
     (math.cos, "cos"),
     (math.tanh, "tanh"),
     (abs, "abs"),
 ]
 
+
 # Simple GP
 class SimpleGP:
-    def __init__(self, variables: List[str], population_size: int = 50, max_depth: int = 4,
-                 ops: List[Tuple[Callable, str]] = None, unary_ops: List[Tuple[Callable, str]] = None):
+    def __init__(
+        self,
+        variables: List[str],
+        population_size: int = 50,
+        max_depth: int = 4,
+        ops: Optional[List[Tuple[Callable[[float, float], float], str]]] = None,
+        unary_ops: Optional[List[Tuple[Callable[[float], float], str]]] = None,
+    ):
         self.variables = variables
         self.population_size = population_size
         self.max_depth = max_depth
@@ -143,25 +155,31 @@ class SimpleGP:
         self.population: List[Node] = []
 
     def generate_random_tree(self, depth: int = 0) -> Node:
-        if depth >= self.max_depth or (depth > 0 and random.random() < 0.3):
+        if depth >= self.max_depth or (depth > 0 and random.random() < 0.3):  # nosec B311
             # Terminal
-            if random.random() < 0.7:
-                return Variable(random.choice(self.variables))
+            if random.random() < 0.7:  # nosec B311
+                return Variable(random.choice(self.variables))  # nosec B311
             else:
-                return Constant(random.uniform(-10, 10))
+                return Constant(random.uniform(-10, 10))  # nosec B311
         else:
             # Operator
-            if random.random() < 0.7: # 70% chance for binary op
-                op, symbol = random.choice(self.ops)
+            if random.random() < 0.7:  # nosec B311  # 70% chance for binary op
+                op, symbol = random.choice(self.ops)  # nosec B311
                 left = self.generate_random_tree(depth + 1)
                 right = self.generate_random_tree(depth + 1)
                 return BinaryOp(left, right, op, symbol)
-            else: # 30% chance for unary op
-                op, symbol = random.choice(self.unary_ops)
+            else:  # 30% chance for unary op
+                u_op, symbol = random.choice(self.unary_ops)  # nosec B311
                 child = self.generate_random_tree(depth + 1)
-                return UnaryOp(child, op, symbol)
+                return UnaryOp(child, u_op, symbol)
 
-    def evolve(self, data: List[Dict[str, float]], target_key: str, generations: int = 10, hybrid: bool = False) -> Tuple[str, float]:
+    def evolve(
+        self,
+        data: List[Dict[str, float]],
+        target_key: str,
+        generations: int = 10,
+        hybrid: bool = False,
+    ) -> Tuple[str, float]:
         """
         Evolve a formula to fit the data.
 
@@ -174,10 +192,13 @@ class SimpleGP:
         Returns:
             Tuple[str, float]: (Best formula string, Best MSE)
         """
-        self.population = [self.generate_random_tree(depth=random.randint(2, self.max_depth)) for _ in range(self.population_size)]
+        self.population = [
+            self.generate_random_tree(depth=random.randint(2, self.max_depth))  # nosec B311
+            for _ in range(self.population_size)
+        ]
 
         best_program = None
-        best_error = float('inf')
+        best_error = float("inf")
 
         for gen in range(generations):
             # Evaluate fitness
@@ -208,7 +229,7 @@ class SimpleGP:
             # Selection (Tournament)
             new_population = []
             if best_program:
-                new_population.append(best_program) # Elitism
+                new_population.append(best_program)  # Elitism
 
             while len(new_population) < self.population_size:
                 parent = self.tournament_select(scored_population)
@@ -219,7 +240,9 @@ class SimpleGP:
 
         return (str(best_program) if best_program else "0", best_error)
 
-    def refine_individual(self, program: Node, data: List[Dict[str, float]], target_key: str):
+    def refine_individual(
+        self, program: Node, data: List[Dict[str, float]], target_key: str
+    ) -> None:
         """
         Locally refine the constants of a program using gradient-free optimization (Nelder-Mead).
         This implements the 'Neural Pipeline' part of Evolutionary Optimization.
@@ -230,7 +253,7 @@ class SimpleGP:
 
         initial_values = [c.value for c in constants]
 
-        def objective(values):
+        def objective(values: Any) -> float:
             # Temporarily update constants
             program.update_constants(values)
             error = 0.0
@@ -245,24 +268,30 @@ class SimpleGP:
 
         # Run optimization
         # We use Nelder-Mead as it's robust and doesn't require gradients of the AST
-        result = minimize(objective, initial_values, method='Nelder-Mead', tol=1e-3, options={'maxiter': 10})
+        result = minimize(
+            objective, initial_values, method="Nelder-Mead", tol=1e-3, options={"maxiter": 10}
+        )
 
         # Apply best found constants
         program.update_constants(result.x)
 
-    def tournament_select(self, scored_population: List[Any]) -> Node:
-        candidates = random.sample(scored_population, k=3)
+    def tournament_select(self, scored_population: List[Tuple[Node, float]]) -> Node:
+        candidates = random.sample(scored_population, k=3)  # nosec B311
         candidates.sort(key=lambda x: x[1])
         return candidates[0][0]
 
     def mutate(self, program: Node) -> Node:
         # Simple mutation: replace a subtree with a random tree
-        if random.random() < 0.2:
-            return self.generate_random_tree(depth=random.randint(0, self.max_depth-1))
+        if random.random() < 0.2:  # nosec B311
+            return self.generate_random_tree(
+                depth=random.randint(0, self.max_depth - 1)  # nosec B311
+            )
 
         # Recursive mutation
         if isinstance(program, BinaryOp):
-            return BinaryOp(self.mutate(program.left), self.mutate(program.right), program.op, program.symbol)
+            return BinaryOp(
+                self.mutate(program.left), self.mutate(program.right), program.op, program.symbol
+            )
         elif isinstance(program, UnaryOp):
             return UnaryOp(self.mutate(program.child), program.op, program.symbol)
         else:

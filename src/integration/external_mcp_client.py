@@ -1,4 +1,3 @@
-
 import asyncio
 import json
 import logging
@@ -13,20 +12,22 @@ from mcp.types import Tool
 
 logger = logging.getLogger(__name__)
 
+
 class ExternalMCPManager:
     """
     Manages connections to external MCP servers defined in a configuration file.
     Aggregates tools from all connected servers.
     """
+
     def __init__(self, config_path: str):
         self.config_path = Path(config_path)
         self.stack = AsyncExitStack()
         self.sessions: Dict[str, ClientSession] = {}
-        self.tools_map: Dict[str, Tuple[str, Tool]] = {} # tool_name -> (server_name, Tool)
+        self.tools_map: Dict[str, Tuple[str, Tool]] = {}  # tool_name -> (server_name, Tool)
         logger.info(f"ExternalMCPManager initialized with config path: {config_path}")
         self.is_initialized = False
 
-    async def initialize(self):
+    async def initialize(self) -> None:
         """Initialize connections to all configured servers."""
         if self.is_initialized:
             logger.info("ExternalMCPManager already initialized, skipping.")
@@ -46,7 +47,9 @@ class ExternalMCPManager:
             return
 
         mcp_servers = config.get("mcpServers", {})
-        logger.info(f"debug: found {len(mcp_servers)} servers in config: {list(mcp_servers.keys())}")
+        logger.info(
+            f"debug: found {len(mcp_servers)} servers in config: {list(mcp_servers.keys())}"
+        )
 
         tasks = []
         for name, server_config in mcp_servers.items():
@@ -63,7 +66,7 @@ class ExternalMCPManager:
             if isinstance(result, Exception):
                 logger.error(f"Failed to initialize server {name}: {result}")
             elif name == "cognitive-workspace-db":
-                pass # Skipped above
+                pass  # Skipped above
             else:
                 # Connection successful logic is handled inside _connect_to_server
                 pass
@@ -71,7 +74,7 @@ class ExternalMCPManager:
         self.is_initialized = True
         logger.info("ExternalMCPManager initialization complete.")
 
-    async def _connect_to_server(self, name: str, server_config: Dict[str, Any]):
+    async def _connect_to_server(self, name: str, server_config: Dict[str, Any]) -> None:
         """Connect to a single MCP server."""
         command = server_config.get("command")
         args = server_config.get("args", [])
@@ -84,11 +87,7 @@ class ExternalMCPManager:
         try:
             logger.info(f"Attempting to connect to MCP server: {name}")
 
-            server_params = StdioServerParameters(
-                command=command,
-                args=args,
-                env=full_env
-            )
+            server_params = StdioServerParameters(command=command, args=args, env=full_env)
 
             # Enter contexts
             read, write = await self.stack.enter_async_context(stdio_client(server_params))
@@ -107,7 +106,9 @@ class ExternalMCPManager:
 
             for tool in tools:
                 if tool.name in self.tools_map:
-                    logger.warning(f"Duplicate tool name '{tool.name}' from server '{name}'. Overwriting existing tool from '{self.tools_map[tool.name][0]}'.")
+                    logger.warning(
+                        f"Duplicate tool name '{tool.name}' from server '{name}'. Overwriting existing tool from '{self.tools_map[tool.name][0]}'."
+                    )
                 self.tools_map[tool.name] = (name, tool)
 
             logger.info(f"Loaded {len(tools)} tools from server '{name}'.")
@@ -115,7 +116,7 @@ class ExternalMCPManager:
         except Exception as e:
             logger.error(f"Failed to connect to MCP server '{name}': {e}", exc_info=True)
 
-    async def cleanup(self):
+    async def cleanup(self) -> None:
         """Close all connections."""
         logger.info("Closing external MCP connections...")
         await self.stack.aclose()
@@ -126,7 +127,9 @@ class ExternalMCPManager:
     def get_tools(self) -> List[Tool]:
         """Get all available tools from external servers."""
         tools = [tool for _, tool in self.tools_map.values()]
-        logger.debug(f"ExternalMCPManager.get_tools returning {len(tools)} tools: {[t.name for t in tools]}")
+        logger.debug(
+            f"ExternalMCPManager.get_tools returning {len(tools)} tools: {[t.name for t in tools]}"
+        )
         return tools
 
     async def call_tool(self, name: str, arguments: Dict[str, Any]) -> Any:

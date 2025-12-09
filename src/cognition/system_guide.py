@@ -1,11 +1,12 @@
 import ast
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict
 
 from neo4j import Driver
 
 logger = logging.getLogger(__name__)
+
 
 class SystemGuideNodes:
     """
@@ -18,13 +19,17 @@ class SystemGuideNodes:
         self.root_path = Path(root_path).resolve()
         self._ensure_schema()
 
-    def _ensure_schema(self):
+    def _ensure_schema(self) -> None:
         """Create necessary constraints and indexes."""
         try:
             with self.driver.session() as session:
                 # Constraints for uniqueness
-                session.run("CREATE CONSTRAINT IF NOT EXISTS FOR (c:ConceptNode) REQUIRE c.name IS UNIQUE")
-                session.run("CREATE CONSTRAINT IF NOT EXISTS FOR (b:CodeBookmark) REQUIRE b.id IS UNIQUE")
+                session.run(
+                    "CREATE CONSTRAINT IF NOT EXISTS FOR (c:ConceptNode) REQUIRE c.name IS UNIQUE"
+                )
+                session.run(
+                    "CREATE CONSTRAINT IF NOT EXISTS FOR (b:CodeBookmark) REQUIRE b.id IS UNIQUE"
+                )
                 # Index for file path
                 session.run("CREATE INDEX IF NOT EXISTS FOR (b:CodeBookmark) ON (b.file)")
         except Exception as e:
@@ -74,10 +79,12 @@ class SystemGuideNodes:
                 b.updated_at = timestamp()
             RETURN b.id
             """
-            session.run(query, id=bookmark_id, file=path_str, line=line, snippet=snippet, notes=notes)
+            session.run(
+                query, id=bookmark_id, file=path_str, line=line, snippet=snippet, notes=notes
+            )
             return bookmark_id
 
-    def link_bookmark_to_concept(self, concept_name: str, bookmark_id: str):
+    def link_bookmark_to_concept(self, concept_name: str, bookmark_id: str) -> None:
         """Link a bookmark to a concept (Casefile)."""
         with self.driver.session() as session:
             query = """
@@ -102,18 +109,20 @@ class SystemGuideNodes:
             bookmarks = []
             for b in result["bookmarks"]:
                 if b:
-                    bookmarks.append({
-                        "id": b["id"],
-                        "file": b["file"],
-                        "line": b["line"],
-                        "snippet": b["snippet"],
-                        "notes": b["notes"]
-                    })
+                    bookmarks.append(
+                        {
+                            "id": b["id"],
+                            "file": b["file"],
+                            "line": b["line"],
+                            "snippet": b["snippet"],
+                            "notes": b["notes"],
+                        }
+                    )
 
             return {
                 "name": concept_name,
                 "description": result["description"],
-                "bookmarks": bookmarks
+                "bookmarks": bookmarks,
             }
 
     def scan_codebase(self, sub_path: str = ".") -> str:
@@ -133,7 +142,10 @@ class SystemGuideNodes:
 
         for py_file in files:
             # Skip common junk
-            if any(part.startswith(".") or part in ["venv", "node_modules", "build", "dist"] for part in py_file.parts):
+            if any(
+                part.startswith(".") or part in ["venv", "node_modules", "build", "dist"]
+                for part in py_file.parts
+            ):
                 continue
 
             try:

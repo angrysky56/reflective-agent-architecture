@@ -17,14 +17,15 @@ class TestMCPTools(unittest.TestCase):
         self.config.llm_model = "test-model"
         self.config.embedding_provider = "sentence-transformers"
         self.config.embedding_model = "all-MiniLM-L6-v2"
+        self.config.device = "cpu"
 
         # Mock dependencies
-        self.patcher_driver = patch('src.server.GraphDatabase.driver')
-        self.patcher_chroma = patch('src.server.chromadb.Client')
-        self.patcher_llm = patch('src.server.LLMFactory.create_provider')
-        self.patcher_embedding = patch('src.server.EmbeddingFactory.create')
-        self.patcher_continuity = patch('src.server.ContinuityField')
-        self.patcher_service = patch('src.server.ContinuityService')
+        self.patcher_driver = patch("src.server.GraphDatabase.driver")
+        self.patcher_chroma = patch("src.server.chromadb.Client")
+        self.patcher_llm = patch("src.server.LLMFactory.create_provider")
+        self.patcher_embedding = patch("src.server.EmbeddingFactory.create")
+        self.patcher_continuity = patch("src.server.ContinuityField")
+        self.patcher_service = patch("src.server.ContinuityService")
 
         self.mock_driver = self.patcher_driver.start()
         self.mock_chroma = self.patcher_chroma.start()
@@ -79,7 +80,7 @@ class TestMCPTools(unittest.TestCase):
         import os
         import tempfile
 
-        with tempfile.TemporaryDirectory() as temp_dir:
+        with tempfile.TemporaryDirectory(dir=os.getcwd()) as temp_dir:
             # Create a dummy file to search in the temp dir
             test_file = Path(temp_dir) / "test_search.txt"
             test_file.write_text("UniquePattern123", encoding="utf-8")
@@ -93,5 +94,16 @@ class TestMCPTools(unittest.TestCase):
             result = self.workspace._search_codebase("NonExistentPattern456", temp_dir)
             self.assertIn("No matches found", result)
 
-if __name__ == '__main__':
+    def test_search_codebase_security(self):
+        """Test searching outside workspace is blocked."""
+        import tempfile
+
+        # Create a temp dir outside workspace (default behavior)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            result = self.workspace._search_codebase("AnyPattern", temp_dir)
+            self.assertIn("Error: Search path", result)
+            self.assertIn("is outside workspace root", result)
+
+
+if __name__ == "__main__":
     unittest.main()

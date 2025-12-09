@@ -1,134 +1,186 @@
 """
-StateTransitionRegistry - Energy-Gated Plasticity Control
+StateTransitionRegistry - Manages State Lifecycle Transitions
 
-Axiom Implementation:
-- Plasticity Gates: "Transitions between states require energy"
-- Causal Accountability: "The substrate state... is necessarily modified by the act of measurement"
+Implements energy-gated validation for Unknown→Named transitions.
+Integrates with MeasurementLedger to enforce substrate precondition.
 
-Component #4-7 from COMPASS plan: Implement registry and gating logic
+Axioms Implemented:
+- Energy-Gated Transition: "State transitions require explicit substrate expenditure"
+- Teleological Validity: "State transitions contain purpose-gated validity conditions"
+- Causal Accountability: "Substrate state is modified by transition act"
 """
 
-import logging
-from dataclasses import dataclass
-from decimal import Decimal
 from typing import Dict, Optional
+from uuid import UUID
 
-from .energy_token import EnergyToken
-from .ledger import InsufficientEnergyError, MeasurementLedger
+from .ledger import MeasurementLedger
 from .measurement_cost import MeasurementCost
-from .state_descriptor import NamedState, StateDescriptor, UnknownState
-
-logger = logging.getLogger(__name__)
+from .state_descriptor import StateDescriptor, StateTransitionCost, StateType, UnknownState
 
 
 class InvalidTransitionError(Exception):
-    """Raised when a state transition is not allowed."""
+    """Raised when attempting an invalid state transition."""
+
     pass
-
-
-@dataclass
-class StateTransitionCost:
-    """Configuration for transition costs."""
-    unknown_to_named_cost: Decimal = Decimal("15.0")
-    named_to_named_cost: Decimal = Decimal("5.0")
-    named_to_unknown_cost: Decimal = Decimal("1.0")  # Entropy increase is cheap
 
 
 class StateTransitionRegistry:
     """
-    Manages the lifecycle of cognitive states and enforces energy costs for transitions.
+    Central registry for managing state lifecycle transitions.
+
+    Enforces energy gating and causal accountability for all transitions.
     """
 
-    def __init__(self, ledger: MeasurementLedger, costs: Optional[StateTransitionCost] = None):
+    def __init__(
+        self, ledger: MeasurementLedger, transition_costs: Optional[StateTransitionCost] = None
+    ):
+        """
+        Initialize transition registry.
+
+        Args:
+            ledger: MeasurementLedger for energy accounting
+            transition_costs: Custom transition costs (uses defaults if None)
+        """
         self.ledger = ledger
-        self.costs = costs or StateTransitionCost()
-        self.unit = ledger.balance.unit
+        self.transition_costs = transition_costs or StateTransitionCost.default()
 
-        # Track active states
-        self._states: Dict[str, StateDescriptor] = {}
+        # Track active states by UUID
+        self._states: Dict[UUID, StateDescriptor] = {}
 
-    def register_state(self, state: StateDescriptor) -> None:
-        """Register a new state (usually Unknown) without transition cost."""
-        self._states[str(state.state_id)] = state
-
-    def get_state(self, state_id: str) -> Optional[StateDescriptor]:
-        return self._states.get(str(state_id))
-
-    def promote_to_named(self, state_id: str, name: str, metadata: Optional[Dict] = None) -> NamedState:
+    def register_state(self, descriptor: StateDescriptor) -> None:
         """
-        Promote an UnknownState to a NamedState.
+        Register a state in the registry.
 
-        This is a "Plasticity Gate" operation that requires significant energy.
+        Args:
+            descriptor: StateDescriptor to register
         """
-        current_state = self.get_state(state_id)
-        if not current_state:
-            raise ValueError(f"State {state_id} not found")
+        self._states[descriptor.state_id] = descriptor
 
-        if isinstance(current_state, NamedState):
-            raise InvalidTransitionError(f"State {state_id} is already named '{current_state.name}'")
+    def get_state(self, state_id: UUID) -> Optional[StateDescriptor]:
+        """
+        Retrieve a state by ID.
 
-        # Calculate cost
-        cost_amount = self.costs.unknown_to_named_cost
+        Args:
+            state_id: UUID of the state to retrieve
 
-        # Check and deduct energy
+        Returns:
+            StateDescriptor if found, None otherwise
+        """
+        return self._states.get(state_id)
+
+    def promote_to_named(self, state_id: UUID, metadata: Optional[Dict] = None) -> StateDescriptor:
+        """
+        Promote an Unknown state to Named, consuming substrate energy.
+
+        Implements Energy-Gated Transition axiom - transition is blocked
+        if insufficient energy available.
+
+        Args:
+            state_id: UUID of the state to promote
+            metadata: Additional metadata for the Named state
+
+        Returns:
+            New Named StateDescriptor
+
+        Raises:
+            ValueError: If state not found or already Named
+            InvalidTransitionError: If transition not valid
+            InsufficientEnergyError: If insufficient energy for transition
+        """
+        # Retrieve current state
+        current = self._states.get(state_id)
+        if current is None:
+            raise ValueError(f"State {state_id} not found in registry")
+
+        # Validate transition is possible
+        if not current.is_unknown():
+            raise InvalidTransitionError(
+                f"Cannot promote state {state_id}: already {current.state_type.value}"
+            )
+
+        # Calculate and record energy cost
         cost = MeasurementCost(
-            energy=EnergyToken(cost_amount, self.unit),
-            operation_name=f"promote_to_{name}"
+            energy=self.transition_costs.unknown_to_named,
+            operation_name=f"unknown_to_named_{str(state_id)[:8]}",
         )
 
-        try:
-            self.ledger.record_transaction(cost)
-        except InsufficientEnergyError:
-            logger.error(f"Insufficient energy to promote state {state_id} to '{name}'")
-            raise
+        # Record transaction (may raise InsufficientEnergyError)
+        self.ledger.record_transaction(cost)
 
-        # Create new state
-        new_metadata = current_state.metadata.copy()
-        if metadata:
-            new_metadata.update(metadata)
-
-        new_state = NamedState(
-            state_id=current_state.state_id, # Maintain identity
-            created_at=current_state.created_at,
-            metadata=new_metadata,
-            name=name
-        )
+        # Perform transition
+        new_state = current.promote_to_named(metadata)
 
         # Update registry
-        self._states[str(state_id)] = new_state
-        logger.info(f"Promoted state {state_id} to NamedState '{name}'")
+        self._states[state_id] = new_state
 
         return new_state
 
-    def transition_to_unknown(self, state_id: str) -> UnknownState:
+    def transition_to_unknown(self, state_id: UUID) -> UnknownState:
         """
         Demote a NamedState to UnknownState (increase entropy).
 
-        Cheap operation.
-        """
-        current_state = self.get_state(state_id)
-        if not current_state:
-            raise ValueError(f"State {state_id} not found")
+        Args:
+            state_id: UUID of the state to demote
 
-        if isinstance(current_state, UnknownState):
-            return current_state
+        Returns:
+            New UnknownState
+        """
+        current = self._states.get(state_id)
+        if current is None:
+            raise ValueError(f"State {state_id} not found in registry")
+
+        if isinstance(current, UnknownState):
+            return current
 
         # Calculate cost
-        cost_amount = self.costs.named_to_unknown_cost
-
         cost = MeasurementCost(
-            energy=EnergyToken(cost_amount, self.unit),
-            operation_name="demote_to_unknown"
+            energy=self.transition_costs.named_to_unknown,
+            operation_name=f"demote_to_unknown_{str(state_id)[:8]}",
         )
 
         self.ledger.record_transaction(cost)
 
+        # Create new state
         new_state = UnknownState(
-            state_id=current_state.state_id,
-            created_at=current_state.created_at,
-            metadata=current_state.metadata,
-            entropy=1.0
+            state_id=current.state_id,
+            created_at=current.created_at,
+            metadata=current.metadata,
+            entropy=1.0,
         )
 
-        self._states[str(state_id)] = new_state
+        self._states[state_id] = new_state
         return new_state
+
+    def count_by_type(self, state_type: StateType) -> int:
+        """
+        Count states of a given type.
+
+        Args:
+            state_type: StateType to count
+
+        Returns:
+            Number of states with the given type
+        """
+        count = 0
+        for state in self._states.values():
+            if state.state_type == state_type:
+                count += 1
+        return count
+
+    def get_diagnostics(self) -> Dict:
+        """
+        Get registry diagnostics.
+
+        Returns:
+            Dictionary with:
+            - total_states: Total registered states
+            - unknown_count: Number of Unknown states
+            - named_count: Number of Named states
+            - ledger_balance: Current energy balance
+        """
+        return {
+            "total_states": len(self._states),
+            "unknown_count": self.count_by_type(StateType.UNKNOWN),
+            "named_count": self.count_by_type(StateType.NAMED),
+            "ledger_balance": self.ledger.balance,
+        }

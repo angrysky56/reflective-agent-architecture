@@ -8,11 +8,11 @@ Scrutiny → Derivation → Rule-Based → Model → Semantic Formalization
 Now powered by LLM for deep semantic reasoning and advancement tracking.
 """
 
-
 import json
 from typing import Any, Dict, List, Optional
 
 from .adapters import Message
+from .config import SLAPConfig
 from .utils import COMPASSLogger, extract_json_from_text
 
 
@@ -24,7 +24,12 @@ class SLAPPipeline:
     continuous advancement tracking using LLM-driven reasoning.
     """
 
-    def __init__(self, config, logger: Optional[COMPASSLogger] = None, llm_provider: Optional[Any] = None):
+    def __init__(
+        self,
+        config: SLAPConfig,
+        logger: Optional[COMPASSLogger] = None,
+        llm_provider: Optional[Any] = None,
+    ):
         """
         Initialize SLAP pipeline.
 
@@ -41,11 +46,13 @@ class SLAPPipeline:
         self.current_truth = 1.0
         self.current_scrutiny = 0.0
         self.current_improvement = 0.0
-        self.advancement_history = []
+        self.advancement_history: List[float] = []
 
         self.logger.info("SLAP pipeline initialized with LLM support")
 
-    async def create_reasoning_plan(self, task: str, objectives: List, representation_type: str = "sequential") -> Dict[str, Any]:
+    async def create_reasoning_plan(
+        self, task: str, objectives: List, representation_type: str = "sequential"
+    ) -> Dict[str, Any]:
         """
         Create a structured reasoning plan using the SLAP pipeline via LLM.
 
@@ -60,7 +67,9 @@ class SLAPPipeline:
             Reasoning plan dictionary
         """
         self.logger.info(f"Creating SLAP reasoning plan (Type: {representation_type})")
-        self.logger.info(f"SLAP llm_provider: {'SET' if self.llm_provider else 'None'} (type: {type(self.llm_provider).__name__ if self.llm_provider else 'N/A'})")
+        self.logger.info(
+            f"SLAP llm_provider: {'SET' if self.llm_provider else 'None'} (type: {type(self.llm_provider).__name__ if self.llm_provider else 'N/A'})"
+        )
 
         if not self.llm_provider:
             self.logger.warning("No LLM provider available for SLAP. Returning fallback plan.")
@@ -128,30 +137,32 @@ Perform the SLAP analysis and output valid JSON in this format:
     "advancement_score": 0.0-3.0 (calculated as Truth + 0.4*Scrutiny + 0.6*Improvement)
 }}"""
 
-        messages = [Message(role="system", content=system_prompt), Message(role="user", content=user_prompt)]
+        messages = [
+            Message(role="system", content=system_prompt),
+            Message(role="user", content=user_prompt),
+        ]
 
         try:
             # Define tools_to_use for the LLM call (assuming no specific tools are needed for this SLAP plan generation)
-            tools_to_use = []
+            tools_to_use: List[Dict[str, Any]] = []
 
             # Call LLM
             response_content = ""
             self.logger.info("SLAP: About to call llm_provider.chat_completion")
 
             try:
-                async for chunk in self.llm_provider.chat_completion(messages, stream=False, temperature=0.3, max_tokens=16000, tools=tools_to_use):
+                async for chunk in self.llm_provider.chat_completion(
+                    messages, stream=False, temperature=0.3, max_tokens=16000, tools=tools_to_use
+                ):
                     response_content += chunk
-                self.logger.info(f"SLAP: LLM call completed, response length: {len(response_content)}")
+                self.logger.info(
+                    f"SLAP: LLM call completed, response length: {len(response_content)}"
+                )
             except Exception as iteration_error:
-                self.logger.error(f"SLAP: Error during LLM iteration: {iteration_error}", exc_info=True)
-                import traceback
-                with open("/tmp/slap_iteration_error.log", "w") as f:
-                    f.write("SLAP LLM Iteration Error\n")
-                    f.write("=" * 50 + "\n")
-                    f.write(f"Error Type: {type(iteration_error).__name__}\n")
-                    f.write(f"Error Message: {str(iteration_error)}\n")
-                    f.write("\nFull Traceback:\n")
-                    traceback.print_exc(file=f)
+                self.logger.error(
+                    f"SLAP: Error during LLM iteration: {iteration_error}", exc_info=True
+                )
+
                 raise  # Re-raise to trigger outer exception handler
 
             # Parse JSON
@@ -160,13 +171,10 @@ Perform the SLAP analysis and output valid JSON in this format:
                 plan = extract_json_from_text(response_content)
 
                 if not plan:
-                    self.logger.warning(f"SLAP: JSON extraction failed. Response preview: {response_content[:200]}")
-                    # Write full response to file for debugging
-                    with open("/tmp/slap_raw_response.txt", "w") as f:
-                        f.write("SLAP LLM Raw Response (JSON extraction failed)\n")
-                        f.write("=" * 50 + "\n")
-                        f.write(response_content)
-                    self.logger.warning("Full LLM response written to /tmp/slap_raw_response.txt")
+                    self.logger.warning(
+                        f"SLAP: JSON extraction failed. Response preview: {response_content[:200]}"
+                    )
+
                     raise json.JSONDecodeError("Failed to extract JSON", response_content, 0)
 
                 # Ensure advancement score exists
@@ -197,28 +205,17 @@ Perform the SLAP analysis and output valid JSON in this format:
             self.logger.error(f"SLAP llm_provider type: {type(self.llm_provider)}")
             self.logger.error(f"Exception details: {type(e).__name__}: {str(e)}")
 
-            # Write detailed traceback to file for inspection
-            import traceback
-            try:
-                with open("/tmp/slap_llm_error.log", "w") as f:
-                    f.write("SLAP LLM Error Details\n")
-                    f.write("=" * 50 + "\n")
-                    f.write(f"Exception Type: {type(e).__name__}\n")
-                    f.write(f"Exception Message: {str(e)}\n")
-                    f.write(f"LLM Provider Type: {type(self.llm_provider)}\n")
-                    f.write("\nFull Traceback:\n")
-                    traceback.print_exc(file=f)
-                self.logger.error("Detailed error written to /tmp/slap_llm_error.log")
-            except Exception as log_err:
-                self.logger.error(f"Failed to write error log: {log_err}")
-
             return self._create_fallback_plan(task, representation_type)
 
     def _create_fallback_plan(self, task: str, representation_type: str) -> Dict[str, Any]:
         """Create a basic fallback plan if LLM fails."""
         return {
             "type": representation_type,
-            "conceptualization": {"primary_concept": "Task Processing", "related_concepts": ["Execution", "Analysis"], "domain": "general"},
+            "conceptualization": {
+                "primary_concept": "Task Processing",
+                "related_concepts": ["Execution", "Analysis"],
+                "domain": "general",
+            },
             "representation": {"structure": "linear"},
             "facts": [],
             "scrutiny": {"gaps": ["LLM generation failed"], "score": 1.0},
@@ -227,7 +224,9 @@ Perform the SLAP analysis and output valid JSON in this format:
             "advancement": 0.5,
         }
 
-    def identify_missing_entities_mcts(self, current_plan: Dict, iterations: Optional[int] = None) -> List[str]:
+    def identify_missing_entities_mcts(
+        self, current_plan: Dict, iterations: Optional[int] = None
+    ) -> List[str]:
         """
         Identify missing entities (simplified for now, could be LLM-enhanced later).
         """
@@ -236,7 +235,7 @@ Perform the SLAP analysis and output valid JSON in this format:
             missing.extend(current_plan["scrutiny"]["gaps"])
         return missing
 
-    def reset(self):
+    def reset(self) -> None:
         """Reset pipeline state."""
         self.current_truth = 1.0
         self.current_scrutiny = 0.0

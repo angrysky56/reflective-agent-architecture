@@ -212,7 +212,7 @@ class EntropyCalculator:
         # Convert to bits (instead of nats)
         entropy_bits = entropy / torch.log(torch.tensor(2.0))
 
-        return entropy_bits.item()
+        return float(entropy_bits.item())
 
 
 def cwd_to_logits(

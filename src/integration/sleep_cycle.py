@@ -8,9 +8,8 @@ It performs two key functions:
 """
 
 import logging
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
-import torch
 import torch.optim as optim
 
 from src.cognition.category_theory_engine import CategoryTheoryEngine
@@ -24,12 +23,13 @@ from transformers import AutoTokenizer
 
 logger = logging.getLogger(__name__)
 
+
 class SleepCycle:
     def __init__(
         self,
         db_path: str = "raa_history.db",
         processor_config: Optional[ProcessorConfig] = None,
-        workspace: Optional["CognitiveWorkspace"] = None
+        workspace: Optional["CognitiveWorkspace"] = None,
     ):
         self.history = WorkHistory(db_path)
         self.config = processor_config or ProcessorConfig()
@@ -41,7 +41,9 @@ class SleepCycle:
 
         # Initialize Tokenizer (GPT-2 matches default vocab size 50257)
         try:
-            self.tokenizer = AutoTokenizer.from_pretrained("gpt2")
+            self.tokenizer = AutoTokenizer.from_pretrained(
+                "gpt2", revision="6c0e6080953db56375760c0471a8c5f2929baf11"
+            )
             self.tokenizer.pad_token = self.tokenizer.eos_token
         except Exception as e:
             logger.warning(f"Could not load tokenizer: {e}. Using dummy encoding.")
@@ -61,7 +63,9 @@ class SleepCycle:
             logger.info(f"Starting Sleep Cycle Epoch {epoch + 1}/{epochs}...")
 
             # 1. Replay (Training)
-            replay_result = self._replay_memories(epochs=1) # Replay for one epoch per sleep cycle epoch
+            replay_result = self._replay_memories(
+                epochs=1
+            )  # Replay for one epoch per sleep cycle epoch
 
             # 2. Crystallization (Tool Creation)
             cryst_result = self._crystallize_patterns()
@@ -75,15 +79,19 @@ class SleepCycle:
             # 5. Explore Latent Space (Curiosity/Dreaming)
             dream_result = self._explore_latent_space()
 
-            logger.info(f"Epoch {epoch + 1} complete. Replay: {replay_result}, Crystallization: {cryst_result}, Graph: {graph_result}, Code: {code_result}, Dreamer: {dream_result}")
-            results.append({
-                "epoch": epoch + 1,
-                "replay": replay_result,
-                "crystallization": cryst_result,
-                "graph_rumination": graph_result,
-                "code_rumination": code_result,
-                "latent_exploration": dream_result
-            })
+            logger.info(
+                f"Epoch {epoch + 1} complete. Replay: {replay_result}, Crystallization: {cryst_result}, Graph: {graph_result}, Code: {code_result}, Dreamer: {dream_result}"
+            )
+            results.append(
+                {
+                    "epoch": epoch + 1,
+                    "replay": replay_result,
+                    "crystallization": cryst_result,
+                    "graph_rumination": graph_result,
+                    "code_rumination": code_result,
+                    "latent_exploration": dream_result,
+                }
+            )
 
         return {"sleep_cycle_results": results}
 
@@ -131,7 +139,7 @@ class SleepCycle:
                     return_tensors="pt",
                     max_length=self.config.max_seq_length,
                     truncation=True,
-                    padding="max_length"
+                    padding="max_length",
                 )
                 input_ids = inputs.input_ids.to(self.device)
                 labels = input_ids.clone()
@@ -186,7 +194,7 @@ class SleepCycle:
                             )
                             llm_response = self.workspace._llm_generate(
                                 system_prompt="You are a naming assistant for AI cognitive tools.",
-                                user_prompt=prompt
+                                user_prompt=prompt,
                             )
                             logger.info(f"Tool naming LLM response: {llm_response}")
 
@@ -195,7 +203,9 @@ class SleepCycle:
                                 tool_name = name_part.replace("Name:", "").strip()
                                 description = desc_part.replace("Description:", "").strip()
                             else:
-                                logger.warning("LLM response did not match format 'Name: ... | Description: ...'")
+                                logger.warning(
+                                    "LLM response did not match format 'Name: ... | Description: ...'"
+                                )
                                 # Fallback: use numeric part of ID
                                 suffix = node_id.split("_")[-1]
                                 tool_name = f"tool_{suffix}"
@@ -213,22 +223,21 @@ class SleepCycle:
                     # Compress it
                     logger.info(f"Crystallizing node {node_id} into {tool_name}")
                     tool_result = self.workspace.compress_to_tool(
-                        node_ids=[node_id],
-                        tool_name=tool_name,
-                        description=description
+                        node_ids=[node_id], tool_name=tool_name, description=description
                     )
 
                     return {
                         "new_tools_created": 1,
                         "tool_id": tool_result.get("tool_id"),
-                        "message": f"Crystallized tool {tool_name}"
+                        "message": f"Crystallized tool {tool_name}",
                     }
                 else:
-                     return {"new_tools_created": 0, "message": "No new patterns to crystallize"}
+                    return {"new_tools_created": 0, "message": "No new patterns to crystallize"}
 
         except Exception as e:
             logger.error(f"Crystallization failed: {e}")
             return {"error": str(e)}
+
     def diagrammatic_ruminator(self, focus_node_id: Optional[str] = None) -> Dict[str, Any]:
         """
         Category-Theoretic Ruminator (Diagram Chasing).
@@ -241,7 +250,7 @@ class SleepCycle:
         to deduce the missing morphism (relationship) that makes the diagram commute.
         """
         if not self.workspace:
-             return {"status": "skipped", "reason": "No workspace"}
+            return {"status": "skipped", "reason": "No workspace"}
 
         logger.info(f"Ruminating on diagram topology (Focus: {focus_node_id})...")
 
@@ -262,18 +271,23 @@ class SleepCycle:
                     ).single()
 
                     if not result:
-                        return {"status": "idle", "message": "No suitable focus nodes found (graph too sparse)."}
+                        return {
+                            "status": "idle",
+                            "message": "No suitable focus nodes found (graph too sparse).",
+                        }
 
                     focus_node_id = result["id"]
                     focus_name = result["name"]
             else:
                 with self.workspace.neo4j_driver.session() as session:
                     result = session.run(
-                        "MATCH (n:ConceptNode {id: $id}) RETURN n.name as name",
-                        id=focus_node_id
+                        "MATCH (n:ConceptNode {id: $id}) RETURN n.name as name", id=focus_node_id
                     ).single()
                     if not result:
-                        return {"status": "error", "message": f"Focus node {focus_node_id} not found."}
+                        return {
+                            "status": "error",
+                            "message": f"Focus node {focus_node_id} not found.",
+                        }
                     focus_name = result["name"]
 
             # 2. Find Open Triangle (The 'Span': B <- A -> C)
@@ -292,10 +306,21 @@ class SleepCycle:
                 span_result = session.run(span_query, focus_id=focus_node_id).single()
 
             if not span_result:
-                return {"status": "idle", "message": f"No open triangles found for {focus_name} (Diagram commutes)."}
+                return {
+                    "status": "idle",
+                    "message": f"No open triangles found for {focus_name} (Diagram commutes).",
+                }
 
-            b_data = {"id": span_result["b_id"], "name": span_result["b_name"], "content": span_result["b_content"]}
-            c_data = {"id": span_result["c_id"], "name": span_result["c_name"], "content": span_result["c_content"]}
+            b_data = {
+                "id": span_result["b_id"],
+                "name": span_result["b_name"],
+                "content": span_result["b_content"],
+            }
+            c_data = {
+                "id": span_result["c_id"],
+                "name": span_result["c_name"],
+                "content": span_result["c_content"],
+            }
 
             # 3. Functorial Mapping (LLM Query)
             prompt = (
@@ -311,8 +336,7 @@ class SleepCycle:
 
             # Use dream/ruminator provider
             response = self.workspace.ruminator_provider.generate(
-                system_prompt="You are a Category Theoretic Reasoner.",
-                user_prompt=prompt
+                system_prompt="You are a Category Theoretic Reasoner.", user_prompt=prompt
             )
 
             # 4. Parse Response (The Morphism)
@@ -328,8 +352,8 @@ class SleepCycle:
                         if t.isalnum() or "_" in t:
                             rel_type = t
                     if "DIRECTION:" in part:
-                         if "C->B" in part:
-                             direction = "C->B"
+                        if "C->B" in part:
+                            direction = "C->B"
                     if "REASON:" in part:
                         reason = part.split(":")[1].strip()
 
@@ -343,16 +367,16 @@ class SleepCycle:
                     # For now, we assume 'RELATED_TO' to test the engine flow
 
                     # Determine source/target for verification based on direction
-                    v_source = b_data['id'] if direction == "B->C" else c_data['id']
-                    v_target = c_data['id'] if direction == "B->C" else b_data['id']
+                    v_source = b_data["id"] if direction == "B->C" else c_data["id"]
+                    v_target = c_data["id"] if direction == "B->C" else b_data["id"]
 
                     verification_result = cat_engine.verify_triangle_commutativity(
                         a_id=focus_node_id,
                         b_id=v_source,
                         c_id=v_target,
-                        path_ab_type="RELATED_TO", # Placeholder: would need actual type from graph
-                        path_ac_type="RELATED_TO", # Placeholder
-                        path_bc_type=rel_type
+                        path_ab_type="RELATED_TO",  # Placeholder: would need actual type from graph
+                        path_ac_type="RELATED_TO",  # Placeholder
+                        path_bc_type=rel_type,
                     )
                     logger.info(f"Formal Verification Result: {verification_result.get('result')}")
                 except Exception as ve:
@@ -360,8 +384,8 @@ class SleepCycle:
                     verification_result = {"result": "error", "reason": str(ve)}
 
                 # 6. Apply the Morphism (Update Graph)
-                source_id = b_data['id'] if direction == "B->C" else c_data['id']
-                target_id = c_data['id'] if direction == "B->C" else b_data['id']
+                source_id = b_data["id"] if direction == "B->C" else c_data["id"]
+                target_id = c_data["id"] if direction == "B->C" else b_data["id"]
 
                 with self.workspace.neo4j_driver.session() as session:
                     session.run(
@@ -373,26 +397,28 @@ class SleepCycle:
                             r.verified = $verified,
                             r.timestamp = timestamp()
                         """,
-                        sid=source_id, tid=target_id, reason=reason,
-                        verified=str(verification_result.get('result') == 'proved')
+                        sid=source_id,
+                        tid=target_id,
+                        reason=reason,
+                        verified=str(verification_result.get("result") == "proved"),
                     )
 
                 # 7. Generate Categorical Report (Prototype)
                 # To do this correctly, we'd gather all open triangles, but here we report on the one we processed
                 triangle_info = {
-                     "b_name": b_data['name'],
-                     "c_name": c_data['name'],
-                     "ab_type": "RELATED_TO", # Placeholder
-                     "ac_type": "RELATED_TO", # Placeholder
-                     "inferred": f"{direction} : {rel_type}",
-                     "verification": verification_result
+                    "b_name": b_data["name"],
+                    "c_name": c_data["name"],
+                    "ab_type": "RELATED_TO",  # Placeholder
+                    "ac_type": "RELATED_TO",  # Placeholder
+                    "inferred": f"{direction} : {rel_type}",
+                    "verification": verification_result,
                 }
 
                 cat_report = "Categorical Report Generated."
                 try:
                     cat_report = cat_engine.generate_commutativity_report(
                         focus_node={"id": focus_node_id, "name": focus_name},
-                        open_triangles=[triangle_info]
+                        open_triangles=[triangle_info],
                     )
                 except Exception as e:
                     logger.warning(f"Report generation failed: {e}")
@@ -404,32 +430,31 @@ class SleepCycle:
                     "triangle": f"{focus_name} -> ({b_data['name']}, {c_data['name']})",
                     "inferred_morphism": f"{direction} : {rel_type}",
                     "reason": reason,
-                    "verification": verification_result.get('result'),
-                    "report": cat_report
+                    "verification": verification_result.get("result"),
+                    "report": cat_report,
                 }
 
             return {
                 "status": "success",
                 "operation": "diagram_verified",
-                "message": "No direct morphism found."
+                "message": "No direct morphism found.",
             }
 
         except Exception as e:
             logger.error(f"Diagrammatic rumination failed: {e}")
             return {"status": "error", "reason": str(e)}
 
-
     def _ruminate_on_self_code(self) -> Dict[str, Any]:
         """
         Ruminator: Autonomously document the codebase during downtime.
         Uses a cheaper/free model (amazon/nova-2-lite-v1:free) with extra rate limiting.
         """
-        if not self.workspace or not hasattr(self.workspace, 'system_guide'):
+        if not self.workspace or not hasattr(self.workspace, "system_guide"):
             return {"status": "skipped", "reason": "No workspace or system_guide connected"}
 
         # Check if enabled
         if not getattr(self.workspace.config, "ruminator_enabled", False):
-             return {"status": "skipped", "reason": "Ruminator disabled in config"}
+            return {"status": "skipped", "reason": "Ruminator disabled in config"}
 
         logger.info("Ruminating on codebase (Self-Documentation)...")
 
@@ -455,9 +480,9 @@ class SleepCycle:
                         """
                     )
                     undocumented = [record for record in result]
-            except Exception as e: # Catch Neo4j errors
-                 logger.error(f"Ruminator DB Error: {e}")
-                 return {"status": "error", "reason": f"DB Error: {e}"}
+            except Exception as e:  # Catch Neo4j errors
+                logger.error(f"Ruminator DB Error: {e}")
+                return {"status": "error", "reason": f"DB Error: {e}"}
 
             if not undocumented:
                 return {"status": "idle", "message": "No undocumented code found."}
@@ -482,13 +507,13 @@ class SleepCycle:
                     # Use the dedicated Ruminator provider (supports backoff)
                     docstring = self.workspace.ruminator_provider.generate(
                         system_prompt="You are an expert software documentation assistant.",
-                        user_prompt=prompt
+                        user_prompt=prompt,
                     )
 
                     # Validate response
                     if docstring.strip().lower().startswith("error"):
-                         logger.warning(f"Ruminator generated error message for {bid}: {docstring}")
-                         continue
+                        logger.warning(f"Ruminator generated error message for {bid}: {docstring}")
+                        continue
 
                     # Update the bookmark
                     with self.workspace.neo4j_driver.session() as session:
@@ -498,13 +523,14 @@ class SleepCycle:
                             SET b.notes = $docstring, b.ruminated_at = timestamp()
                             """,
                             id=bid,
-                            docstring=docstring
+                            docstring=docstring,
                         )
 
                     processed_count += 1
 
                     # Extra rate limiting (on top of provider backoff)
                     import time  # Assuming time is imported at module level, but adding here for self-containment
+
                     time.sleep(ruminator_delay)
 
                 except Exception as e:
@@ -513,11 +539,11 @@ class SleepCycle:
             return {
                 "status": "active",
                 "processed": processed_count,
-                "model": self.workspace.ruminator_provider.model_name
+                "model": self.workspace.ruminator_provider.model_name,
             }
         except Exception as e:
-             logger.error(f"Rumination critical error: {e}")
-             return {"status": "error", "reason": str(e)}
+            logger.error(f"Rumination critical error: {e}")
+            return {"status": "error", "reason": str(e)}
 
     def _explore_latent_space(self) -> Dict[str, Any]:
         """
@@ -546,8 +572,7 @@ class SleepCycle:
 
             # We use the Dreamer provider directly
             response = self.workspace.dreamer_provider.generate(
-                system_prompt="You are an autonomous cognitive engine.",
-                user_prompt=prompt
+                system_prompt="You are an autonomous cognitive engine.", user_prompt=prompt
             )
 
             # 2. Execute the proposed action (Simplified for now)
@@ -563,7 +588,7 @@ class SleepCycle:
                     SET d.insight = $insight, d.timestamp = timestamp()
                     """,
                     goal=f"Dream: {goal[:50]}...",
-                    insight=response
+                    insight=response,
                 )
 
             self.workspace.curiosity.record_activity("dream", goal)
@@ -572,12 +597,13 @@ class SleepCycle:
                 "status": "active",
                 "goal": goal,
                 "insight": response[:100] + "...",
-                "model": self.workspace.dreamer_provider.model_name
+                "model": self.workspace.dreamer_provider.model_name,
             }
 
         except Exception as e:
             logger.error(f"Dream execution failed: {e}")
             return {"status": "error", "error": str(e)}
+
 
 if __name__ == "__main__":
     # Quick test

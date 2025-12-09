@@ -6,7 +6,7 @@ feasibility assessment, timeline management, and progress monitoring.
 """
 
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from .config import SMARTConfig
 from .utils import COMPASSLogger, ObjectiveState
@@ -20,7 +20,7 @@ class SMARTPlanner:
     Relevant, Time-bound) for goal-oriented task execution.
     """
 
-    def __init__(self, config, logger: Optional[COMPASSLogger] = None):
+    def __init__(self, config: SMARTConfig, logger: Optional[COMPASSLogger] = None):
         """
         Initialize SMART planner.
 
@@ -36,7 +36,9 @@ class SMARTPlanner:
 
         self.logger.info("SMART planner initialized")
 
-    def create_objectives_from_task(self, task: str, context: Optional[Dict] = None) -> List[ObjectiveState]:
+    def create_objectives_from_task(
+        self, task: str, context: Optional[Dict] = None
+    ) -> List[ObjectiveState]:
         """
         Define specific objectives for a task.
 
@@ -114,19 +116,47 @@ class SMARTPlanner:
 
         deadline = datetime.now() + timedelta(days=self.config.default_timeline_days)
 
-        return ObjectiveState(name=name, description=description, metric=metric, target_value=1.0, current_value=0.0, deadline=deadline)
+        return ObjectiveState(
+            name=name,
+            description=description,
+            metric=metric,
+            target_value=1.0,
+            current_value=0.0,
+            deadline=deadline,
+        )
 
     def _create_learning_objective(self, task: str, context: Dict) -> ObjectiveState:
         """Create learning capability objective."""
-        return ObjectiveState(name="Learning Enhancement", description="Improve learning capabilities through task execution", metric=self.config.metrics["learning-capabilities"], target_value=0.8, current_value=0.0, deadline=datetime.now() + timedelta(days=self.config.default_timeline_days))
+        return ObjectiveState(
+            name="Learning Enhancement",
+            description="Improve learning capabilities through task execution",
+            metric=self.config.metrics["learning-capabilities"],
+            target_value=0.8,
+            current_value=0.0,
+            deadline=datetime.now() + timedelta(days=self.config.default_timeline_days),
+        )
 
     def _create_decision_objective(self, task: str, context: Dict) -> ObjectiveState:
         """Create decision-making objective."""
-        return ObjectiveState(name="Decision Quality", description="Make high-quality decisions efficiently", metric=self.config.metrics["decision-making"], target_value=0.9, current_value=0.0, deadline=datetime.now() + timedelta(days=self.config.default_timeline_days))
+        return ObjectiveState(
+            name="Decision Quality",
+            description="Make high-quality decisions efficiently",
+            metric=self.config.metrics["decision-making"],
+            target_value=0.9,
+            current_value=0.0,
+            deadline=datetime.now() + timedelta(days=self.config.default_timeline_days),
+        )
 
     def _create_performance_objective(self, task: str, context: Dict) -> ObjectiveState:
         """Create performance optimization objective."""
-        return ObjectiveState(name="Performance Optimization", description="Optimize for speed and efficiency", metric=self.config.metrics["performance-optimization"], target_value=0.85, current_value=0.0, deadline=datetime.now() + timedelta(days=self.config.default_timeline_days))
+        return ObjectiveState(
+            name="Performance Optimization",
+            description="Optimize for speed and efficiency",
+            metric=self.config.metrics["performance-optimization"],
+            target_value=0.85,
+            current_value=0.0,
+            deadline=datetime.now() + timedelta(days=self.config.default_timeline_days),
+        )
 
     def _assess_feasibility(self, objective: ObjectiveState) -> bool:
         """
@@ -170,7 +200,7 @@ class SMARTPlanner:
 
         return len(overlap) > 0 or objective.name == "Task Completion"
 
-    def monitor_progress(self, objectives: Optional[List[ObjectiveState]] = None) -> Dict[str, any]:
+    def monitor_progress(self, objectives: Optional[List[ObjectiveState]] = None) -> Dict[str, Any]:
         """
         Monitor progress on objectives.
 
@@ -182,7 +212,13 @@ class SMARTPlanner:
         """
         objectives = objectives or self.objectives
 
-        report = {"total_objectives": len(objectives), "on_track": 0, "off_track": 0, "completed": 0, "details": []}
+        report: Dict[str, Any] = {
+            "total_objectives": len(objectives),
+            "on_track": 0,
+            "off_track": 0,
+            "completed": 0,
+            "details": [],
+        }
 
         for obj in objectives:
             status = self._check_objective_status(obj)
@@ -194,9 +230,18 @@ class SMARTPlanner:
             else:
                 report["off_track"] += 1
 
-            report["details"].append({"name": obj.name, "status": status, "progress": obj.progress, "is_on_track": obj.is_on_track})
+            report["details"].append(
+                {
+                    "name": obj.name,
+                    "status": status,
+                    "progress": obj.progress,
+                    "is_on_track": obj.is_on_track,
+                }
+            )
 
-        self.logger.info(f"Progress: {report['completed']} completed, {report['on_track']} on track, {report['off_track']} off track")
+        self.logger.info(
+            f"Progress: {report['completed']} completed, {report['on_track']} on track, {report['off_track']} off track"
+        )
 
         return report
 
@@ -259,7 +304,7 @@ class SMARTPlanner:
 
         return summary
 
-    def reset(self):
+    def reset(self) -> None:
         """Reset planner state."""
         self.objectives.clear()
         self.logger.debug("SMART planner reset")

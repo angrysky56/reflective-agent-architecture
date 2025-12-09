@@ -12,13 +12,24 @@ from src.llm.provider import BaseLLMProvider
 
 logger = logging.getLogger(__name__)
 
+
 class LLMFactory:
     """Factory to create LLM providers based on configuration."""
 
     @staticmethod
-    def create_provider(provider_name: Optional[str] = None, model_name: Optional[str] = None) -> BaseLLMProvider:
-        provider_name = provider_name or os.getenv("LLM_PROVIDER", "ollama").lower()
-        model_name = model_name or os.getenv("LLM_MODEL", "qwen3:latest")
+    def create_provider(
+        provider_name: Optional[str] = None, model_name: Optional[str] = None
+    ) -> BaseLLMProvider:
+        provider_name = provider_name or os.getenv("LLM_PROVIDER", "openrouter").lower()
+        model_name = (
+            model_name
+            if model_name is not None
+            else os.getenv("LLM_MODEL", "google/gemini-3-pro-preview")
+        )
+
+        # Ensure model_name is never None (fallback to default if getenv returns None)
+        if model_name is None:
+            model_name = "google/gemini-3-pro-preview"
 
         logger.info(f"Initializing LLM provider: {provider_name} with model: {model_name}")
 
@@ -35,5 +46,5 @@ class LLMFactory:
         elif provider_name == "huggingface":
             return HuggingFaceProvider(model_name)
         else:
-            logger.warning(f"Unknown provider '{provider_name}', defaulting to Ollama")
-            return OllamaProvider(model_name)
+            logger.warning(f"Unknown provider '{provider_name}', defaulting to OpenRouter")
+            return OpenRouterProvider(model_name)

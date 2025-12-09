@@ -1,4 +1,3 @@
-
 import logging
 import os
 import re
@@ -9,6 +8,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger("raa.logic_core")
 
+
 class SyntaxValidator:
     """Pre-validate logical formulas for common syntax errors"""
 
@@ -17,9 +17,9 @@ class SyntaxValidator:
     OPERATORS = {"->", "<->", "&", "|", "-"}
     RESERVED = QUANTIFIERS | {"true", "false", "end_of_list"}
 
-    def __init__(self):
-        self.errors = []
-        self.warnings = []
+    def __init__(self) -> None:
+        self.errors: List[str] = []
+        self.warnings: List[str] = []
 
     def validate(self, formula: str) -> Tuple[bool, List[str], List[str]]:
         """Validate a logical formula"""
@@ -46,7 +46,7 @@ class SyntaxValidator:
 
         return (len(self.errors) == 0, self.errors, self.warnings)
 
-    def _check_balanced_parens(self, formula: str):
+    def _check_balanced_parens(self, formula: str) -> None:
         """Check if parentheses are balanced"""
         stack = []
         for i, char in enumerate(formula):
@@ -61,7 +61,7 @@ class SyntaxValidator:
         if stack:
             self.errors.append(f"Unmatched opening parenthesis at position {stack[0]}")
 
-    def _check_quantifiers(self, formula: str):
+    def _check_quantifiers(self, formula: str) -> None:
         """Check quantifier syntax"""
         # Pattern: quantifier variable (formula)
         for quantifier in self.QUANTIFIERS:
@@ -79,20 +79,26 @@ class SyntaxValidator:
                 pos = match.end()
                 remaining = formula[pos:].lstrip()
                 if not remaining or remaining[0] != "(":
-                    self.errors.append(f"Quantifier '{quantifier} {var}' must be followed by a formula in parentheses")
+                    self.errors.append(
+                        f"Quantifier '{quantifier} {var}' must be followed by a formula in parentheses"
+                    )
 
-    def _check_operators(self, formula: str):
+    def _check_operators(self, formula: str) -> None:
         """Check operator usage"""
         # Check for double operators (likely mistakes)
         for op in ["&", "|"]:
             if op + op in formula:
-                self.warnings.append(f"Double operator '{op}{op}' found - did you mean to use it twice?")
+                self.warnings.append(
+                    f"Double operator '{op}{op}' found - did you mean to use it twice?"
+                )
 
         # Check for implication chains without parentheses
         if formula.count("->") > 1 and formula.count("(") == 0:
-            self.warnings.append("Multiple implications without parentheses - consider adding parentheses for clarity")
+            self.warnings.append(
+                "Multiple implications without parentheses - consider adding parentheses for clarity"
+            )
 
-    def _check_naming(self, formula: str):
+    def _check_naming(self, formula: str) -> None:
         """Check predicate/function naming conventions"""
         # Extract potential predicate/function names
         # Pattern: word followed by opening paren
@@ -108,13 +114,17 @@ class SyntaxValidator:
 
             # Predicates should start with lowercase
             if name[0].isupper():
-                self.warnings.append(f"Predicate/function '{name}' starts with uppercase - consider using lowercase for consistency")
+                self.warnings.append(
+                    f"Predicate/function '{name}' starts with uppercase - consider using lowercase for consistency"
+                )
 
             # Check for reserved words
             if name in self.RESERVED:
-                self.errors.append(f"'{name}' is a reserved keyword and cannot be used as a predicate/function")
+                self.errors.append(
+                    f"'{name}' is a reserved keyword and cannot be used as a predicate/function"
+                )
 
-    def _check_common_mistakes(self, formula: str):
+    def _check_common_mistakes(self, formula: str) -> None:
         """Check for common syntax mistakes"""
         # Missing spaces around operators
         for op in ["->", "<->"]:
@@ -125,11 +135,16 @@ class SyntaxValidator:
 
         # Unquoted strings (should be predicates)
         if '"' in formula or "'" in formula:
-            self.warnings.append("Strings in quotes are not standard in first-order logic - use predicates or constants instead")
+            self.warnings.append(
+                "Strings in quotes are not standard in first-order logic - use predicates or constants instead"
+            )
 
         # Empty parentheses
         if "()" in formula:
-            self.errors.append("Empty parentheses found - predicates and functions must have arguments")
+            self.errors.append(
+                "Empty parentheses found - predicates and functions must have arguments"
+            )
+
 
 class CategoricalHelpers:
     """Helper functions for categorical reasoning in first-order logic"""
@@ -164,7 +179,9 @@ class CategoricalHelpers:
         ]
 
     @staticmethod
-    def verify_commutativity(path_a: List[str], path_b: List[str], object_start: str, object_end: str) -> Tuple[List[str], str]:
+    def verify_commutativity(
+        path_a: List[str], path_b: List[str], object_start: str, object_end: str
+    ) -> Tuple[List[str], str]:
         """Generate FOL to verify diagram commutativity"""
         premises = []
 
@@ -203,7 +220,9 @@ class CategoricalHelpers:
         return (premises, conclusion)
 
     @staticmethod
-    def natural_transformation_condition(functor_f: str = "F", functor_g: str = "G", component: str = "alpha") -> List[str]:
+    def natural_transformation_condition(
+        functor_f: str = "F", functor_g: str = "G", component: str = "alpha"
+    ) -> List[str]:
         """Generate naturality condition for a natural transformation"""
         f_lower = functor_f.lower()
         g_lower = functor_g.lower()
@@ -241,15 +260,15 @@ class CategoricalHelpers:
     @staticmethod
     def group_axioms() -> List[str]:
         """Axioms for a group"""
-        return CategoricalHelpers.monoid_axioms() + [
-            "all x exists y (mult(x,y,e) & mult(y,x,e))"
-        ]
+        return CategoricalHelpers.monoid_axioms() + ["all x exists y (mult(x,y,e) & mult(y,x,e))"]
+
 
 class LogicCore:
     """
     Core logic engine integrating Prover9 and Mace4 for formal verification.
     Ported from mcp-logic to run directly within RAA.
     """
+
     def __init__(self, prover_path: Optional[str] = None):
         """Initialize connection to Prover9 and Mace4"""
         if prover_path is None:
@@ -264,13 +283,17 @@ class LogicCore:
 
         self.prover_path = Path(prover_path)
 
-        # Initialize Prover9
-        self.prover_exe = self.prover_path / "prover9.exe"
+        # Initialize Prover9 and Mace4 attributes
+        self.prover_exe: Optional[Path] = self.prover_path / "prover9.exe"
+        self.mace4_exe: Optional[Path] = None
+
         if not self.prover_exe.exists():
             self.prover_exe = self.prover_path / "prover9"
 
         if not self.prover_exe.exists():
-            logger.warning(f"Prover9 not found at {self.prover_exe}. Logical verification will be disabled.")
+            logger.warning(
+                f"Prover9 not found at {self.prover_exe}. Logical verification will be disabled."
+            )
             self.prover_exe = None
             self.mace4_exe = None
             return
@@ -282,7 +305,9 @@ class LogicCore:
         if not self.mace4_exe.exists():
             self.mace4_exe = self.prover_path / "mace4"
             if not self.mace4_exe.exists():
-                logger.warning(f"Mace4 not found at {self.mace4_exe}. Counterexample search disabled.")
+                logger.warning(
+                    f"Mace4 not found at {self.mace4_exe}. Counterexample search disabled."
+                )
                 self.mace4_exe = None
             else:
                 logger.debug(f"Mace4 initialized at {self.mace4_exe}")
@@ -292,22 +317,35 @@ class LogicCore:
 
     def check_well_formed(self, formulas: List[str]) -> Dict[str, Any]:
         """Validate syntax of formulas"""
-        results = {"valid": True, "formula_results": []}
+        formula_results: List[Dict[str, Any]] = []
+        all_valid = True
 
         for i, formula in enumerate(formulas):
             is_valid, errors, warnings = self.validator.validate(formula)
-            formula_result = {"formula": formula, "valid": is_valid, "errors": errors, "warnings": warnings}
-            results["formula_results"].append(formula_result)
+            formula_result = {
+                "formula": formula,
+                "valid": is_valid,
+                "errors": errors,
+                "warnings": warnings,
+            }
+            formula_results.append(formula_result)
             if not is_valid:
-                results["valid"] = False
+                all_valid = False
 
-        return results
+        return {"valid": all_valid, "formula_results": formula_results}
 
-    def verify_commutativity(self, path_a: List[str], path_b: List[str],
-                            object_start: str, object_end: str,
-                            with_category_axioms: bool = True) -> Dict[str, Any]:
+    def verify_commutativity(
+        self,
+        path_a: List[str],
+        path_b: List[str],
+        object_start: str,
+        object_end: str,
+        with_category_axioms: bool = True,
+    ) -> Dict[str, Any]:
         """Verify diagram commutativity"""
-        premises, conclusion = self.cat_helpers.verify_commutativity(path_a, path_b, object_start, object_end)
+        premises, conclusion = self.cat_helpers.verify_commutativity(
+            path_a, path_b, object_start, object_end
+        )
 
         if with_category_axioms:
             cat_axioms = self.cat_helpers.category_axioms()
@@ -315,7 +353,7 @@ class LogicCore:
 
         return {"premises": premises, "conclusion": conclusion}
 
-    def get_category_axioms(self, concept: str, **kwargs) -> List[str]:
+    def get_category_axioms(self, concept: str, **kwargs: Any) -> List[str]:
         """Get axioms for a categorical concept"""
         if concept == "category":
             return self.cat_helpers.category_axioms()
@@ -325,7 +363,7 @@ class LogicCore:
             return self.cat_helpers.natural_transformation_condition(
                 kwargs.get("functor_f", "F"),
                 kwargs.get("functor_g", "G"),
-                kwargs.get("component", "alpha")
+                kwargs.get("component", "alpha"),
             )
         elif concept == "monoid":
             return self.cat_helpers.monoid_axioms()
@@ -342,7 +380,11 @@ class LogicCore:
             # Validate first
             valid_check = self.check_well_formed(premises + [conclusion])
             if not valid_check["valid"]:
-                 return {"result": "error", "reason": "Syntax error in formulas", "details": valid_check}
+                return {
+                    "result": "error",
+                    "reason": "Syntax error in formulas",
+                    "details": valid_check,
+                }
 
             input_file = self._create_prover_input_file(premises, conclusion)
             return self._run_prover(input_file, timeout)
@@ -350,7 +392,9 @@ class LogicCore:
             logger.error(f"Proof error: {e}")
             return {"result": "error", "reason": str(e)}
 
-    def find_counterexample(self, premises: List[str], conclusion: str, domain_size: Optional[int] = None) -> Dict[str, Any]:
+    def find_counterexample(
+        self, premises: List[str], conclusion: str, domain_size: Optional[int] = None
+    ) -> Dict[str, Any]:
         """Find a counterexample showing the conclusion doesn't follow from premises using Mace4."""
         if not self.mace4_exe:
             return {"result": "error", "reason": "Mace4 not available"}
@@ -359,13 +403,21 @@ class LogicCore:
             # Validate first
             valid_check = self.check_well_formed(premises + [conclusion])
             if not valid_check["valid"]:
-                 return {"result": "error", "reason": "Syntax error in formulas", "details": valid_check}
+                return {
+                    "result": "error",
+                    "reason": "Syntax error in formulas",
+                    "details": valid_check,
+                }
 
-            input_file = self._create_mace_input_file(premises, goal=conclusion, domain_size=domain_size)
+            input_file = self._create_mace_input_file(
+                premises, goal=conclusion, domain_size=domain_size
+            )
             result = self._run_mace4(input_file)
 
             if result["result"] == "model_found":
-                result["interpretation"] = f"Counterexample found: The premises are satisfied but the conclusion '{conclusion}' is FALSE in this model."
+                result["interpretation"] = (
+                    f"Counterexample found: The premises are satisfied but the conclusion '{conclusion}' is FALSE in this model."
+                )
 
             return result
         except Exception as e:
@@ -381,7 +433,11 @@ class LogicCore:
             # Validate
             valid_check = self.check_well_formed(premises)
             if not valid_check["valid"]:
-                 return {"result": "error", "reason": "Syntax error in formulas", "details": valid_check}
+                return {
+                    "result": "error",
+                    "reason": "Syntax error in formulas",
+                    "details": valid_check,
+                }
 
             input_file = self._create_mace_input_file(premises, goal=None, domain_size=domain_size)
             return self._run_mace4(input_file)
@@ -405,7 +461,9 @@ class LogicCore:
             f.write(input_content)
         return Path(path)
 
-    def _create_mace_input_file(self, premises: List[str], goal: Optional[str] = None, domain_size: Optional[int] = None) -> Path:
+    def _create_mace_input_file(
+        self, premises: List[str], goal: Optional[str] = None, domain_size: Optional[int] = None
+    ) -> Path:
         """Create a Mace4 input file"""
         content = []
 
@@ -439,12 +497,13 @@ class LogicCore:
         try:
             # Set working directory to Prover9 directory for includes if needed
             cwd = str(self.prover_path)
+            # trunk-ignore(bandit/B603): prover_exe is a trusted path set during init
             result = subprocess.run(
                 [str(self.prover_exe), "-f", str(input_path)],
                 capture_output=True,
                 text=True,
                 timeout=timeout,
-                cwd=cwd
+                cwd=cwd,
             )
 
             if "THEOREM PROVED" in result.stdout:
@@ -455,16 +514,24 @@ class LogicCore:
                     proof = "Theorem proved but proof extraction failed."
                 return {"result": "proved", "proof": proof}
             elif "SEARCH FAILED" in result.stdout:
-                return {"result": "unprovable", "reason": "Proof search failed", "output": result.stdout[:500]}
+                return {
+                    "result": "unprovable",
+                    "reason": "Proof search failed",
+                    "output": result.stdout[:500],
+                }
             elif "Fatal error" in result.stderr:
-                 return {"result": "error", "reason": "Syntax or Runtime error", "error": result.stderr}
+                return {
+                    "result": "error",
+                    "reason": "Syntax or Runtime error",
+                    "error": result.stderr,
+                }
             else:
-                 return {"result": "uncertain", "output": result.stdout[:500]}
+                return {"result": "uncertain", "output": result.stdout[:500]}
 
         except subprocess.TimeoutExpired:
             return {"result": "timeout", "reason": f"Exceeded {timeout}s"}
         except Exception as e:
-             return {"result": "error", "reason": str(e)}
+            return {"result": "error", "reason": str(e)}
         finally:
             try:
                 input_path.unlink()
@@ -476,12 +543,13 @@ class LogicCore:
         try:
             cwd = str(self.prover_path)
             # -c means compile/print models cleanly
+            # trunk-ignore(bandit/B603): mace4_exe is a trusted path set during init
             result = subprocess.run(
                 [str(self.mace4_exe), "-f", str(input_path)],
                 capture_output=True,
                 text=True,
                 timeout=timeout,
-                cwd=cwd
+                cwd=cwd,
             )
 
             output = result.stdout

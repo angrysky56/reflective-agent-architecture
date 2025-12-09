@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 import numpy as np
 
@@ -7,6 +7,7 @@ import numpy as np
 from ..integration.continuity_field import ContinuityField
 
 logger = logging.getLogger(__name__)
+
 
 class OrthogonalDimensionsAnalyzer:
     """
@@ -53,7 +54,7 @@ Perform the Orthogonal Dimensions Analysis as described.
 """
         return prompt
 
-    def analyze_vectors(self, vector_a: np.ndarray, vector_b: np.ndarray) -> Dict[str, float]:
+    def analyze_vectors(self, vector_a: np.ndarray, vector_b: np.ndarray) -> Dict[str, Any]:
         """
         Analyze the orthogonality of two vectors relative to the Identity Manifold.
 
@@ -66,10 +67,13 @@ Perform the Orthogonal Dimensions Analysis as described.
 
         # DEBUG LOGGING
         import logging
+
         logger = logging.getLogger(__name__)
         logger.info(f"DEBUG: Analyzing vectors. ContinuityField ID: {id(self.continuity_field)}")
-        if hasattr(self.continuity_field, 'anchors'):
-            logger.info(f"DEBUG: ContinuityField anchors count: {len(self.continuity_field.anchors)}")
+        if hasattr(self.continuity_field, "anchors"):
+            logger.info(
+                f"DEBUG: ContinuityField anchors count: {len(self.continuity_field.anchors)}"
+            )
         else:
             logger.info("DEBUG: ContinuityField has no 'anchors' attribute")
 
@@ -81,5 +85,5 @@ Perform the Orthogonal Dimensions Analysis as described.
         return {
             "drift_a": drift_a,
             "drift_b": drift_b,
-            "relative_orthogonality": abs(drift_a - drift_b) # Simplistic metric
+            "relative_orthogonality": abs(drift_a - drift_b),  # Simplistic metric
         }

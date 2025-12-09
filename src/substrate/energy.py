@@ -8,23 +8,25 @@ from typing import Dict, List, Optional
 class EnergyUnit(Enum):
     JOULES = "joules"
 
+
 @dataclass
 class EnergyToken:
     amount: Decimal
     unit: str = "joules"
 
-    def __add__(self, other: 'EnergyToken') -> 'EnergyToken':
+    def __add__(self, other: "EnergyToken") -> "EnergyToken":
         if self.unit != other.unit:
             raise ValueError(f"Cannot add different units: {self.unit} vs {other.unit}")
         return EnergyToken(self.amount + other.amount, self.unit)
 
-    def __sub__(self, other: 'EnergyToken') -> 'EnergyToken':
+    def __sub__(self, other: "EnergyToken") -> "EnergyToken":
         if self.unit != other.unit:
             raise ValueError(f"Cannot subtract different units: {self.unit} vs {other.unit}")
         return EnergyToken(self.amount - other.amount, self.unit)
 
-    def __lt__(self, other: 'EnergyToken') -> bool:
+    def __lt__(self, other: "EnergyToken") -> bool:
         return self.amount < other.amount
+
 
 @dataclass
 class MeasurementCost:
@@ -32,9 +34,12 @@ class MeasurementCost:
     operation_name: str
     timestamp: float = field(default_factory=time.time)
 
+
 class EnergyDepletionError(Exception):
     """Raised when the agent runs out of energy."""
+
     pass
+
 
 class MetabolicLedger:
     def __init__(self, max_energy: float = 100.0):
@@ -42,7 +47,7 @@ class MetabolicLedger:
         self.current_energy = self.max_energy
         self.transactions: List[MeasurementCost] = []
 
-    def record_transaction(self, cost: MeasurementCost):
+    def record_transaction(self, cost: MeasurementCost) -> None:
         """Deduct energy and record transaction."""
         if self.current_energy < cost.energy.amount:
             raise EnergyDepletionError(
@@ -53,7 +58,7 @@ class MetabolicLedger:
         self.current_energy -= cost.energy.amount
         self.transactions.append(cost)
 
-    def recharge(self, amount: Optional[float] = None):
+    def recharge(self, amount: Optional[float] = None) -> None:
         """Recharge energy (e.g., after sleep)."""
         if amount is None:
             self.current_energy = self.max_energy
@@ -64,5 +69,5 @@ class MetabolicLedger:
         return {
             "current_energy": str(self.current_energy),
             "max_energy": str(self.max_energy),
-            "percentage": f"{(self.current_energy / self.max_energy) * 100:.1f}%"
+            "percentage": f"{(self.current_energy / self.max_energy) * 100:.1f}%",
         }

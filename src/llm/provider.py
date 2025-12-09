@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, AsyncGenerator, Dict, List, Optional
+from typing import AsyncGenerator, Dict, List, Optional
 
 
 @dataclass
@@ -8,11 +8,18 @@ class Message:
     role: str
     content: str
 
+
 class BaseLLMProvider(ABC):
     """Abstract base class for LLM providers."""
 
     @abstractmethod
-    def generate(self, system_prompt: str, user_prompt: str, max_tokens: int = 16000, tools: Optional[List[Dict]] = None) -> str:
+    def generate(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        max_tokens: int = 16000,
+        tools: Optional[List[Dict]] = None,
+    ) -> str:
         """Synchronous generation for simple text tasks."""
         pass
 
@@ -23,7 +30,8 @@ class BaseLLMProvider(ABC):
         stream: bool = False,
         temperature: float = 0.7,
         max_tokens: int = 16000,
-        tools: Optional[List[Dict]] = None
+        tools: Optional[List[Dict]] = None,
     ) -> AsyncGenerator[str, None]:
         """Async chat completion with streaming support."""
-        pass
+        raise NotImplementedError
+        yield ""

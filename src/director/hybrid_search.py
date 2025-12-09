@@ -32,6 +32,8 @@ from typing import Any, Optional
 import torch
 import torch.nn.functional as f
 
+from src.manifold import Manifold
+
 from .ltn_refiner import LTNConfig, LTNRefiner
 from .search_mvp import SearchResult, energy_aware_knn_search
 from .sheaf_diagnostics import SheafAnalyzer
@@ -41,10 +43,11 @@ logger = logging.getLogger(__name__)
 
 class SearchStrategy(str, Enum):
     """Search strategy used to find result."""
-    KNN = "knn"           # RAA discrete k-NN
-    LTN = "ltn"           # LTN continuous refinement
-    HYBRID = "hybrid"     # Multi-stage approach
-    FAILED = "failed"     # All strategies exhausted
+
+    KNN = "knn"  # RAA discrete k-NN
+    LTN = "ltn"  # LTN continuous refinement
+    HYBRID = "hybrid"  # Multi-stage approach
+    FAILED = "failed"  # All strategies exhausted
 
 
 @dataclass
@@ -60,9 +63,9 @@ class HybridSearchConfig:
     ltn_config: Optional[LTNConfig] = None
 
     # Strategy selection
-    enable_ltn_fallback: bool = True      # Use LTN when k-NN fails
+    enable_ltn_fallback: bool = True  # Use LTN when k-NN fails
     enable_waypoint_storage: bool = True  # Store LTN waypoints in Manifold
-    force_ltn: bool = False               # Skip k-NN and force LTN refinement
+    force_ltn: bool = False  # Skip k-NN and force LTN refinement
 
     # Validation
     require_sheaf_validation: bool = True  # Validate with Sheaf cohomology
@@ -115,10 +118,10 @@ class HybridSearchStrategy:
 
     def __init__(
         self,
-        manifold,
+        manifold: Manifold,
         ltn_refiner: LTNRefiner,
         sheaf_analyzer: Optional[SheafAnalyzer] = None,
-        config: Optional[HybridSearchConfig] = None
+        config: Optional[HybridSearchConfig] = None,
     ):
         """
         Initialize hybrid search strategy.
@@ -141,7 +144,7 @@ class HybridSearchStrategy:
             "ltn_success": 0,
             "total_failures": 0,
             "waypoints_stored": 0,
-            "scaffolding_success": 0  # Track when k-NN retrieves an LTN waypoint
+            "scaffolding_success": 0,  # Track when k-NN retrieves an LTN waypoint
         }
 
     def search(
@@ -152,7 +155,7 @@ class HybridSearchStrategy:
         context: Optional[dict] = None,
         force_ltn: bool = False,
         k: Optional[int] = None,
-        metric: Optional[str] = None
+        metric: Optional[str] = None,
     ) -> Optional[HybridSearchResult]:
         """
         Execute hybrid search with automatic strategy selection.
@@ -181,7 +184,7 @@ class HybridSearchStrategy:
             selection_score=0.0,
             strategy=SearchStrategy.FAILED,
             knn_attempted=False,
-            ltn_attempted=False
+            ltn_attempted=False,
         )
 
         if self.config.verbose:
@@ -225,10 +228,7 @@ class HybridSearchStrategy:
             logger.info("RAA search failed, attempting LTN refinement...")
 
         ltn_result = self._try_ltn_refinement(
-            current=current_state,
-            evidence=evidence,
-            constraints=constraints,
-            result=result
+            current=current_state, evidence=evidence, constraints=constraints, result=result
         )
 
         if ltn_result is not None:
@@ -248,7 +248,7 @@ class HybridSearchStrategy:
         current_state: torch.Tensor,
         result: HybridSearchResult,
         k: Optional[int] = None,
-        metric: Optional[str] = None
+        metric: Optional[str] = None,
     ) -> Optional[HybridSearchResult]:
         """
         Attempt RAA energy-aware k-NN search.
@@ -277,7 +277,7 @@ class HybridSearchStrategy:
                 energy_evaluator=self.manifold.energy,
                 k=k if k is not None else self.config.knn_k,
                 metric=metric if metric is not None else self.config.knn_metric,
-                exclude_threshold=self.config.knn_exclude_threshold
+                exclude_threshold=self.config.knn_exclude_threshold,
             )
         except Exception as e:
             result.knn_failed_reason = f"k-NN error: {str(e)}"
@@ -303,7 +303,9 @@ class HybridSearchStrategy:
             if meta.get("is_synthetic", False):
                 self.search_stats["scaffolding_success"] += 1
                 if self.config.verbose:
-                    logger.info("✓ Scaffolding Effect Verified: k-NN retrieved synthetic LTN waypoint!")
+                    logger.info(
+                        "✓ Scaffolding Effect Verified: k-NN retrieved synthetic LTN waypoint!"
+                    )
 
         # Convert to HybridSearchResult
         hybrid_result = HybridSearchResult(
@@ -313,7 +315,7 @@ class HybridSearchStrategy:
             selection_score=knn_result.selection_score,
             strategy=SearchStrategy.KNN,
             knn_attempted=True,
-            sheaf_validated=self.config.require_sheaf_validation
+            sheaf_validated=self.config.require_sheaf_validation,
         )
 
         return hybrid_result
@@ -323,7 +325,7 @@ class HybridSearchStrategy:
         current: torch.Tensor,
         evidence: torch.Tensor,
         constraints: list[str],
-        result: HybridSearchResult
+        result: HybridSearchResult,
     ) -> Optional[HybridSearchResult]:
         """
         Attempt LTN gradient refinement.
@@ -339,7 +341,7 @@ class HybridSearchStrategy:
                 current_belief=current,
                 evidence=evidence,
                 constraints=constraints,
-                energy_evaluator=self.manifold.energy
+                energy_evaluator=self.manifold.energy,
             )
         except Exception as e:
             result.ltn_failed_reason = f"LTN error: {str(e)}"
@@ -367,10 +369,13 @@ class HybridSearchStrategy:
             try:
                 # Store with metadata to track scaffolding effect
                 metadata = {"is_synthetic": True, "source": "ltn"}
-                if hasattr(self.manifold, "store_pattern") and "metadata" in self.manifold.store_pattern.__code__.co_varnames:
-                     self.manifold.store_pattern(waypoint.unsqueeze(0), metadata=metadata)
+                if (
+                    hasattr(self.manifold, "store_pattern")
+                    and "metadata" in self.manifold.store_pattern.__code__.co_varnames
+                ):
+                    self.manifold.store_pattern(waypoint.unsqueeze(0), metadata=metadata)
                 else:
-                     self.manifold.store_pattern(waypoint.unsqueeze(0))
+                    self.manifold.store_pattern(waypoint.unsqueeze(0))
 
                 stored = True
                 self.search_stats["waypoints_stored"] += 1
@@ -381,11 +386,7 @@ class HybridSearchStrategy:
 
         # Compute metrics
         energy = self.manifold.energy(waypoint).item()
-        distance = f.cosine_similarity(
-            waypoint.unsqueeze(0),
-            current.unsqueeze(0),
-            dim=1
-        ).item()
+        distance = f.cosine_similarity(waypoint.unsqueeze(0), current.unsqueeze(0), dim=1).item()
 
         # Create result
         hybrid_result = HybridSearchResult(
@@ -399,12 +400,14 @@ class HybridSearchStrategy:
             sheaf_validated=sheaf_valid,
             knn_attempted=True,
             knn_failed_reason=result.knn_failed_reason,
-            ltn_attempted=True
+            ltn_attempted=True,
         )
 
         return hybrid_result
 
-    def _sheaf_validates(self, pattern: torch.Tensor, check_attractor: bool = True, check_entropy: bool = True) -> bool:
+    def _sheaf_validates(
+        self, pattern: torch.Tensor, check_attractor: bool = True, check_entropy: bool = True
+    ) -> bool:
         """
         Validate pattern using Sheaf Cohomology (or heuristics).
 
@@ -441,7 +444,7 @@ class HybridSearchStrategy:
 
         if check_attractor:
             if is_attractor:
-                pass # Continue to next check
+                pass  # Continue to next check
             else:
                 if self.config.verbose:
                     logger.debug(f"Pattern not in attractor: E={energy:.4f}")
@@ -481,19 +484,14 @@ class HybridSearchStrategy:
 
     def get_stats(self) -> dict[str, Any]:
         """Return search statistics."""
-        stats = self.search_stats.copy()
+        stats: dict[str, Any] = self.search_stats.copy()
 
         if stats["total_searches"] > 0:
-            stats["knn_success_rate"] = (
-                stats["knn_success"] / stats["total_searches"]
-            )
-            stats["ltn_success_rate"] = (
-                stats["ltn_success"] / stats["total_searches"]
-            )
-            stats["overall_success_rate"] = (
-                (stats["knn_success"] + stats["ltn_success"]) /
-                stats["total_searches"]
-            )
+            stats["knn_success_rate"] = stats["knn_success"] / stats["total_searches"]
+            stats["ltn_success_rate"] = stats["ltn_success"] / stats["total_searches"]
+            stats["overall_success_rate"] = (stats["knn_success"] + stats["ltn_success"]) / stats[
+                "total_searches"
+            ]
         else:
             stats["knn_success_rate"] = 0.0
             stats["ltn_success_rate"] = 0.0
@@ -504,7 +502,7 @@ class HybridSearchStrategy:
 
         return stats
 
-    def reset_stats(self):
+    def reset_stats(self) -> None:
         """Reset all statistics."""
         for key in self.search_stats:
             self.search_stats[key] = 0
@@ -519,7 +517,7 @@ class HybridSearchStrategy:
 def compare_search_strategies(
     hybrid_strategy: HybridSearchStrategy,
     test_cases: list[dict[str, torch.Tensor]],
-    verbose: bool = False
+    verbose: bool = False,
 ) -> dict[str, Any]:
     """
     Benchmark hybrid search vs pure k-NN on test cases.
@@ -532,13 +530,13 @@ def compare_search_strategies(
     Returns:
         comparison_results: Statistics comparing strategies
     """
-    results = {
+    results: dict[str, Any] = {
         "total_cases": len(test_cases),
         "knn_only_success": 0,
         "ltn_rescued": 0,  # Cases where k-NN failed but LTN succeeded
         "both_failed": 0,
         "energy_comparison": [],  # (knn_energy, ltn_energy) pairs
-        "distance_comparison": []  # (knn_dist, ltn_dist) pairs
+        "distance_comparison": [],  # (knn_dist, ltn_dist) pairs
     }
 
     for i, case in enumerate(test_cases):
@@ -560,18 +558,14 @@ def compare_search_strategies(
 
             if verbose:
                 logger.info(
-                    f"✓ LTN rescued case where k-NN failed "
-                    f"(reason: {result.knn_failed_reason})"
+                    f"✓ LTN rescued case where k-NN failed " f"(reason: {result.knn_failed_reason})"
                 )
 
     # Calculate success rates
     if results["total_cases"] > 0:
         results["hybrid_success_rate"] = (
-            (results["knn_only_success"] + results["ltn_rescued"]) /
-            results["total_cases"]
-        )
-        results["ltn_contribution"] = (
-            results["ltn_rescued"] / results["total_cases"]
-        )
+            results["knn_only_success"] + results["ltn_rescued"]
+        ) / results["total_cases"]
+        results["ltn_contribution"] = results["ltn_rescued"] / results["total_cases"]
 
     return results

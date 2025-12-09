@@ -26,10 +26,7 @@ class PatternMemory:
         self.metadata: List[Dict] = []
 
     def add_pattern(
-        self,
-        pattern: torch.Tensor,
-        label: str,
-        metadata: Optional[Dict] = None
+        self, pattern: torch.Tensor, label: str, metadata: Optional[Dict] = None
     ) -> int:
         """
         Add a pattern with label and metadata.
@@ -42,8 +39,8 @@ class PatternMemory:
         Returns:
             Index of the added pattern
         """
-        assert pattern.shape[-1] == self.embedding_dim, \
-            f"Pattern dimension {pattern.shape[-1]} != {self.embedding_dim}"
+        if pattern.shape[-1] != self.embedding_dim:
+            raise ValueError(f"Pattern dimension {pattern.shape[-1]} != {self.embedding_dim}")
 
         self.patterns.append(pattern.detach().cpu())
         self.labels.append(label)
@@ -79,10 +76,7 @@ class PatternMemory:
         return self.patterns[index], self.labels[index]
 
     def find_nearest(
-        self,
-        query: torch.Tensor,
-        k: int = 5,
-        metric: str = "cosine"
+        self, query: torch.Tensor, k: int = 5, metric: str = "cosine"
     ) -> tuple[torch.Tensor, List[int], List[str]]:
         """
         Find k nearest patterns to query.
@@ -104,10 +98,7 @@ class PatternMemory:
 
         if metric == "cosine":
             # Cosine similarity (higher = more similar)
-            similarities = torch.matmul(
-                query.unsqueeze(0),
-                patterns.T
-            ).squeeze(0)
+            similarities = torch.matmul(query.unsqueeze(0), patterns.T).squeeze(0)
             distances, indices = torch.topk(similarities, k=min(k, len(patterns)))
             indices = indices.tolist()
         else:  # euclidean

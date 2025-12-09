@@ -10,7 +10,7 @@ search to work. This module provides strategies for pattern acquisition.
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import Any, Optional
 
 import numpy as np
 import torch
@@ -165,9 +165,7 @@ class PrototypePatternCurriculum(PatternCurriculum):
         return patterns
 
 
-def create_pattern_curriculum(
-    config: PatternCurriculumConfig, **kwargs
-) -> PatternCurriculum:
+def create_pattern_curriculum(config: PatternCurriculumConfig, **kwargs: Any) -> PatternCurriculum:
     """
     Factory function for creating pattern curricula.
 
@@ -181,14 +179,14 @@ def create_pattern_curriculum(
     if config.strategy == "random":
         return RandomPatternCurriculum(config)
     elif config.strategy == "manual":
-        if 'patterns' not in kwargs:
+        if "patterns" not in kwargs:
             raise ValueError("ManualPatternCurriculum requires 'patterns' argument")
-        return ManualPatternCurriculum(config, kwargs['patterns'])
+        return ManualPatternCurriculum(config, kwargs["patterns"])
     elif config.strategy == "prototype":
         return PrototypePatternCurriculum(
             config,
-            num_clusters=kwargs.get('num_clusters', 10),
-            patterns_per_cluster=kwargs.get('patterns_per_cluster', 10),
+            num_clusters=kwargs.get("num_clusters", 10),
+            patterns_per_cluster=kwargs.get("patterns_per_cluster", 10),
         )
     else:
         raise ValueError(f"Unknown pattern curriculum strategy: {config.strategy}")
@@ -196,10 +194,7 @@ def create_pattern_curriculum(
 
 # Convenience function for RAA integration
 def initialize_manifold_patterns(
-    manifold,
-    strategy: str = "prototype",
-    num_patterns: int = 100,
-    **kwargs
+    manifold: Any, strategy: str = "prototype", num_patterns: int = 100, **kwargs: Any
 ) -> int:
     """
     Initialize a Manifold with patterns using specified strategy.
@@ -229,4 +224,4 @@ def initialize_manifold_patterns(
 
     logger.info(f"Manifold initialized with {patterns.shape[0]} patterns")
 
-    return patterns.shape[0]
+    return int(patterns.shape[0])

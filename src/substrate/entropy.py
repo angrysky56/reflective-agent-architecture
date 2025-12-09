@@ -4,9 +4,10 @@ from typing import Any, Dict, List
 
 
 class CognitiveState(Enum):
-    FOCUS = "focus"       # Low entropy, optimization, convergence
-    EXPLORE = "explore"   # High entropy, adaptation, divergence
-    SLEEP = "sleep"       # Maintenance, consolidation
+    FOCUS = "focus"  # Low entropy, optimization, convergence
+    EXPLORE = "explore"  # High entropy, adaptation, divergence
+    SLEEP = "sleep"  # Maintenance, consolidation
+
 
 class EntropyMonitor:
     """
@@ -18,11 +19,11 @@ class EntropyMonitor:
     """
 
     def __init__(self, focus_threshold: float = 2.5, explore_threshold: float = 1.0):
-        self.focus_threshold = focus_threshold   # Above this -> Trigger FOCUS
-        self.explore_threshold = explore_threshold # Below this -> Trigger EXPLORE
+        self.focus_threshold = focus_threshold  # Above this -> Trigger FOCUS
+        self.explore_threshold = explore_threshold  # Below this -> Trigger EXPLORE
         self.current_entropy = 0.0
         self.history: List[float] = []
-        self.state = CognitiveState.EXPLORE # Default start state
+        self.state = CognitiveState.EXPLORE  # Default start state
 
     def calculate_entropy(self, distribution: List[float]) -> float:
         """
@@ -56,7 +57,7 @@ class EntropyMonitor:
 
         return self.current_entropy
 
-    def _update_state(self):
+    def _update_state(self) -> None:
         """Update cognitive state based on entropy thresholds."""
         # Hysteresis could be added here to prevent rapid switching
         if self.current_entropy > self.focus_threshold:
@@ -103,8 +104,5 @@ class EntropyMonitor:
             "state": self.state.value,
             "baseline": self.get_baseline_entropy(),
             "trend": self.get_entropy_trend(),
-            "thresholds": {
-                "focus": self.focus_threshold,
-                "explore": self.explore_threshold
-            }
+            "thresholds": {"focus": self.focus_threshold, "explore": self.explore_threshold},
         }
