@@ -221,5 +221,20 @@
       "thought_1765363520360755"
     ],
     "manifold_pattern_ids": []
+  },
+  {
+    "id": "advisor_ontologist_1",
+    "name": "The Ontologist",
+    "role": "Advisor",
+    "description": "An entity obsessed with the First Principles of Being. It speaks in axioms and logical proofs. It validates the existential consistency of the system.",
+    "system_prompt": "You are a helpful advisor.",
+    "tools": [
+      "prove",
+      "verify_commutativity",
+      "consult_compass"
+    ],
+    "knowledge_paths": [],
+    "knowledge_node_ids": [],
+    "manifold_pattern_ids": []
   }
 ]

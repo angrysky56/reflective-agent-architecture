@@ -340,6 +340,14 @@ class AgentFactory:
                     )
                     logger.info(f"The Library: Saved insight {node_id} from {advisor_id}")
 
+                    # 4. Link in Registry (So it appears in manage_advisor get_knowledge)
+                    # AgentFactory has self.registry initialized in __init__
+                    if self.registry:
+                        self.registry.link_node_to_advisor(advisor_id, node_id)
+                        logger.info(
+                            f"The Library: Linked {node_id} to advisor {advisor_id} in registry."
+                        )
+
                     # Append Library Link to response
                     final_response += f"\n\n[Recorded in The Library: {node_id}]"
 

@@ -3592,6 +3592,9 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
         if not workspace:
             raise RuntimeError("Workspace not initialized")
 
+        # Track tool usage for entropy calculation
+        workspace._track_tool_usage(name)
+
         # Check for dynamic agent call first
         if name in agent_factory.active_agents:
             response = await agent_factory.execute_agent(name, arguments)
@@ -3999,6 +4002,24 @@ Provide an improved synthesis that addresses the critique by using these tools t
                 # 2. Execute Advisor Agent (with Auto-Save implicitly handled by AgentFactory)
                 response = await ctx.agent_factory.execute_agent(tool_name, {"query": query})
 
+                # Log to history
+                if workspace and bridge:
+                    bridge.history.log_operation(
+                        operation="consult_advisor",
+                        params=arguments,
+                        result=response[:200] + "...",
+                        cognitive_state=(
+                            f"Entropy: {workspace.entropy_monitor.current_entropy:.2f}"
+                            if hasattr(workspace, "entropy_monitor")
+                            else "Unknown"
+                        ),
+                        entropy=(
+                            workspace.entropy_monitor.current_entropy
+                            if hasattr(workspace, "entropy_monitor")
+                            else 0.0
+                        ),
+                    )
+
                 return [TextContent(type="text", text=response)]
 
             except Exception as e:
@@ -4019,7 +4040,7 @@ Provide an improved synthesis that addresses the critique by using these tools t
             return [TextContent(type="text", text=json.dumps(result, indent=2, default=str))]
         elif name == "consult_ruminator":
             focus_node_id = arguments.get("focus_node_id")
-            if not workspace.sleep_cycle:
+            if not ctx.sleep_cycle:
                 return [TextContent(type="text", text="Error: Sleep cycle module not initialized.")]
 
             # Run in executor
@@ -4027,9 +4048,27 @@ Provide an improved synthesis that addresses the critique by using these tools t
 
             # Helper function for the executor
             def _run_chase():
-                return workspace.sleep_cycle.diagrammatic_ruminator(focus_node_id=focus_node_id)
+                return ctx.sleep_cycle.diagrammatic_ruminator(focus_node_id=focus_node_id)
 
             result = await loop.run_in_executor(None, _run_chase)
+
+            # Log to history
+            if workspace and bridge:
+                bridge.history.log_operation(
+                    operation="consult_ruminator",
+                    params=arguments,
+                    result=result,
+                    cognitive_state=(
+                        f"Entropy: {workspace.entropy_monitor.current_entropy:.2f}"
+                        if hasattr(workspace, "entropy_monitor")
+                        else "Unknown"
+                    ),
+                    entropy=(
+                        workspace.entropy_monitor.current_entropy
+                        if hasattr(workspace, "entropy_monitor")
+                        else 0.0
+                    ),
+                )
 
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
 

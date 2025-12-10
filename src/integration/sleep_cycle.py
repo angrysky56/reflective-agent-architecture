@@ -394,8 +394,10 @@ class SleepCycle:
             )
 
             # 4. Parse Response (The Morphism)
-            if "RELATION: Yes" in response:
-                parts = response.split("|")
+            clean_response = response.strip()
+            # Case-insensitive check for positive relation
+            if "relation: yes" in clean_response.lower():
+                parts = clean_response.split("|")
                 rel_type = "RELATED_TO"
                 direction = "B->C"
                 reason = "Inferred via diagram chasing"
