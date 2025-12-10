@@ -720,10 +720,51 @@ class DirectorMVP:
                     return result  # Fallback to System 1
 
             else:
-                logger.warning(
-                    "Director: High entropy but no 'data_points' found in context for evolution."
+                # NEW: Context Retrieval Loop (Progress-Oriented)
+                # If high entropy but no data_points, use tools to gather context and retry.
+                logger.info(
+                    "Director: High entropy but no 'data_points'. Initiating Context Retrieval Loop."
                 )
-                return result
+
+                # Step 1: Build a retrieval prompt that instructs COMPASS to use graph tools
+                retrieval_prompt = (
+                    f"SYSTEM ALERT: The agent is stuck on: '{task[:300]}...'. "
+                    "Cognitive State: {state}. Entropy: {entropy:.2f}. "
+                    "Use `inspect_graph` to find related ThoughtNodes in the knowledge graph. "
+                    "Use `search_knowledge` if the graph is sparse. "
+                    "Return the most relevant context to help solve the original task. "
+                    "DO NOT attempt to solve the task yet—just retrieve context."
+                ).format(
+                    state=cognitive_state_label,
+                    entropy=entropy_score,
+                )
+
+                try:
+                    retrieval_result = await self.compass.process_task(retrieval_prompt, context)
+                    retrieved_context = retrieval_result.get("solution", "")
+
+                    if retrieved_context and len(retrieved_context) > 50:
+                        logger.info(
+                            f"Director: Retrieved {len(retrieved_context)} chars of context. Re-attempting task."
+                        )
+
+                        # Step 2: Inject retrieved context and re-attempt
+                        enriched_context = (context or {}).copy()
+                        enriched_context["retrieved_knowledge"] = retrieved_context
+                        enriched_context["_retrieval_attempt"] = True  # Prevent infinite loop
+
+                        # Step 3: Re-attempt original task with enriched context
+                        revised_result = await self.compass.process_task(task, enriched_context)
+                        revised_result["_context_retrieval_used"] = True
+                        return revised_result
+
+                    else:
+                        logger.warning("Director: Context retrieval returned insufficient data.")
+                        return result
+
+                except Exception as e:
+                    logger.error(f"Director: Context Retrieval Loop failed: {e}")
+                    return result  # Fallback to System 1
 
     async def check_proactive_interventions(self) -> Optional[Intervention]:
         """

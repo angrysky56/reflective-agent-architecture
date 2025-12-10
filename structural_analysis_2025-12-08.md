@@ -27,6 +27,12 @@ Higher-level "stereoscopic" reasoning and formal logic.
 - [`system_guide.py`](src/cognition/system_guide.py): **Architectural Guidance** - High-level system direction.
 - [`working_memory.py`](src/cognition/working_memory.py): **Context Management** - Sliding window of recent cognitive operations.
 
+#### `src/cognition/primitives/`
+- [`compress.py`](src/cognition/primitives/compress.py): **Abstraction** - Compresses solved problems into tools.
+- [`deconstruct.py`](src/cognition/primitives/deconstruct.py): **Analysis** - Breaks problems into components.
+- [`hypothesize.py`](src/cognition/primitives/hypothesize.py): **Creativity** - Generates novel connections.
+- [`synthesize.py`](src/cognition/primitives/synthesize.py): **Synthesis** - Merges concepts into insights.
+
 ### `src/compass/`
 
 The central operating system for orchestration and reasoning.

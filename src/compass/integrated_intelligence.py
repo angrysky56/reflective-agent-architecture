@@ -398,6 +398,18 @@ class IntegratedIntelligence:
                         user_prompt += "Violations by Type: " + str(violations["by_type"]) + "\n"
                     user_prompt += "CRITICAL: Address these violations in your next action.\n\n"
 
+            # NEW: Inject Retrieved Knowledge (from Director's Context Retrieval Loop)
+            if context.get("retrieved_knowledge"):
+                retrieved = context["retrieved_knowledge"]
+                # Truncate if too long to avoid token explosion
+                if len(retrieved) > 3000:
+                    retrieved = retrieved[:3000] + "\n...[truncated]"
+                user_prompt += (
+                    "**Retrieved Context (from Knowledge Graph)**:\n"
+                    f"{retrieved}\n\n"
+                    "Use this context to inform your answer.\n\n"
+                )
+
             user_prompt += "Reasoning Plan Summary (Current Step):\n"
             if "conceptualization" in reasoning_plan:
                 user_prompt += (

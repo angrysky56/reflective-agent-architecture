@@ -219,6 +219,14 @@ class SynthesizePrimitive:
 
             logger.info(f"Total Synthesis operation took {time.time() - start_total:.2f}s")
 
+            # NEW: Flag low-coverage results for Director's Context Retrieval Loop
+            if meta_stats["unified_score"] < 0.5:
+                self.workspace.working_memory.needs_context_retrieval = True
+                logger.warning(
+                    f"Synthesis coverage low ({meta_stats['unified_score']:.2f}), "
+                    "flagging for context retrieval."
+                )
+
             result_dict = {
                 "synthesis_id": synth_id,
                 "synthesis": synthesis_text,
