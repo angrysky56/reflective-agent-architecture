@@ -16,6 +16,7 @@ class AgentFactory:
         self,
         llm_provider: Any,
         tool_executor: Optional[Callable[[str, Dict[str, Any]], Any]] = None,
+        tool_lookup: Optional[Callable[[str], Optional[Dict[str, Any]]]] = None,
         workspace: Optional[Any] = None,
     ):
         """
@@ -24,10 +25,12 @@ class AgentFactory:
         Args:
             llm_provider: Instance of RAALLMProvider (or compatible) for chat completion.
             tool_executor: Async callback to execute tools. Signature: async (name, args) -> result
+            tool_lookup: Callback to get tool schema. Signature: (name) -> schema_dict
             workspace: CognitiveWorkspace instance (for The Library persistence).
         """
         self.llm_provider = llm_provider
         self.tool_executor = tool_executor
+        self.tool_lookup = tool_lookup
         self.workspace = workspace
         self.active_agents: Dict[str, Dict[str, Any]] = {}
 
@@ -188,22 +191,39 @@ class AgentFactory:
         messages = [Message(role="system", content=persona), Message(role="user", content=query)]
 
         # Define available tools for the agent.
-        # Currently, we explicitly allow access to 'consult_compass'.
-        # Convert to OpenAI/Ollama compatible format
-        agent_tools = [
-            {
-                "type": "function",
-                "function": {
-                    "name": "consult_compass",
-                    "description": "Delegate a complex task to the COMPASS cognitive framework.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {"task": {"type": "string"}, "context": {"type": "object"}},
-                        "required": ["task"],
-                    },
-                },
-            }
-        ]
+        # Dynamically build based on agent's assigned tools
+        assigned_tools = agent_data.get("tools", ["consult_compass"])
+        agent_tools = []
+
+        for t_name in assigned_tools:
+            schema = None
+            if self.tool_lookup:
+                schema = self.tool_lookup(t_name)
+
+            # Fallback for hardcoded consult_compass if lookups fail or missing
+            if not schema and t_name == "consult_compass":
+                schema = {
+                    "type": "object",
+                    "properties": {"task": {"type": "string"}, "context": {"type": "object"}},
+                    "required": ["task"],
+                }
+
+            if schema:
+                agent_tools.append(
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": t_name,
+                            "description": f"Tool: {t_name}",  # Description ideally comes from lookup too
+                            "parameters": schema,
+                        },
+                    }
+                )
+
+        # Ensure consult_compass is always available if fallback needed for 'dynamic' agents
+        if not agent_tools and "consult_compass" not in assigned_tools:
+            # Default fallback
+            pass
 
         # Execution Loop
         max_turns = 5

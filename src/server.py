@@ -1987,9 +1987,55 @@ class RAAServerContext:
         # Initialize Agent Factory
         from src.integration.agent_factory import AgentFactory
 
+        # Define Unified Tool Executor (Local + External)
+        async def unified_tool_executor(name: str, args: dict) -> Any:
+            # 1. Try Local Tools first
+            # We need to access the global handler. Using the function name directly.
+            # RAA_TOOLS is global.
+            local_tool = next((t for t in RAA_TOOLS if t.name == name), None)
+            if local_tool:
+                # Call local handler
+                # Note: handle_tool_call returns list[Content], we need to extract text
+                try:
+                    results = await call_tool(name, args)
+                    # Extract text content
+                    return "\n".join([c.text for c in results if c.type == "text"])
+                except Exception as e:
+                    logger.error(f"Local tool execution failed: {e}")
+                    raise e
+
+            # 2. Try External MCP
+            if self.external_mcp:
+                return await self.external_mcp.call_tool(name, args)
+
+            raise ValueError(f"Tool '{name}' not found.")
+
+        # Define Unified Tool Schema Lookup
+        def unified_tool_lookup(name: str) -> Optional[dict]:
+            # 1. Local
+            local_tool = next((t for t in RAA_TOOLS if t.name == name), None)
+            if local_tool:
+                # Ensure description is included in schema for the agent
+                schema = local_tool.inputSchema.copy()
+                # Ideally, Description should be outside, but we can put it in for now if LLM library handles it
+                # Actually, AgentFactory handles description separately, but we need it.
+                # Let's rely on AgentFactory to assume description is not in inputSchema
+                return schema
+
+            # 2. External
+            if self.external_mcp:
+                # Naive lookup. Optimally we cache this map.
+                # Accessing private tools_map for speed if available
+                if hasattr(self.external_mcp, "tools_map"):
+                    t = self.external_mcp.tools_map.get(name)
+                    if t:
+                        return t.inputSchema
+            return None
+
         self.agent_factory = AgentFactory(
             llm_provider=self.llm_provider,
-            tool_executor=self.external_mcp.call_tool if self.external_mcp else None,
+            tool_executor=unified_tool_executor,
+            tool_lookup=unified_tool_lookup,
             workspace=self,  # Inject self as workspace
         )
         if (
