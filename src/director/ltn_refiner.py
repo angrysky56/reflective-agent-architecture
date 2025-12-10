@@ -191,9 +191,12 @@ class LTNRefiner:
         """
         self.refinement_stats["total_refinements"] += 1
 
+        # Determine execution device from input to ensure compatibility with energy_evaluator
+        device = current_belief.device
+
         # Move to device
-        current = current_belief.to(self.device)
-        target = evidence.to(self.device)
+        current = current_belief.to(device)
+        target = evidence.to(device)
 
         # Initialize candidate near current belief
         candidate = current.clone().detach().requires_grad_(True)
@@ -211,7 +214,7 @@ class LTNRefiner:
         if constraints:
             constraint_embeddings = torch.stack(
                 [self.constraint_evaluator.embed_constraint(c) for c in constraints]
-            ).to(self.device)
+            ).to(device)
 
         for iteration in range(self.config.max_iterations):
             optimizer.zero_grad()
@@ -234,14 +237,14 @@ class LTNRefiner:
                 torch.tensor(initial_energy)
             ):
                 # If initial energy is undefined (e.g. empty memory), ignore energy constraint
-                l_energy = torch.tensor(0.0, device=self.device)
+                l_energy = torch.tensor(0.0, device=device)
             else:
                 energy_diff = current_energy - initial_energy
                 # Only penalize if energy increases (barrier)
                 l_energy = f.relu(energy_diff) / (abs(initial_energy) + 1e-6)
 
             # 4. Logical constraints (textual)
-            l_constr = torch.tensor(0.0, device=self.device)
+            l_constr = torch.tensor(0.0, device=device)
             if constraint_embeddings is not None:
                 # Maximize similarity to constraints (minimize 1 - sim)
                 # We average the loss across all constraints
