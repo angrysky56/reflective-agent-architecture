@@ -122,6 +122,7 @@ class DirectorMVP:
         continuity_service: Optional["ContinuityService"] = None,
         llm_provider: Optional[Any] = None,
         work_history: Optional[Any] = None,
+        precuneus: Optional[Any] = None,
     ):
         """
         Initialize Director.
@@ -133,12 +134,14 @@ class DirectorMVP:
             mcp_client: Optional MCP client for tool execution
             continuity_service: Optional ContinuityService for anchoring milestones
             work_history: Optional WorkHistory for long-term entropy recall
+            precuneus: Optional PrecuneusIntegrator for state modulation
         """
         self.manifold = manifold
         self.config = config or DirectorConfig()
         self.mcp_client = mcp_client
         self.continuity_service = continuity_service
         self.work_history = work_history
+        self.precuneus = precuneus
 
         # Entropy monitor
         self.monitor = EntropyMonitor(
@@ -332,9 +335,9 @@ class DirectorMVP:
         logger.info(f"Plasticity: P={p_state.value:.2f} ({p_state.mode})")
 
         # Apply to Precuneus if available (placeholder)
-        if hasattr(self, "precuneus"):
-            # self.precuneus.set_integration_rate(p_state.value)
-            pass
+        if self.precuneus is not None:
+            if hasattr(self.precuneus, "set_integration_rate"):
+                self.precuneus.set_integration_rate(p_state.value)
 
         return True
 

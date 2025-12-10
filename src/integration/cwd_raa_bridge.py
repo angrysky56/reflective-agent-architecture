@@ -162,6 +162,11 @@ class CWDRAABridge:
 
         logger.info("CWDRAABridge initialized successfully")
 
+    def set_director(self, director: Any) -> None:
+        """Set RAA Director instance (post-initialization)."""
+        self.raa_director = director
+        logger.info("RAA Director injected into CWDRAABridge")
+
     def _get_current_goal(self) -> Optional[torch.Tensor]:
         """Retrieve current goal embedding from integration context.
 

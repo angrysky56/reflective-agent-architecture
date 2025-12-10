@@ -46,17 +46,19 @@ from dotenv import load_dotenv
 from mcp.server import Server
 from mcp.types import TextContent, Tool
 from neo4j import GraphDatabase
-from pydantic import Field, model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from src.cognition.curiosity import CuriosityModule
 from src.cognition.emotion_framework import consult_computational_empathy
 from src.cognition.grok_lang import AffectVector, GrokDepthCalculator, Intent, MindState, Utterance
 from src.cognition.logic_core import LogicCore
-from src.cognition.meta_validator import MetaValidator
+from src.cognition.primitives.compress import CompressPrimitive
+from src.cognition.primitives.deconstruct import DeconstructPrimitive
+from src.cognition.primitives.hypothesize import HypothesizePrimitive
+from src.cognition.primitives.synthesize import SynthesizePrimitive
 from src.cognition.system_guide import SystemGuideNodes
 from src.cognition.working_memory import WorkingMemory
 from src.compass.orthogonal_dimensions import OrthogonalDimensionsAnalyzer
+from src.config.cwd_config import CWDConfig
 from src.director import Director, DirectorConfig
 from src.director.simple_gp import SimpleGP
 from src.embeddings.base_embedding_provider import BaseEmbeddingProvider
@@ -126,69 +128,6 @@ server = Server("cwd-mcp")
 # ============================================================================
 
 
-class CWDConfig(BaseSettings):
-    """
-    Configuration for Cognitive Workspace Database.
-
-    Loads from environment variables or .env file - never hardcode credentials!
-    Set NEO4J_PASSWORD in your .env file or environment.
-
-    Searches for .env file in:
-    1. Current directory
-    2. Parent directory (project root when running from src/)
-    """
-
-    # Find .env file in project root (one level up from src/)
-    _env_file = Path(__file__).parent.parent / ".env"
-
-    model_config = SettingsConfigDict(
-        env_file=str(_env_file) if _env_file.exists() else ".env",
-        env_file_encoding="utf-8",
-        extra="ignore",
-    )
-
-    neo4j_uri: str = Field(default="bolt://localhost:7687")
-    neo4j_user: str = Field(default="neo4j")
-    neo4j_password: str = Field(...)  # Required from environment - no default
-    chroma_path: str = Field(default=str(Path(__file__).parent.parent / "chroma_data"))
-    # LLM Settings
-    llm_provider: str = "openrouter"
-    llm_model: str = Field(default="google/gemini-2.0-flash-exp:free", description="LLM model name")
-    compass_model: str = Field(
-        default="anthropic/claude-3.5-sonnet:beta", description="Model for COMPASS reasoning"
-    )
-
-    # Ruminator Settings
-    ruminator_enabled: bool = Field(default=False, description="Enable background rumination")
-    ruminator_delay: float = Field(
-        default=2.0, description="Delay between rumination cycles (seconds)"
-    )
-
-    # Embedding Settings
-    embedding_provider: str = Field(
-        default="sentence-transformers",
-        description="Embedding provider (sentence-transformers, ollama, lm_studio)",
-    )
-    embedding_model: str = Field(
-        default="BAAI/bge-large-en-v1.5", description="Embedding model name"
-    )
-    confidence_threshold: float = Field(default=0.7)  # Lower to .3 for asymmetric embeddings
-    device: str = Field(
-        default="cuda" if torch.cuda.is_available() else "cpu",
-        description="Device for tensor operations",
-    )
-
-    @model_validator(mode="after")
-    def resolve_relative_paths(self):
-        """Ensure paths are absolute relative to project root."""
-        if self.chroma_path and not Path(self.chroma_path).is_absolute():
-            # Resolve relative to project root (parent of parent of this file)
-            # This ensures consistent behavior regardless of CWD (e.g., running from src/ vs root)
-            root = Path(__file__).parent.parent
-            self.chroma_path = str((root / self.chroma_path).resolve())
-        return self
-
-
 class CognitiveWorkspace:
     """
     Manages the cognitive workspace - a hybrid system combining:
@@ -200,6 +139,12 @@ class CognitiveWorkspace:
     def __init__(self, config: CWDConfig):
         self.config = config
         self.device = config.device
+
+        # Initialize Primitives
+        self.deconstruct_primitive = DeconstructPrimitive(self)
+        self.hypothesize_primitive = HypothesizePrimitive(self)
+        self.synthesize_primitive = SynthesizePrimitive(self)
+        self.compress_primitive = CompressPrimitive(self)
         self.manifold = None
         self.latest_precuneus_state: dict[str, Any] | None = None
 
@@ -340,6 +285,27 @@ class CognitiveWorkspace:
         self.tool_usage_buffer: List[str] = []
         self.MAX_TOOL_BUFFER = 20
 
+        # Initialize Precuneus (Fusion Layer)
+        # This bridges Neo4j and Chroma for unified context
+        # Initialize Precuneus (Neural Fusion Layer)
+        # Note: This is the neural module, not the full service.
+        # It requires the embedding dimension.
+        self.precuneus = PrecuneusIntegrator(dim=embedding_dim)
+
+        # Initialize CWD-RAA Bridge (Integration Layer)
+        # This connects the MCP server to the broader RAA system
+        # It accesses Neo4j/Chroma via the 'cwd_server' (self) reference.
+        self.bridge = CWDRAABridge(
+            cwd_server=self,
+            raa_director=self.director,
+            manifold=self.manifold,
+            config=BridgeConfig(
+                embedding_dim=embedding_dim,
+                embedding_model=config.embedding_model,
+                device=config.device,
+            ),
+        )
+
         # Initialize MCP Tools
         self.mcp_tools = {
             "read_file": self._read_file,
@@ -350,9 +316,13 @@ class CognitiveWorkspace:
         }
 
     def get_manifold(self):
-        if self.manifold:
-            return self.manifold
-        raise RuntimeError("Manifold not injected into Workspace")
+        return self.manifold
+
+    def get_director(self):
+        return self.director
+
+    def get_precuneus(self):
+        return self.precuneus
 
     def _get_cognitive_state(self) -> str:
         """
@@ -969,34 +939,6 @@ class CognitiveWorkspace:
         """Get all active goals"""
         return self.active_goals.copy()
 
-    def _calculate_utility_score(self, content: str, session) -> float:
-        """
-        Calculate utility score for content based on active goals.
-
-        Uses vector similarity between content and active goals.
-        Higher scores mean the content is more aligned with current goals.
-
-        This implements the "Perceived Utility" filter from Gen 3 architecture.
-        """
-        if not self.active_goals:
-            return 0.5  # Neutral utility when no goals set
-
-        content_embedding = self._embed_text(content)
-
-        total_weighted_similarity = 0.0
-        total_weight = 0.0
-
-        for goal_id, goal_data in self.active_goals.items():
-            goal_embedding = self._embed_text(goal_data["description"], is_query=True)
-            similarity = self._cosine_similarity(content_embedding, goal_embedding)
-
-            weighted_sim = similarity * goal_data["weight"]
-            total_weighted_similarity += weighted_sim
-            total_weight += goal_data["weight"]
-
-        utility_score = total_weighted_similarity / total_weight if total_weight > 0 else 0.5
-        return float(utility_score)
-
     def _prove(self, premises: List[str], conclusion: str) -> Dict[str, Any]:
         """Verify a logical conclusion from premises using Prover9."""
         self._track_tool_usage("prove")
@@ -1055,73 +997,21 @@ class CognitiveWorkspace:
     # Gen 3 Architecture: Compression Progress Tracking (Schmidhuber)
     # ========================================================================
 
-    def _calculate_compression_score(self, content: str) -> float:
-        """
-        Calculate compression score for content.
+    def _cosine_similarity(
+        self, v1: list[float] | np.ndarray, v2: list[float] | np.ndarray
+    ) -> float:
+        """Calculate cosine similarity between two vectors."""
+        vec1 = np.array(v1) if isinstance(v1, list) else v1
+        vec2 = np.array(v2) if isinstance(v2, list) else v2
 
-        Estimates compressibility by checking:
-        1. Similarity to existing compressed patterns (tools)
-        2. Length vs semantic richness ratio
-        3. Pattern regularity in embedding space
+        # Avoid division by zero
+        norm1 = np.linalg.norm(vec1)
+        norm2 = np.linalg.norm(vec2)
 
-        Lower scores = more compressible (simpler, more pattern)
-        Higher scores = less compressible (complex, novel, random)
+        if norm1 == 0 or norm2 == 0:
+            return 0.0
 
-        This is a practical approximation of Kolmogorov complexity.
-        """
-        embedding = self._embed_text(content)
-
-        # Check similarity to existing tools (compressed knowledge)
-        if self.tool_library:
-            tool_similarities = []
-            for tool_data in self.tool_library.values():
-                tool_emb = tool_data.get("embedding", [])
-                if tool_emb:
-                    sim = self._cosine_similarity(embedding, tool_emb)
-                    tool_similarities.append(sim)
-
-            if tool_similarities:
-                # High similarity to existing tools = highly compressible
-                max_tool_sim = max(tool_similarities)
-                compression_component = 1.0 - max_tool_sim
-            else:
-                compression_component = 0.5
-        else:
-            compression_component = 0.5
-
-        # Length penalty: longer content is harder to compress
-        length_ratio = min(len(content) / 1000.0, 1.0)  # Normalize to 0-1
-
-        # Combined score
-        compression_score = (compression_component * 0.7) + (length_ratio * 0.3)
-
-        return float(compression_score)
-
-    def _track_compression_progress(self, node_id: str, new_score: float) -> float:
-        """
-        Track compression progress for a node.
-
-        Returns intrinsic reward (compression progress).
-        This is the core of Schmidhuber's framework:
-
-        r_int(t+1) = C(old_compressor, data) - C(new_compressor, data)
-
-        Positive reward = we learned to compress it better
-        """
-        if node_id not in self.compression_history:
-            self.compression_history[node_id] = []
-
-        history = self.compression_history[node_id]
-        history.append(new_score)
-
-        if len(history) < 2:
-            return 0.0  # No progress on first observation
-
-        # Compression progress = reduction in compression score
-        old_score = history[-2]
-        progress = old_score - new_score  # Positive = improvement
-
-        return float(progress)
+        return float(np.dot(vec1, vec2) / (norm1 * norm2))
 
     # ========================================================================
     # Gen 3 Architecture: Knowledge Compression as Tools
@@ -1132,123 +1022,9 @@ class CognitiveWorkspace:
     ) -> dict[str, Any]:
         """
         Convert solved problem(s) into a reusable compressed tool.
-
-        This implements the "mnemonics as tools" concept. When the agent solves
-        a problem, it compresses the solution pattern into a high-level tool
-        that can be reused for similar problems (like the Jeep brake light example).
-
-        The tool lives in both:
-        - Neo4j: As a Tool node with relationships to source problems
-        - tool_library dict: For fast access during compression scoring
-
-        Args:
-            node_ids: Thought-nodes representing the solved problem
-            tool_name: Name for this tool
-            description: Optional description of what this tool does
-
-        Returns:
-            Tool creation result with tool_id and success metrics
+        Delegates to CompressPrimitive.
         """
-        logger.info(f"Compressing {len(node_ids)} nodes into tool: {tool_name}")
-
-        with self.neo4j_driver.session() as session:
-            # Get all node contents
-            nodes_result = session.run(
-                """
-                MATCH (n:ThoughtNode)
-                WHERE n.id IN $ids
-                RETURN n.id as id, n.content as content
-            """,
-                ids=node_ids,
-            )
-
-            nodes = {r["id"]: r["content"] for r in nodes_result}
-
-            if not nodes:
-                return {"error": "No valid nodes found"}
-
-            # Synthesize into tool pattern
-            tool_pattern = self._generate_tool_pattern(list(nodes.values()), tool_name)
-
-            # Compute centroid embedding (tool's position in latent space)
-            embeddings = [self._embed_text(content) for content in nodes.values()]
-            tool_embedding = np.mean(embeddings, axis=0).tolist()
-
-            # Create tool node
-            tool_id = f"tool_{int(time.time() * 1000000)}"
-
-            session.run(
-                """
-                CREATE (t:Tool {
-                    id: $id,
-                    name: $name,
-                    pattern: $pattern,
-                    description: $description,
-                    usage_count: 0,
-                    success_rate: 1.0,
-                    created_at: timestamp()
-                })
-            """,
-                id=tool_id,
-                name=tool_name,
-                pattern=tool_pattern,
-                description=description or f"Compressed tool: {tool_name}",
-            )
-
-            # Link to source nodes
-            for node_id in node_ids:
-                session.run(
-                    """
-                    MATCH (tool:Tool {id: $tool_id})
-                    MATCH (node:ThoughtNode {id: $node_id})
-                    CREATE (tool)-[:COMPRESSED_FROM]->(node)
-                """,
-                    tool_id=tool_id,
-                    node_id=node_id,
-                )
-
-            # Store in tool library
-            self.tool_library[tool_id] = {
-                "name": tool_name,
-                "pattern": tool_pattern,
-                "embedding": tool_embedding,
-                "usage_count": 0,
-                "success_rate": 1.0,
-                "source_nodes": node_ids,
-            }
-        logger.info(f"Tool created: {tool_name} ({tool_id})")
-
-        return {
-            "tool_id": tool_id,
-            "name": tool_name,
-            "pattern": tool_pattern,
-            "source_count": len(node_ids),
-            "message": f"Tool '{tool_name}' created and added to library",
-        }
-
-    def _generate_tool_pattern(self, contents: list[str], tool_name: str) -> str:
-        """
-        Generate a reusable pattern from solved problem contents.
-
-        The pattern is a compressed, generalized version of the solution
-        that can be applied to similar problems.
-        """
-        system_prompt = (
-            "You extract reusable patterns from solved problems. "
-            "Create a concise, generalized pattern that captures the solution approach. "
-            "Focus on the HOW (methodology) not the WHAT (specific details). "
-            "Output 2-3 sentences describing the pattern."
-        )
-
-        content_previews = [f"{i+1}. {c[:300]}" for i, c in enumerate(contents[:5])]
-
-        user_prompt = (
-            f"Extract a reusable pattern for tool '{tool_name}' from these solutions:\n\n"
-            + "\n\n".join(content_previews)
-            + "\n\nPattern:"
-        )
-
-        return self._llm_generate(system_prompt, user_prompt, max_tokens=16000)
+        return self.compress_primitive.run(node_ids, tool_name, description)
 
     # ========================================================================
     # Gen 3 Architecture: Utility-Guided Exploration
@@ -1259,118 +1035,9 @@ class CognitiveWorkspace:
     ) -> dict[str, Any]:
         """
         Find thought-nodes with high utility × compression potential.
-
-        This implements active exploration strategy from Gen 3 architecture.
-        Instead of random exploration or pure novelty-seeking, the agent
-        focuses on nodes that are:
-        1. High utility (aligned with active goals)
-        2. High compression potential (learnable patterns, not random)
-
-        This avoids "junk food curiosity" (interesting but useless).
-
-        Args:
-            focus_area: Optional semantic focus for exploration
-            max_candidates: Maximum nodes to return
-
-        Returns:
-            List of high-value exploration candidates with scores
+        Delegates to CuriosityModule.
         """
-        logger.info(f"Exploring for utility-guided opportunities: {focus_area or 'general'}")
-
-        with self.neo4j_driver.session() as session:
-            # Get all thought nodes
-            if focus_area:
-                # Semantic search around focus area
-                focus_embedding = self._embed_text(focus_area, is_query=True)
-                results = self.collection.query(
-                    query_embeddings=[focus_embedding],
-                    n_results=max_candidates * 3,  # Over-fetch for filtering
-                )
-                candidate_ids = results["ids"][0] if results["ids"] else []
-            else:
-                # Get recent nodes
-                recent_result = session.run(
-                    """
-                    MATCH (t:ThoughtNode)
-                    WHERE t.cognitive_type IN ['problem', 'sub_problem', 'hypothesis']
-                    RETURN t.id as id
-                    ORDER BY t.created_at DESC
-                    LIMIT $limit
-                """,
-                    limit=max_candidates * 3,
-                )
-                candidate_ids = [r["id"] for r in recent_result]
-
-            # Score each candidate
-            candidates = []
-            for node_id in candidate_ids:
-                node = session.run(
-                    """
-                    MATCH (t:ThoughtNode {id: $id})
-                    RETURN t.content as content,
-                           t.utility_score as utility,
-                           t.compression_score as compression
-                """,
-                    id=node_id,
-                ).single()
-
-                if not node:
-                    continue
-
-                content = node["content"]
-
-                # Calculate or retrieve scores
-                utility = node.get("utility") or self._calculate_utility_score(content, session)
-                compression = node.get("compression") or self._calculate_compression_score(content)
-
-                # Compression potential = high score means high potential for learning
-                # (not yet compressed, but has learnable patterns)
-                compression_potential = compression
-
-                # Combined score: utility × compression potential
-                # High utility + high compression potential = best exploration target
-                combined_score = utility * compression_potential
-
-                candidates.append(
-                    {
-                        "node_id": node_id,
-                        "content": content[:200],  # Preview
-                        "utility_score": float(utility),
-                        "compression_potential": float(compression_potential),
-                        "combined_score": float(combined_score),
-                    }
-                )
-
-            # Sort by combined score and take top candidates
-            candidates.sort(key=lambda x: x["combined_score"], reverse=True)
-            top_candidates = candidates[:max_candidates]
-
-            # Record in working memory
-            top_ids = [c["node_id"] for c in top_candidates[:5]]
-            self.working_memory.record(
-                operation="explore_for_utility",
-                input_data={"focus_area": focus_area, "max_candidates": max_candidates},
-                output_data={
-                    "count": len(top_candidates),
-                    "top_score": top_candidates[0]["combined_score"] if top_candidates else 0,
-                },
-                node_ids=top_ids,
-            )
-
-            # Persist to SQLite history
-            self.history.log_operation(
-                operation="explore_for_utility",
-                params={"focus_area": focus_area, "max_candidates": max_candidates},
-                result={"count": len(top_candidates), "top_ids": top_ids},
-                cognitive_state=self.working_memory.current_goal or "Unknown",
-            )
-
-            return {
-                "candidates": top_candidates,
-                "count": len(top_candidates),
-                "focus_area": focus_area,
-                "message": f"Found {len(top_candidates)} high-value exploration targets",
-            }
+        return self.curiosity.explore_for_utility(focus_area, max_candidates)
 
     def _embed_text(self, text: str, is_query: bool = False) -> list[float]:
         """
@@ -1521,6 +1188,24 @@ class CognitiveWorkspace:
 
         return response
 
+    def _calculate_utility_score(self, content: str, session) -> float:
+        """Proxy for CuriosityModule utility calculation."""
+        if hasattr(self, "curiosity"):
+            return self.curiosity.calculate_utility_score(content, session)
+        return 0.5
+
+    def _calculate_compression_score(self, content: str) -> float:
+        """Proxy for CuriosityModule compression calculation."""
+        if hasattr(self, "curiosity"):
+            return self.curiosity.calculate_compression_score(content)
+        return 0.5
+
+    def _track_compression_progress(self, node_id: str, new_score: float) -> float:
+        """Proxy for CuriosityModule progress tracking."""
+        if hasattr(self, "curiosity"):
+            return self.curiosity.track_compression_progress(node_id, new_score)
+        return 0.0
+
     def _create_thought_node(
         self,
         session,
@@ -1604,257 +1289,23 @@ class CognitiveWorkspace:
     # Breaks complex vectors into component thought-nodes with relationships
     # ========================================================================
 
+    # ========================================================================
+    # Cognitive Primitive 1: Deconstruct
+    # Breaks complex vectors into component thought-nodes with relationships
+    # ========================================================================
+
     def deconstruct(self, problem: str, max_depth: int = 50) -> dict[str, Any]:
         """
         Break a complex problem into component thought-nodes.
-
-        Creates a hierarchical graph representing problem decomposition:
-        - Root node: Original problem
-        - Child nodes: Sub-problems
-        - Edges: DECOMPOSES_INTO relationships
-
-        This operates similarly to Meta's COCONUT "continuous thought" but
-        materializes the reasoning tree in a queryable graph structure.
+        Delegates to DeconstructPrimitive.
         """
-        logger.info(f"Deconstructing: {problem[:8000]}...")
+        return self.deconstruct_primitive.run(problem, max_depth)
 
-        with self.neo4j_driver.session() as session:
-            # Create root problem node
-            root_id = self._create_thought_node(
-                session, problem, "problem", parent_problem=None, confidence=1.0
-            )
-
-            # 1. Advanced Tripartite Decomposition (System 2 Analysis)
-            # We break the problem into three orthogonal domains:
-            # - STATE (vmPFC): Context/Environment
-            # - AGENT (amPFC): Persona/Intent
-            # - ACTION (dmPFC): Verbs/Transitions
-
-            system_prompt = """You are the Prefrontal Cortex Decomposition Engine.
-Input: A user prompt or situation.
-Task: Fragment the input into three orthogonal domains. Provide detailed, descriptive fragments (1-2 sentences each).
-
-1. STATE (vmPFC): Where are we? Detailed context. (e.g., "Python CLI debugging session focused on list indices")
-2. AGENT (amPFC): Who is involved? Detailed persona/intent. (e.g., "Frustrated User seeking immediate resolution to a crash")
-3. ACTION (dmPFC): What is the transition? Detailed operation. (e.g., "Refactor the loop logic to handle out-of-bounds errors safely")
-
-Output JSON:
-{
-  "state_fragment": "...",
-  "agent_fragment": "...",
-  "action_fragment": "..."
-}"""
-            user_prompt = f"Deconstruct this problem: {problem}"
-
-            llm_output = self._llm_generate(system_prompt, user_prompt, max_tokens=4000)
-            clean_response = llm_output.replace("```json", "").replace("```", "").strip()
-
-            try:
-                fragments = json.loads(clean_response)
-            except json.JSONDecodeError:
-                logger.error(f"Failed to parse deconstruction JSON: {clean_response}")
-                # Fallback
-                fragments = {
-                    "state_fragment": "Unknown Context",
-                    "agent_fragment": "Unknown Agent",
-                    "action_fragment": problem,
-                }
-
-            # 2. Persist Fragments as ThoughtNodes
-            component_ids = []
-            fragment_map = {
-                "State": fragments.get("state_fragment", ""),
-                "Agent": fragments.get("agent_fragment", ""),
-                "Action": fragments.get("action_fragment", ""),
-            }
-            embeddings_map = {}
-
-            for label in ["State", "Agent", "Action"]:
-                content = fragment_map.get(label)
-                if not content:
-                    # Default fallback if LLM misses a domain
-                    content = "Unknown" if label != "Action" else problem
-
-                # Create node with specific label
-                comp_id = self._create_thought_node(
-                    session,
-                    content,
-                    cognitive_type=label.lower(),  # type: state, agent, action
-                    parent_problem=root_id,
-                    confidence=0.9,
-                )
-                component_ids.append(comp_id)
-
-                # Create specific relationship based on type
-                rel_type = (
-                    "HAS_STATE"
-                    if label == "State"
-                    else "HAS_AGENT" if label == "Agent" else "REQUIRES_ACTION"
-                )
-
-                session.run(
-                    f"""
-                    MATCH (parent:ThoughtNode {{id: $parent_id}})
-                    MATCH (child:ThoughtNode {{id: $child_id}})
-                    MERGE (parent)-[:{rel_type}]->(child)
-                    MERGE (parent)-[:DECOMPOSES_INTO]->(child)
-                    SET child:{label}
-                    """,
-                    parent_id=root_id,
-                    child_id=comp_id,
-                )
-
-                # Store embedding in Manifold for retrieval
-                vec = self._embed_text(content)
-                vec_tensor = torch.tensor(vec, dtype=torch.float32, device=self.device)
-                self.get_manifold().store_pattern(vec_tensor, domain=label.lower())
-                # CRITICAL: Precuneus expects lower-case keys: 'state', 'agent', 'action'
-                embeddings_map[label.lower()] = vec_tensor
-
-            # Get decomposition tree
-            tree = self._get_decomposition_tree(session, root_id)
-
-            # Reconstruct components list for response
-            # Note: We iterate strictly in State, Agent, Action order if available
-            final_components = []
-            ordered_labels = ["State", "Agent", "Action"]
-            current_idx = 0
-
-            for label in ordered_labels:
-                content = fragment_map.get(label)
-                if content:
-                    # component_ids matches the order of processing above
-                    cid = component_ids[current_idx]
-                    final_components.append({"id": cid, "content": content, "type": label})
-                    current_idx += 1
-
-            # 3. Construct Result
-            # Keep tensor embeddings for internal processing (Manifold retrieval)
-            # Also provide serializable version for JSON output
-            embeddings_serializable = {
-                k: v.cpu().tolist() if isinstance(v, torch.Tensor) else v
-                for k, v in embeddings_map.items()
-            }
-
-            result = {
-                "root_id": root_id,
-                "components": final_components,
-                "decomposition_tree": tree,
-                "embeddings": embeddings_map,  # Internal: tensors for Manifold
-                "embeddings_serializable": embeddings_serializable,  # Output: lists for JSON
-            }
-
-            # Record in working memory for context continuity
-            self.working_memory.record(
-                operation="deconstruct",
-                input_data={"problem": problem[:500]},
-                output_data={"components": len(final_components), "root_id": root_id},
-                node_ids=[root_id] + component_ids[:5],
-            )
-
-            # Persist to SQLite history for long-term recall
-            self.history.log_operation(
-                operation="deconstruct",
-                params={"problem": problem[:500], "max_depth": max_depth},
-                result=result,
-                cognitive_state=self.working_memory.current_goal or "Unknown",
-            )
-
-            return result
-
-    def get_node_context(self, node_id: str, depth: int = 1) -> Dict[str, Any]:
-        """
-        Get the local context (neighbors) of a node.
-        """
-        try:
-            with self.neo4j_driver.session() as session:  # Changed self.driver to self.neo4j_driver
-                # Get node and immediate neighbors
-                query = """
-                MATCH (n {id: $node_id})-[r]-(m)
-                RETURN n, r, m
-                LIMIT 50
-                """
-                result = session.run(query, node_id=node_id)
-
-                neighbors = []
-                node_data = {}
-
-                # Collect all node IDs to fetch content from Chroma
-                all_ids = {node_id}
-                for record in result:
-                    all_ids.add(record["n"]["id"])
-                    all_ids.add(record["m"]["id"])
-
-                content_map = self._get_contents_from_chroma(list(all_ids))
-
-                # Re-run query to process results with content
-                result = session.run(query, node_id=node_id)
-
-                for record in result:
-                    if not node_data:
-                        node_data = dict(record["n"])
-                        node_data["content"] = content_map.get(node_data.get("id"), "")
-
-                    neighbor = dict(record["m"])
-                    rel = record["r"]
-                    neighbors.append(
-                        {
-                            "id": neighbor.get("id"),
-                            "content": content_map.get(neighbor.get("id"), ""),
-                            "relationship": rel.type,
-                            "direction": (
-                                "outgoing" if rel.start_node.id == record["n"].id else "incoming"
-                            ),
-                        }
-                    )
-
-                if not node_data:
-                    # Try fetching just the node if no neighbors
-                    result = session.run("MATCH (n {id: $node_id}) RETURN n", node_id=node_id)
-                    record = result.single()
-                    if record:
-                        node_data = dict(record["n"])
-                        node_data["content"] = content_map.get(node_data.get("id"), "")
-                    else:
-                        return {"error": f"Node {node_id} not found"}
-
-                return {"node": node_data, "neighbors": neighbors, "neighbor_count": len(neighbors)}
-        except Exception as e:
-            logger.error(f"Failed to get node context: {e}")
-            return {"error": str(e)}
-
-    def _get_decomposition_tree(self, session, root_id: str) -> dict[str, Any]:
-        """Retrieve decomposition tree"""
-        result = session.run(
-            """
-            MATCH (root:ThoughtNode {id: $root_id})
-            OPTIONAL MATCH (root)-[:DECOMPOSES_INTO]->(child:ThoughtNode)
-            RETURN root.id as root_id, root.cognitive_type as root_type,
-                   collect({id: child.id, type: child.cognitive_type}) as children
-            """,
-            root_id=root_id,
-        )
-        record = result.single()
-        if not record:
-            return {}
-
-        root_id_res = record["root_id"]
-        children_data = record["children"]
-
-        # Collect all IDs for Chroma fetch
-        all_ids = [root_id_res] + [c["id"] for c in children_data if c["id"]]
-        content_map = self._get_contents_from_chroma(all_ids)
-
-        return {
-            "id": root_id_res,
-            "content": content_map.get(root_id_res, ""),
-            "type": record["root_type"],
-            "children": [
-                {"id": c["id"], "content": content_map.get(c["id"], "")}
-                for c in children_data
-                if c["id"]
-            ],
-        }
+    # ========================================================================
+    # Cognitive Primitive 2: Hypothesize
+    # Discovers novel connections in latent space (similar to breadth-first
+    # search in COCONUT but across graph + vector space)
+    # ========================================================================
 
     # ========================================================================
     # Cognitive Primitive 2: Hypothesize
@@ -1867,210 +1318,9 @@ Output JSON:
     ) -> dict[str, Any]:
         """
         Find novel connections between concepts in latent space (Topology Tunneling).
-
-        Gen 3 Enhancement: Implements true "topology tunneling" by:
-        1. Graph path-finding (structural relationships)
-        2. Vector similarity (semantic relationships)
-        3. Analogical pattern matching (finding structural isomorphisms)
-        4. Searching historical solved problems for similar patterns
-
-        This is the "Aha!" moment - the analogical leap that connects
-        distant concepts (like "jar lid" → "car light housing").
-
-        Combines:
-        - COCONUT-style breadth-first search through thought space
-        - Schmidhuber's compression via analogy discovery
-        - Gen 3's utility-guided filtering
+        Delegates to HypothesizePrimitive.
         """
-        logger.info(f"Topology Tunneling: {node_a_id} <-> {node_b_id}")
-
-        with self.neo4j_driver.session() as session:
-            # Get node contents
-            nodes = session.run(
-                """
-                MATCH (a:ThoughtNode {id: $id_a})
-                MATCH (b:ThoughtNode {id: $id_b})
-                RETURN a.id as id_a, b.id as id_b,
-                       a.cognitive_type as type_a, b.cognitive_type as type_b
-                """,
-                id_a=node_a_id,
-                id_b=node_b_id,
-            ).single()
-
-            if not nodes:
-                return {"error": "Nodes not found"}
-
-            content_map = self._get_contents_from_chroma([nodes["id_a"], nodes["id_b"]])
-            content_a = content_map.get(nodes["id_a"], "")
-            content_b = content_map.get(nodes["id_b"], "")
-
-            # 1. Find direct graph paths (structural connections)
-            paths = session.run(
-                """
-                MATCH path = (a:ThoughtNode {id: $id_a})-[*1..3]-(b:ThoughtNode {id: $id_b})
-                RETURN path
-                LIMIT 5
-                """,
-                id_a=node_a_id,
-                id_b=node_b_id,
-            ).values()
-
-            # 2. Check vector similarity (semantic connection)
-            similarity_score = self._cosine_similarity(
-                self._embed_text(content_a), self._embed_text(content_b)
-            )
-
-            # 3. Gen 3 Enhancement: Search for analogical patterns
-            # Find similar solved problems in tool library
-            analogical_tools = self._find_analogical_tools(content_a, content_b)
-
-            # 4. Generate hypothesis using all connection types
-            hypothesis_text = self._generate_hypothesis_with_analogy(
-                content_a, content_b, similarity_score, analogical_tools, context
-            )
-
-            # 5. Calculate hypothesis quality (utility × novelty)
-            utility = self._calculate_utility_score(hypothesis_text, session)
-            novelty = 1.0 - similarity_score  # Novel = dissimilar concepts connected
-            hypothesis_quality = utility * novelty
-
-            # Create hypothesis node
-            hyp_id = self._create_thought_node(
-                session, hypothesis_text, "hypothesis", confidence=float(hypothesis_quality)
-            )
-
-            # Create relationships
-            session.run(
-                """
-                MATCH (a:ThoughtNode {id: $id_a})
-                MATCH (b:ThoughtNode {id: $id_b})
-                MATCH (h:ThoughtNode {id: $hyp_id})
-                CREATE (h)-[:HYPOTHESIZES_CONNECTION_TO {similarity: $similarity, quality: $quality}]->(a)
-                CREATE (h)-[:HYPOTHESIZES_CONNECTION_TO {similarity: $similarity, quality: $quality}]->(b)
-                """,
-                id_a=node_a_id,
-                id_b=node_b_id,
-                hyp_id=hyp_id,
-                similarity=similarity_score,
-                quality=hypothesis_quality,
-            )
-
-            # Link to analogical tools if found
-            for tool_id in analogical_tools:
-                session.run(
-                    """
-                    MATCH (h:ThoughtNode {id: $hyp_id})
-                    MATCH (t:Tool {id: $tool_id})
-                    CREATE (h)-[:INSPIRED_BY]->(t)
-                    """,
-                    hyp_id=hyp_id,
-                    tool_id=tool_id,
-                )
-
-            # Record in working memory for context continuity
-            self.working_memory.record(
-                operation="hypothesize",
-                input_data={"node_a": node_a_id, "node_b": node_b_id, "context": context},
-                output_data={
-                    "hypothesis": hypothesis_text[:500],
-                    "quality": float(hypothesis_quality),
-                },
-                node_ids=[node_a_id, node_b_id, hyp_id],
-            )
-
-            # Persist to SQLite history
-            self.history.log_operation(
-                operation="hypothesize",
-                params={"node_a": node_a_id, "node_b": node_b_id, "context": context},
-                result={
-                    "hypothesis_id": hyp_id,
-                    "quality": float(hypothesis_quality),
-                    "similarity": float(similarity_score),
-                },
-                cognitive_state=self.working_memory.current_goal or "Unknown",
-            )
-
-            return {
-                "hypothesis_id": hyp_id,
-                "hypothesis": hypothesis_text,
-                "similarity": float(similarity_score),
-                "novelty": float(novelty),
-                "quality": float(hypothesis_quality),
-                "path_count": len(paths),
-                "analogical_tools": len(analogical_tools),
-                "message": "Hypothesis generated via topology tunneling",
-            }
-
-    def _find_analogical_tools(self, content_a: str, content_b: str) -> list[str]:
-        """
-        Find tools with analogical patterns to current problem.
-
-        This is key to topology tunneling: finding structural similarities
-        between the current stuck problem and previously solved problems.
-        """
-        if not self.tool_library:
-            return []
-
-        # Compute combined embedding (the "stuck space")
-        emb_a = self._embed_text(content_a)
-        emb_b = self._embed_text(content_b)
-        combined_emb = [(a + b) / 2 for a, b in zip(emb_a, emb_b)]
-
-        # Find tools with similar patterns
-        analogical = []
-        for tool_id, tool_data in self.tool_library.items():
-            tool_emb = tool_data.get("embedding", [])
-            if tool_emb:
-                similarity = self._cosine_similarity(combined_emb, tool_emb)
-                if similarity > 0.6:  # Threshold for analogical match
-                    analogical.append(tool_id)
-
-        return analogical[:3]  # Top 3 analogical tools
-
-    def _generate_hypothesis_with_analogy(
-        self,
-        content_a: str,
-        content_b: str,
-        similarity: float,
-        analogical_tools: list[str],
-        context: str | None,
-    ) -> str:
-        """
-        Generate hypothesis using analogical reasoning.
-
-        If analogical tools exist, use them to guide the connection.
-        This is the "jar lid → car housing" leap.
-        """
-        system_prompt = (
-            "You discover non-obvious connections between concepts through analogical reasoning. "
-            "When provided with similar solved patterns, use them as inspiration for novel connections. "
-            "Focus on structural similarities, not surface features. "
-            "Explain the connection clearly, highlighting the structural isomorphism."
-        )
-
-        # Build context from analogical tools
-        analogy_context = ""
-        if analogical_tools and self.tool_library:
-            analogy_patterns = []
-            for tool_id in analogical_tools[:2]:  # Top 2
-                tool_data = self.tool_library.get(tool_id)
-                if tool_data:
-                    analogy_patterns.append(
-                        f"Similar Pattern ({tool_data['name']}): {tool_data['pattern'][:1500]}"
-                    )
-            if analogy_patterns:
-                analogy_context = "\n\nAnalogical Patterns Found:\n" + "\n".join(analogy_patterns)
-
-        context_text = f"\nContext: {context}" if context else ""
-
-        user_prompt = (
-            f"Concept A: {content_a[:2000]}\n"
-            f"Concept B: {content_b[:2000]}\n"
-            f"Semantic Similarity: {similarity:.2f}{analogy_context}{context_text}\n\n"
-            f"Novel Connection:"
-        )
-
-        return self._llm_generate(system_prompt, user_prompt, max_tokens=16000)
+        return self.hypothesize_primitive.run(node_a_id, node_b_id, context)
 
     def get_advisor_context(self, advisor_id: str) -> str:
         """
@@ -2190,250 +1440,9 @@ Output JSON:
     def synthesize(self, node_ids: list[str], goal: str | None = None) -> dict[str, Any]:
         """
         Merge multiple thought-nodes into a unified insight.
-
-        Operates in latent space by:
-        1. Computing centroid of input node embeddings
-        2. Finding related concepts near the centroid
-        3. Creating a synthesis node representing the merged insight
-
-        This is analogous to "latent transformations" in HRMs.
+        Delegates to SynthesizePrimitive.
         """
-        logger.info(f"Synthesizing {len(node_ids)} nodes")
-        import time
-
-        start_total = time.time()
-
-        with self.neo4j_driver.session() as session:
-            # Get all node contents AND their context (neighbors)
-            # We limit context to 3 neighbors per node to avoid token explosion
-            nodes_result = session.run(
-                """
-                MATCH (n:ThoughtNode)
-                WHERE n.id IN $ids
-                OPTIONAL MATCH (n)-[r]-(neighbor:ThoughtNode)
-                RETURN n.id as id, collect(neighbor.id)[..3] as neighbor_ids
-                """,
-                ids=node_ids,
-            )
-
-            # Store content and context
-            records = list(nodes_result)
-            all_ids = set()
-            for r in records:
-                all_ids.add(r["id"])
-                all_ids.update(r["neighbor_ids"])
-
-            content_map = self._get_contents_from_chroma(list(all_ids))
-
-            nodes_data = {}
-            for r in records:
-                nid = r["id"]
-                neighbor_ids = r["neighbor_ids"]
-                nodes_data[nid] = {
-                    "content": content_map.get(nid, ""),
-                    "context": [
-                        content_map.get(nb_id, "")
-                        for nb_id in neighbor_ids
-                        if content_map.get(nb_id)
-                    ],
-                }
-
-            if len(nodes_data) < 2:
-                found_ids = list(nodes_data.keys())
-                missing_ids = [nid for nid in node_ids if nid not in found_ids]
-                return {
-                    "error": "Need at least 2 valid nodes to synthesize",
-                    "requested_nodes": len(node_ids),
-                    "found_nodes": len(nodes_data),
-                    "found_ids": found_ids,
-                    "missing_ids": missing_ids,
-                    "hint": "Some nodes may no longer exist. Try using 'deconstruct' to create new nodes first.",
-                }
-
-            # Compute centroid in latent space (synthesis node lives at geometric center)
-            # We use the main content for embedding, not the context
-            embeddings = [self._embed_text(data["content"]) for data in nodes_data.values()]
-            centroid = np.mean(embeddings, axis=0).tolist()
-
-            # Generate synthesis (LLM merges input nodes + context)
-            t0 = time.time()
-            synthesis_text = self._generate_synthesis(list(nodes_data.values()), goal)
-            logger.info(f"Synthesis Generation took {time.time() - t0:.2f}s")
-
-            # Meta-Validator: Compute Metrics
-            # 1. Coverage (C): Similarity between synthesis text and centroid of inputs
-            real_embedding = self._embed_text(synthesis_text)
-            # Cosine similarity
-            dot_product = np.dot(real_embedding, centroid)
-            norm_a = np.linalg.norm(real_embedding)
-            norm_b = np.linalg.norm(centroid)
-            coverage_score = dot_product / (norm_a * norm_b) if norm_a > 0 and norm_b > 0 else 0.0
-
-            # 2. Rigor (R): Epistemic rigor via MetaValidator
-            t1 = time.time()
-            rigor_score = MetaValidator.compute_epistemic_rigor(
-                synthesis_text, lambda sys, user: self._llm_generate(sys, user, max_tokens=1000)
-            )
-            logger.info(f"MetaValidator Rigor check took {time.time() - t1:.2f}s")
-
-            # 3. Unified Score & Quadrant
-            meta_stats = MetaValidator.calculate_unified_score(
-                float(coverage_score), float(rigor_score), context="comprehensive_analysis"
-            )
-
-            # Create synthesis node with REAL embedding (more accurate than centroid)
-            # We use the real embedding so future searches find it where it actually is semantically
-            synth_id = self._create_thought_node(
-                session,
-                synthesis_text,
-                "synthesis",
-                confidence=meta_stats["unified_score"],
-                embedding=real_embedding,
-            )
-
-            # Create relationships
-            for node_id in node_ids:
-                session.run(
-                    """
-                    MATCH (source:ThoughtNode {id: $source_id})
-                    MATCH (synth:ThoughtNode {id: $synth_id})
-                    CREATE (synth)-[:SYNTHESIZES_FROM]->(source)
-                    """,
-                    source_id=node_id,
-                    synth_id=synth_id,
-                )
-
-            # Record in working memory for context continuity
-            self.working_memory.record(
-                operation="synthesize",
-                input_data={"goal": goal, "node_count": len(node_ids)},
-                output_data={
-                    "synthesis": synthesis_text[:5000],
-                    "quadrant": meta_stats["quadrant"],
-                },
-                node_ids=node_ids[:5] + [synth_id],
-            )
-
-            # Persist to SQLite history
-            self.history.log_operation(
-                operation="synthesize",
-                params={"goal": goal, "node_count": len(node_ids), "node_ids": node_ids[:5]},
-                result={
-                    "synthesis_id": synth_id,
-                    "quadrant": meta_stats["quadrant"],
-                    "unified_score": meta_stats["unified_score"],
-                },
-                cognitive_state=self.working_memory.current_goal or "Unknown",
-            )
-
-            # --- 4. Precuneus Integration (Phase 10) ---
-            try:
-                # Construct Tripartite vectors
-                # State: The centroid of input nodes (context)
-                state_vec = torch.tensor(centroid, device=self.device)
-
-                # Action: The resulting synthesis (output)
-                action_vec = torch.tensor(real_embedding, device=self.device)
-
-                # Agent: The active goal/intent (or fallback to state if no goal)
-                # This represents "Who is synthesizing?" -> "The Goal"
-                agent_vec = state_vec  # Default fallback
-                if self.pointer:
-                    current_goal = self.pointer.get_current_goal()
-                    if current_goal is not None:
-                        agent_vec = current_goal
-
-                # Compute Energies (Surprise/Novelty)
-                manifold = self.get_manifold()
-                energies = {
-                    "state": manifold.energy(state_vec).item(),
-                    "agent": manifold.energy(agent_vec).item(),
-                    "action": manifold.energy(action_vec).item(),
-                }
-
-                vectors = {"state": state_vec, "agent": agent_vec, "action": action_vec}
-
-                # Fuse
-                director = self.get_director()
-
-                # Integration with Continuity Service (User Request)
-                causal_sig = None
-                if hasattr(self, "continuity_service") and self.continuity_service:
-                    try:
-                        causal_sig = self.continuity_service.get_causal_signature("Director")
-                        logger.debug("Retrieved Causal Signature for Director")
-                    except Exception as e:
-                        logger.warning(f"Failed to get causal signature: {e}")
-
-                _, coherence_info = self.get_precuneus()(
-                    vectors,
-                    energies,
-                    causal_signature=causal_sig,
-                    cognitive_state=director.latest_cognitive_state,
-                )
-                self.latest_precuneus_state = coherence_info
-
-                logger.info(f"Precuneus State Updated: {coherence_info}")
-                precuneus_debug = {"status": "success", "info": coherence_info}
-
-            except Exception as e:
-                logger.warning(f"Precuneus update failed in synthesize: {e}")
-                precuneus_debug = {"status": "error", "message": str(e)}
-
-            logger.info(f"Total Synthesis operation took {time.time() - start_total:.2f}s")
-
-            result_dict = {
-                "synthesis_id": synth_id,
-                "synthesis": synthesis_text,
-                "source_count": len(node_ids),
-                "meta_validation": meta_stats,
-                "precuneus_debug": precuneus_debug,
-                "message": f"Synthesis created ({meta_stats['quadrant']})",
-            }
-            return result_dict
-
-    def _generate_synthesis(self, nodes_data: list[dict[str, Any]], goal: str | None) -> str:
-        """
-        Generate synthesis merging multiple concepts.
-
-        LLM merges concept previews; centroid computation happens in vector space.
-        Provides richer context and clearer instructions for better synthesis.
-        """
-        system_prompt = (
-            "You are a rigorous epistemological engine designed to synthesize conflicting or disparate "
-            "concepts into a higher-order unified insight (Hegelian Synthesis). "
-            "DO NOT merely summarize. Your goal is to:\n"
-            "1. Identify the structural tension (Thesis vs. Antithesis) between the inputs.\n"
-            "2. Propose a Synthesis that resolves this tension without compromising the core truth of either side.\n"
-            "3. Operationalize the insight: Connect abstract concepts to concrete system mechanics/logic.\n"
-            "4. Utilize the provided 'Context' fields to ground your synthesis in the specific environment or constraints.\n"
-            "Output must be structured, dense, and actionable."
-        )
-
-        # Prepare full concepts with context
-        concept_list = []
-        for i, data in enumerate(nodes_data[:5000], 1):  # Cap at 5000 for token management
-            text = f"Concept {i}: {data['content']}"
-            if data["context"]:
-                # Add context as a constraint or background
-                context_str = "; ".join(data["context"])
-                text += f"\n   [System Context / Constraints: {context_str}]"
-            concept_list.append(text)
-
-        goal_text = f"\n\nTarget Goal of Synthesis: {goal}" if goal else ""
-
-        user_prompt = (
-            f"Perform a rigorous synthesis of the following {len(nodes_data)} concepts to achieve the Goal.{goal_text}\n\n"
-            "--- INPUT CONCEPTS ---\n" + "\n\n".join(concept_list) + "\n\n"
-            "--- SYNTHESIS CHECKLIST ---\n"
-            "1. Deconstruct: What is the underlying conflict or gap between these concepts?\n"
-            "2. Integrate: How does the new synthesis bridge this gap?\n"
-            "3. Apply: How does this new insight advance the System Context provided?\n"
-            "4. Predict: What is the primary risk or edge case of this new synthesis?\n\n"
-            "Failures of logic or vague platitudes are untolerated."
-        )
-
-        return self._llm_generate(system_prompt, user_prompt, max_tokens=32000)
+        return self.synthesize_primitive.run(node_ids, goal)
 
     # ========================================================================
     # Cognitive Primitive 4: Constrain
@@ -2894,8 +1903,13 @@ class RAAServerContext:
             continuity_service=self.workspace.continuity_service,
             llm_provider=llm_provider,
             work_history=self.workspace.history,
+            precuneus=self.workspace.precuneus,
         )
         self.workspace.director = director
+
+        # Update Bridge with Director reference (late binding)
+        if hasattr(self.workspace, "bridge"):
+            self.workspace.bridge.set_director(director)
 
         # Wire Adaptive Temperature Control
         # Allow LLM provider to query Director for energy-based temperature
