@@ -307,8 +307,10 @@ class SleepCycle:
                         """
                         MATCH (n)
                         WHERE (n:ConceptNode OR n:ThoughtNode)
-                        WITH n, COUNT { (n)-->() } as out_degree
-                        WHERE out_degree >= 2
+                        // Look for the start of a chain: (n) -> () -> ()
+                        MATCH (n)-[]->()-[]->()
+                        WITH n, count(*) as chain_count
+                        WHERE chain_count > 0
                         RETURN n.id as id, n.name as name, n.content as content
                         ORDER BY rand()
                         LIMIT 1
@@ -342,17 +344,17 @@ class SleepCycle:
                         }
                     focus_name = result["name"] or result["content"] or f"Node {focus_node_id}"
 
-            # 2. Find Open Triangle (The 'Span': B <- A -> C)
-            # Find neighbors B and C that are NOT connected to each other
+            # 2. Find Open Triangle (The 'Chain': A -> B -> C, missing A -> C)
+            # "Transitive Closure" candidate
             span_query = """
-                MATCH (a {id: $focus_id})-[r1]->(b)
-                MATCH (a)-[r2]->(c)
-                WHERE b.id < c.id  // Avoid duplicates
-                AND NOT (b)--(c)   // The crucial 'Open' condition
+                MATCH (a {id: $focus_id})-[r1]->(b)-[r2]->(c)
+                WHERE NOT (a)--(c) // The crucial 'Open' condition (Direct link missing)
+                AND a <> c         // Avoid self-loops
                 AND (b:ConceptNode OR b:ThoughtNode)
                 AND (c:ConceptNode OR c:ThoughtNode)
                 RETURN b.id as b_id, b.name as b_name, b.content as b_content,
-                       c.id as c_id, c.name as c_name, c.content as c_content
+                       c.id as c_id, c.name as c_name, c.content as c_content,
+                       type(r1) as r1_type, type(r2) as r2_type
                 LIMIT 1
             """
 
@@ -362,30 +364,33 @@ class SleepCycle:
             if not span_result:
                 return {
                     "status": "idle",
-                    "message": f"No open triangles found for {focus_name} (Diagram commutes).",
+                    "message": f"No transitive open triangles found for {focus_name} (Diagram commutes).",
                 }
 
             b_data = {
                 "id": span_result["b_id"],
                 "name": span_result["b_name"],
                 "content": span_result["b_content"],
+                "rel_type": span_result["r1_type"],
             }
             c_data = {
                 "id": span_result["c_id"],
                 "name": span_result["c_name"],
                 "content": span_result["c_content"],
+                "rel_type": span_result["r2_type"],
             }
 
             # 3. Functorial Mapping (LLM Query)
             prompt = (
-                f"Perform a diagram chase on these concepts:\n"
-                f"Object A (Source): {focus_name}\n"
-                f"Object B: {b_data['name']} ({b_data['content']})\n"
-                f"Object C: {c_data['name']} ({c_data['content']})\n\n"
-                f"Topology: A -> B and A -> C.\n"
-                f"Analysis: Does a direct relationship exist between B and C?\n"
-                f"If yes, specify TYPE and DIRECTION.\n"
-                f"Format: RELATION: <Yes/No> | TYPE: <type> | DIRECTION: <B->C or C->B> | REASON: <text>"
+                f"Perform a Transitive Closure analysis on this chain:\n"
+                f"A: {focus_name}\n"
+                f"B: {b_data['name']} ({b_data['content']})\n"
+                f"C: {c_data['name']} ({c_data['content']})\n\n"
+                f"Topology: A -[{b_data['rel_type']}]-> B -[{c_data['rel_type']}]-> C.\n"
+                f"Constraint: A is NOT directly connected to C.\n\n"
+                f"Analysis: Does A imply C via transitivity through B?\n"
+                f"If yes, specify the derived relationship for A -> C.\n"
+                f"Format: RELATION: <Yes/No> | TYPE: <type> | REASON: <text>"
             )
 
             # Use dream/ruminator provider
@@ -398,18 +403,15 @@ class SleepCycle:
             # Case-insensitive check for positive relation
             if "relation: yes" in clean_response.lower():
                 parts = clean_response.split("|")
-                rel_type = "RELATED_TO"
-                direction = "B->C"
-                reason = "Inferred via diagram chasing"
+                rel_type = "IMPLIES"  # Default
+                direction = "A->C"  # Fixed direction for transitive closure
+                reason = "Inferred via transitive closure"
 
                 for part in parts:
                     if "TYPE:" in part:
                         t = part.split(":")[1].strip().upper().replace(" ", "_")
                         if t.isalnum() or "_" in t:
                             rel_type = t
-                    if "DIRECTION:" in part:
-                        if "C->B" in part:
-                            direction = "C->B"
                     if "REASON:" in part:
                         reason = part.split(":")[1].strip()
 
@@ -418,21 +420,13 @@ class SleepCycle:
                 try:
                     cat_engine = CategoryTheoryEngine()
 
-                    # Assume simplistic relationship types for A->B and A->C for the prototype
-                    # In production, these should be fetched from the 'span_query' result
-                    # For now, we assume 'RELATED_TO' to test the engine flow
-
-                    # Determine source/target for verification based on direction
-                    v_source = b_data["id"] if direction == "B->C" else c_data["id"]
-                    v_target = c_data["id"] if direction == "B->C" else b_data["id"]
-
                     verification_result = cat_engine.verify_triangle_commutativity(
                         a_id=focus_node_id,
-                        b_id=v_source,
-                        c_id=v_target,
-                        path_ab_type="RELATED_TO",  # Placeholder: would need actual type from graph
-                        path_ac_type="RELATED_TO",  # Placeholder
-                        path_bc_type=rel_type,
+                        b_id=b_data["id"],
+                        c_id=c_data["id"],
+                        path_ab_type=b_data["rel_type"],
+                        path_ac_type=rel_type,  # The proposed new edge
+                        path_bc_type=c_data["rel_type"],
                     )
                     logger.info(f"Formal Verification Result: {verification_result.get('result')}")
                 except Exception as ve:
@@ -440,8 +434,9 @@ class SleepCycle:
                     verification_result = {"result": "error", "reason": str(ve)}
 
                 # 6. Apply the Morphism (Update Graph)
-                source_id = b_data["id"] if direction == "B->C" else c_data["id"]
-                target_id = c_data["id"] if direction == "B->C" else b_data["id"]
+                # For transitive closure A->B->C, the new edge is always A->C
+                source_id = focus_node_id
+                target_id = c_data["id"]
 
                 with self.workspace.neo4j_driver.session() as session:
                     session.run(
