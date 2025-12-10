@@ -16,6 +16,7 @@ class AgentFactory:
         self,
         llm_provider: Any,
         tool_executor: Optional[Callable[[str, Dict[str, Any]], Any]] = None,
+        workspace: Optional[Any] = None,
     ):
         """
         Initialize the factory.
@@ -23,9 +24,11 @@ class AgentFactory:
         Args:
             llm_provider: Instance of RAALLMProvider (or compatible) for chat completion.
             tool_executor: Async callback to execute tools. Signature: async (name, args) -> result
+            workspace: CognitiveWorkspace instance (for The Library persistence).
         """
         self.llm_provider = llm_provider
         self.tool_executor = tool_executor
+        self.workspace = workspace
         self.active_agents: Dict[str, Dict[str, Any]] = {}
 
         # Initialize Registry
@@ -272,5 +275,55 @@ class AgentFactory:
 
                 # Add result to messages
                 messages.append(Message(role="user", content=f"Tool '{name}' result: {result_str}"))
+
+        # --- The Library: Auto-Save Logic (Gen 3) ---
+        if self.workspace and final_response:
+            try:
+                # 1. Determine Advisor ID
+                if tool_name.startswith("consult_"):
+                    advisor_id = tool_name.replace("consult_", "").replace("_agent", "")
+
+                    # 2. Extract Title/Concept (Simple heuristic or first line)
+                    lines = final_response.strip().split("\n")
+                    title = lines[0][:100] if lines else "Advisor Insight"
+
+                    # 3. Create Thought Node in The Library
+                    # We use a dedicated method or generic create_thought
+                    import time
+
+                    node_id = f"library_{advisor_id}_{int(time.time())}"
+
+                    # Create Node
+                    cypher_create = """
+                    MERGE (a:Advisor {id: $advisor_id})
+                    CREATE (t:ThoughtNode {
+                        id: $node_id,
+                        name: $title,
+                        content: $content,
+                        type: 'Insight',
+                        advisor: $advisor_id,
+                        created_at: timestamp(),
+                        status: 'crystallized'
+                    })
+                    MERGE (a)-[:AUTHORED]->(t)
+                    RETURN t.id
+                    """
+
+                    self.workspace.write_query(
+                        cypher_create,
+                        {
+                            "advisor_id": advisor_id,
+                            "node_id": node_id,
+                            "title": title,
+                            "content": final_response,
+                        },
+                    )
+                    logger.info(f"The Library: Saved insight {node_id} from {advisor_id}")
+
+                    # Append Library Link to response
+                    final_response += f"\n\n[Recorded in The Library: {node_id}]"
+
+            except Exception as e:
+                logger.error(f"The Library: Failed to auto-save insight: {e}")
 
         return f"[{tool_name} Response]:\n{final_response}"

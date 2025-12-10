@@ -22,7 +22,7 @@ The Meta-Graph Governance system replaces static code-based checks with a dynami
 
 ## 2. The Triadic Kernel Axioms (Universal Preconditions)
 
-We enforce the axioms from [docs/universal_preconditions.md](file:///home/ty/Repositories/ai_workspace/reflective-agent-architecture/docs/universal_preconditions.md) as fundamental constraints in the Meta-Graph.
+We enforce the axioms from [reports/universal_preconditions.md](file:///home/ty/Repositories/ai_workspace/reflective-agent-architecture/reports/universal_preconditions.md) as fundamental constraints in the Meta-Graph.
 
 ### Axiom 1: Differentiated State (Memory)
 *   **Rule**: A State node must not be identical to its Input node.
@@ -83,9 +83,9 @@ WITH proposed, c, target
 WHERE c.severity = 'Critical' AND NOT (proposed)-[:SATISFIES]->(c)
 
 // 4. Return Violations
-RETURN 
-    proposed.id AS ActionID, 
-    c.rule AS ViolatedRule, 
+RETURN
+    proposed.id AS ActionID,
+    c.rule AS ViolatedRule,
     c.severity AS Severity,
     c.resolution_hint AS Resolution
 ```

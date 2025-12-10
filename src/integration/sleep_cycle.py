@@ -10,9 +10,11 @@ It performs two key functions:
 import logging
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
+import numpy as np
 import torch.optim as optim
 
 from src.cognition.category_theory_engine import CategoryTheoryEngine
+from src.integration.eigen_sorter import ContextualEigenSorter
 from src.persistence.work_history import WorkHistory
 from src.processor.transformer_decoder import ProcessorConfig, TransformerDecoder
 
@@ -39,6 +41,9 @@ class SleepCycle:
         self.processor = TransformerDecoder(self.config).to(self.device)
         self.optimizer = optim.AdamW(self.processor.parameters(), lr=1e-4)
 
+        # Initialize Eigen-Sorter (Sanity Architecture)
+        self.eigen_sorter = ContextualEigenSorter(embedding_dim=self.config.embedding_dim)
+
         # Initialize Tokenizer (GPT-2 matches default vocab size 50257)
         try:
             self.tokenizer = AutoTokenizer.from_pretrained(
@@ -46,8 +51,8 @@ class SleepCycle:
             )
             self.tokenizer.pad_token = self.tokenizer.eos_token
         except Exception as e:
-            logger.warning(f"Could not load tokenizer: {e}. Using dummy encoding.")
-            self.tokenizer = None
+            logger.error(f"FATAL: Could not load tokenizer: {e}")
+            raise
 
         self.workspace = workspace
 
@@ -124,6 +129,44 @@ class SleepCycle:
         if not episodes:
             logger.info("No focused memories found. Skipping replay.")
             return {"steps": 0, "avg_loss": 0.0}
+
+        # [NEW] Step 0: Contextual Eigen-Sorting (Sanity Check)
+        # We synchronize the episodes with the User's Manifold to prevent drift.
+        if self.eigen_sorter and self.workspace and hasattr(self.workspace, "continuity_field"):
+            try:
+                # 1. Get User's Manifold Basis
+                user_basis = self.workspace.continuity_field.get_basis_vectors()
+
+                # 2. Get embeddings for the episodes
+                if hasattr(self.workspace, "embedding_model"):
+                    # Use the unified embedding model to encode the memory text
+                    # encode() typically returns a numpy array or list of arrays
+                    episode_embeddings = self.workspace.embedding_model.encode(episodes)
+
+                    # Ensure it's a list/array of the right shape
+                    if isinstance(episode_embeddings, list):
+                        episode_embeddings = np.array(episode_embeddings)
+                else:
+                    logger.warning("No embedding model in workspace. Skipping Eigen-Sorting.")
+                    episode_embeddings = None
+
+                if episode_embeddings is not None and len(episode_embeddings) > 0:
+                    # 3. Sort indices by "Sanity" (Alignment)
+                    sorted_indices = self.eigen_sorter.synchronize(episode_embeddings, user_basis)
+
+                    # 4. Filter/Re-order episodes
+                    # We prioritize the top 50% of "sane" memories
+                    top_k = len(sorted_indices) // 2
+                    best_indices = sorted_indices[:top_k]
+
+                    # Update episodes list to only include top-k sane episodes
+                    episodes = [episodes[i] for i in best_indices]
+                    logger.info(
+                        f"Eigen-Sorting applied. Retained {len(episodes)} aligned memories."
+                    )
+
+            except Exception as e:
+                logger.warning(f"Eigen-Sorting failed: {e}. Falling back to unsorted replay.")
 
         total_loss = 0.0
         steps = 0
@@ -264,7 +307,7 @@ class SleepCycle:
                         """
                         MATCH (n)
                         WHERE (n:ConceptNode OR n:ThoughtNode)
-                        WITH n, size((n)-->()) as out_degree
+                        WITH n, COUNT { (n)-->() } as out_degree
                         WHERE out_degree >= 2
                         RETURN n.id as id, n.name as name, n.content as content
                         ORDER BY rand()

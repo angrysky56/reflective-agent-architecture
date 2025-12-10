@@ -135,6 +135,7 @@ Bridges Cognitive Workspace (CWD) and RAA.
 - [`continuity_field.py`](src/integration/continuity_field.py): **Identity Manifold** - Fiber Bundle implementation.
 - [`continuity_service.py`](src/integration/continuity_service.py): **Persistence** - Continuity Field service layer.
 - [`cwd_raa_bridge.py`](src/integration/cwd_raa_bridge.py): **Bridge** - Main integration coordinator.
+- [`eigen_sorter.py`](src/integration/eigen_sorter.py): **Sanity Architecture** - Global SVD for context sorting and drift detection.
 - [`embedding_mapper.py`](src/integration/embedding_mapper.py): **Alignment** - Maps CWD graphs to embeddings.
 - [`entropy_calculator.py`](src/integration/entropy_calculator.py): **Signals** - Converts stats to entropy.
 - [`external_mcp_client.py`](src/integration/external_mcp_client.py): **Integration** - Connects to external MCPs.

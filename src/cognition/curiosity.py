@@ -124,7 +124,7 @@ class CuriosityModule:
                     query_embeddings=[focus_embedding],
                     n_results=max_candidates * 3,  # Over-fetch for filtering
                 )
-                if results and results.get("ids") and results["ids"][0]:
+                if results and results.get("ids") and len(results["ids"]) > 0:
                     candidate_ids = results["ids"][0]
             else:
                 # Get recent nodes
@@ -143,6 +143,9 @@ class CuriosityModule:
             # Score each candidate
             candidates = []
             for node_id in candidate_ids:
+                if not node_id:
+                    continue
+
                 node = session.run(
                     """
                     MATCH (t:ThoughtNode {id: $id})
@@ -157,10 +160,18 @@ class CuriosityModule:
                     continue
 
                 content = node["content"]
+                if not content:
+                    continue
 
                 # Calculate or retrieve scores
                 utility = node.get("utility") or self.calculate_utility_score(content, session)
                 compression = node.get("compression") or self.calculate_compression_score(content)
+
+                # Check for None explicitly because or operator might pass None if calc returns None
+                if utility is None:
+                    utility = 0.5
+                if compression is None:
+                    compression = 0.5
 
                 # Compression potential = high score means high potential for learning
                 # (not yet compressed, but has learnable patterns)
@@ -184,25 +195,27 @@ class CuriosityModule:
             candidates.sort(key=lambda x: x["combined_score"], reverse=True)
             top_candidates = candidates[:max_candidates]
 
-            # Record in working memory
-            top_ids = [c["node_id"] for c in top_candidates[:5]]
-            self.workspace.working_memory.record(
-                operation="explore_for_utility",
-                input_data={"focus_area": focus_area, "max_candidates": max_candidates},
-                output_data={
-                    "count": len(top_candidates),
-                    "top_score": top_candidates[0]["combined_score"] if top_candidates else 0,
-                },
-                node_ids=top_ids,
-            )
+            # Record in working memory handled in try/finally logic in a real system, but here we assume success.
+            # Only record if we found something
+            if top_candidates:
+                top_ids = [c["node_id"] for c in top_candidates[:5]]
+                self.workspace.working_memory.record(
+                    operation="explore_for_utility",
+                    input_data={"focus_area": focus_area, "max_candidates": max_candidates},
+                    output_data={
+                        "count": len(top_candidates),
+                        "top_score": top_candidates[0]["combined_score"] if top_candidates else 0,
+                    },
+                    node_ids=top_ids,
+                )
 
-            # Persist to SQLite history
-            self.workspace.history.log_operation(
-                operation="explore_for_utility",
-                params={"focus_area": focus_area, "max_candidates": max_candidates},
-                result={"count": len(top_candidates), "top_ids": top_ids},
-                cognitive_state=self.workspace.working_memory.current_goal or "Unknown",
-            )
+                # Persist to SQLite history
+                self.workspace.history.log_operation(
+                    operation="explore_for_utility",
+                    params={"focus_area": focus_area, "max_candidates": max_candidates},
+                    result={"count": len(top_candidates), "top_ids": top_ids},
+                    cognitive_state=self.workspace.working_memory.current_goal or "Unknown",
+                )
 
             return {
                 "candidates": top_candidates,
@@ -305,4 +318,6 @@ class CuriosityModule:
         # 2. Formulate a goal
         # Pick the top candidate
         target = candidates[0]
-        return f"Investigate concept '{target['name']}' to improve compression."
+        # Use content preview since 'name' field is not guaranteed/present
+        target_concept = target.get("content", "Unknown concept")[:50]
+        return f"Investigate concept '{target_concept}...' to improve compression."

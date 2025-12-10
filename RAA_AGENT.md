@@ -317,7 +317,20 @@ constrain(node_id="...", mode="consistency",
 ## 7. Stereoscopic Regulation
 
 **Automatic Process**: The **Stereoscopic Engine** monitors all interventions (actions/tools).
+### Phase 6: Advisor Management & Autonomy
 
+**Tool**: `manage_advisor`
+-   **When**: You need to create, update, delete, list, or inspect Advisors.
+-   **Action**: `manage_advisor(action="...", params={...})`
+-   **Actions**:
+    -   `create`/`update`: `{id, name, role, ...}`
+    -   `link_knowledge`: `{advisor_id, node_id}` (Auto-Memory)
+    -   `get_context`: `{advisor_id}` (Retrieve Advisor's Library)
+
+**Tool**: `consult_advisor`
+-   **When**: You want to delegate a task to a specialized Agent.
+-   **Action**: `consult_advisor(advisor_id="...", query="...")`
+-   **Mechanism**: Spawns an ephemeral agent with the Advisor's persona and tools. Automatically saves insights to The Library.
 - **Plasticity Gate**: Checks if the proposed change is valid given current uncertainty and identity constraints.
 - **Continuity Field**: Maintains identity coherence.
 - **Mechanism**: If an action is rejected, you will receive a warning. You must revise your approach to be less disruptive or more aligned with the system's identity.

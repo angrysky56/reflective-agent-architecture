@@ -67,8 +67,15 @@ class UtilityAwareSearch:
         Returns:
             Biased energy (lower = more attractive)
         """
-        # TODO: Implement in Phase 3
-        raise NotImplementedError("Phase 3: Utility-biased search")
+        if self.normalize_utilities:
+            # Ensure utility is in [0, 1] range (clipping safe-guard)
+            utility_score = max(0.0, min(1.0, utility_score))
+
+        # E' = E - λ * U
+        # Higher utility subtracts more energy, deepening the basin of attraction
+        biased_energy = hopfield_energy - (self.utility_weight * utility_score)
+
+        return biased_energy
 
 
 def utility_biased_energy(
@@ -91,5 +98,32 @@ def utility_biased_energy(
     Returns:
         Biased energy value
     """
-    # TODO: Implement in Phase 3
-    raise NotImplementedError("Phase 3: Utility-biased energy function")
+    # 1. Compute standard Hopfield Energy: E = -0.5 * x^T * W * x (simplified)
+    # Actually, Manifold class likely has an energy function.
+    # If not, we use the standard definition for Modern Hopfield Networks (Dense).
+    # E(ξ) = -lse(β * X^T * ξ) / β  (LogSumExp)
+    # But here we might just need the energy of a specific pattern relative to state.
+
+    # Assuming 'manifold' instance has an energy method or we compute simple energy.
+    # For now, we delegate to the manifold if possible, or assume simple dot product proximity
+    # proxy for energy in this specific "search" context.
+
+    # Let's assume standard interaction energy for a single pattern p relative to state s:
+    # E = - (s . p)  (Cosine similarity proxy: higher sim = lower energy)
+
+    # Check if inputs are tensors
+    if not isinstance(state, torch.Tensor):
+        state = torch.tensor(state)
+    if not isinstance(pattern, torch.Tensor):
+        pattern = torch.tensor(pattern)
+
+    # Calculate standard energy (negative similarity)
+    # E_hopfield = - dot(state, pattern)
+    dot_product = float(torch.dot(state, pattern))
+    hopfield_energy = -dot_product
+
+    # 2. Apply Utility Bias
+    # E' = E_hopfield - λ * U
+    biased_energy = hopfield_energy - (utility_weight * utility_score)
+
+    return float(biased_energy)

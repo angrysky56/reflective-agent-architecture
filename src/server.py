@@ -41,7 +41,6 @@ from typing import Any, Dict, List, Optional
 import chromadb
 import numpy as np
 import torch
-from chromadb.config import Settings
 from dotenv import load_dotenv
 from mcp.server import Server
 from mcp.types import TextContent, Tool
@@ -155,9 +154,7 @@ class CognitiveWorkspace:
 
         # Initialize Chroma with persistence
         # Use PersistentClient for data to survive restarts
-        self.chroma_client = chromadb.PersistentClient(
-            path=config.chroma_path, settings=Settings(anonymized_telemetry=False)
-        )
+        self.chroma_client = chromadb.PersistentClient(path=config.chroma_path)
 
         # Initialize LLM Provider
         self.llm_provider: BaseLLMProvider = LLMFactory.create_provider(
@@ -777,13 +774,12 @@ class CognitiveWorkspace:
         return identifier
 
     def search_nodes(
-        self, label: str, property_filters: dict[str, Any] | None = None, limit: int = 10
+        self, label: str | None, property_filters: dict[str, Any] | None = None, limit: int = 10
     ) -> list[dict[str, Any]]:
         """
-        Search for nodes with a specific label and optional property filters.
-        Uses validated f-strings for label to ensure compatibility.
+        Search for nodes with optional label and property filters.
         """
-        safe_label = self._validate_identifier(label)
+        safe_label = self._validate_identifier(label) if label else ""
 
         # Build property filter string dynamically
         where_clause = ""
@@ -791,8 +787,14 @@ class CognitiveWorkspace:
             conditions = [f"n.{k} = ${k}" for k in property_filters.keys()]
             where_clause = "WHERE " + " AND ".join(conditions)
 
+        # Handle empty label (wildcard match)
+        if safe_label:
+            match_clause = f"MATCH (n:{safe_label})"
+        else:
+            match_clause = "MATCH (n)"
+
         query = f"""
-        MATCH (n:{safe_label})
+        {match_clause}
         {where_clause}
         RETURN n
         LIMIT $limit
@@ -1983,10 +1985,26 @@ class RAAServerContext:
         self.llm_provider = RAALLMProvider(model_name=llm_model)
 
         # Initialize Agent Factory
-        # We pass self.call_tool as the tool executor callback
+        from src.integration.agent_factory import AgentFactory
+
         self.agent_factory = AgentFactory(
-            llm_provider=self.llm_provider, tool_executor=self.call_tool
+            llm_provider=self.llm_provider,
+            tool_executor=self.external_mcp.call_tool if self.external_mcp else None,
+            workspace=self,  # Inject self as workspace
         )
+        if (
+            self.agent_factory
+            and self.substrate_director
+            and hasattr(self.substrate_director, "compass")
+        ):
+            # Initialize Advisor Manager (Consolidated Integration)
+            from src.integration.advisor_manager import AdvisorManager
+
+            self.advisor_manager = AdvisorManager(
+                registry=self.substrate_director.compass.advisor_registry, workspace=self
+            )
+        else:
+            self.advisor_manager = None
 
         # Initialize Precuneus Integrator
         self.precuneus = PrecuneusIntegrator(dim=embedding_dim).to(device)
@@ -3128,85 +3146,43 @@ Syntax: Prover9 FOL format (e.g., "all x (human(x) -> mortal(x))", "human(socrat
         },
     ),
     Tool(
-        name="create_advisor",
-        description="Create and register a new advisor with a specific persona and toolset.",
+        name="manage_advisor",
+        description="Consolidated tool for managing Advisors (CRUD + Knowledge). Actions: create, update, delete, list, get, link_knowledge, get_knowledge, get_context.",
         inputSchema={
             "type": "object",
             "properties": {
-                "id": {
+                "action": {
                     "type": "string",
-                    "description": "Unique identifier for the advisor (e.g., 'socrates')",
+                    "enum": [
+                        "create",
+                        "update",
+                        "delete",
+                        "list",
+                        "get",
+                        "link_knowledge",
+                        "get_knowledge",
+                        "get_context",
+                    ],
+                    "description": "The management action to perform.",
                 },
-                "name": {"type": "string", "description": "Display name of the advisor"},
-                "role": {"type": "string", "description": "Role description (e.g., 'Philosopher')"},
-                "description": {
-                    "type": "string",
-                    "description": "Detailed description of the advisor's purpose",
-                },
-                "system_prompt": {
-                    "type": "string",
-                    "description": "The system prompt that defines the advisor's behavior",
-                },
-                "tools": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": "List of tool names available to this advisor",
+                "params": {
+                    "type": "object",
+                    "description": "Parameters for the action (e.g., {'id': '...'} for delete, {'id': '...', 'name': '...'} for create).",
                 },
             },
-            "required": ["id", "name", "role", "description", "system_prompt"],
+            "required": ["action", "params"],
         },
     ),
     Tool(
-        name="delete_advisor",
-        description="Delete an existing advisor by ID.",
+        name="consult_advisor",
+        description="Consult a specific Advisor as an autonomous agent. They can perform research, use tools, and save insights to The Library.",
         inputSchema={
             "type": "object",
             "properties": {
-                "id": {"type": "string", "description": "Unique ID of the advisor to delete"}
+                "advisor_id": {"type": "string", "description": "ID of the advisor to consult."},
+                "query": {"type": "string", "description": "The question or task for the advisor."},
             },
-            "required": ["id"],
-        },
-    ),
-    Tool(
-        name="list_advisors",
-        description="List all registered advisors and their capabilities.",
-        inputSchema={"type": "object", "properties": {}, "required": []},
-    ),
-    Tool(
-        name="link_advisor_knowledge",
-        description="Link a ThoughtNode to an advisor's knowledge base, giving them persistent memory.",
-        inputSchema={
-            "type": "object",
-            "properties": {
-                "advisor_id": {
-                    "type": "string",
-                    "description": "ID of the advisor (e.g., 'socrates', 'researcher')",
-                },
-                "node_id": {"type": "string", "description": "ID of the ThoughtNode to link"},
-            },
-            "required": ["advisor_id", "node_id"],
-        },
-    ),
-    Tool(
-        name="get_advisor_knowledge",
-        description="Get all knowledge associations (linked nodes and patterns) for an advisor.",
-        inputSchema={
-            "type": "object",
-            "properties": {
-                "advisor_id": {"type": "string", "description": "ID of the advisor to query"}
-            },
-            "required": ["advisor_id"],
-        },
-    ),
-    Tool(
-        name="get_advisor_context",
-        description="Retrieve the full textual content of an advisor's linked knowledge nodes.",
-        inputSchema={
-            "type": "object",
-            "properties": {
-                "advisor_id": {"type": "string", "description": "ID of the advisor to query"},
-            },
-            "required": ["advisor_id"],
+            "required": ["advisor_id", "query"],
         },
     ),
     Tool(
@@ -3954,71 +3930,34 @@ Provide an improved synthesis that addresses the critique by using these tools t
                 )
 
             result = workspace.resolve_meta_paradox(conflict=arguments["conflict"])
-        elif name == "create_advisor":
-            director = ctx.get_director()
-            if not director or not director.compass:
-                return [TextContent(type="text", text="Error: COMPASS framework not initialized")]
+        elif name == "manage_advisor":
+            if not ctx.advisor_manager:
+                return [TextContent(type="text", text="Error: Advisor Manager not initialized")]
 
-            result = director.compass.integrated_intelligence.create_advisor(
-                id=arguments["id"],
-                name=arguments["name"],
-                role=arguments["role"],
-                description=arguments["description"],
-                system_prompt=arguments["system_prompt"],
-                tools=arguments.get("tools", []),
+            result = ctx.advisor_manager.manage_advisor(
+                action=arguments["action"], params=arguments["params"]
             )
-            return [TextContent(type="text", text=result)]
-        elif name == "delete_advisor":
-            director = ctx.get_director()
-            if not director or not director.compass:
-                return [TextContent(type="text", text="Error: COMPASS framework not initialized")]
+            return [TextContent(type="text", text=json.dumps(result, indent=2))]
 
-            result = director.compass.integrated_intelligence.delete_advisor(id=arguments["id"])
-            return [TextContent(type="text", text=result)]
-        elif name == "list_advisors":
-            director = ctx.get_director()
-            if not director or not director.compass:
-                return [TextContent(type="text", text="Error: COMPASS framework not initialized")]
+        elif name == "consult_advisor":
+            if not ctx.agent_factory:
+                return [TextContent(type="text", text="Error: Agent Factory not initialized.")]
 
-            advisors = director.compass.advisor_registry.advisors
-            result_lines = ["Available Advisors:"]
-            for advisor in advisors.values():
-                result_lines.append(f"- {advisor.name} ({advisor.id}): {advisor.role}")
-                result_lines.append(f"  Description: {advisor.description}")
-                result_lines.append(f"  Tools: {', '.join(advisor.tools)}")
-                if advisor.knowledge_node_ids:
-                    result_lines.append(
-                        f"  Knowledge Nodes: {len(advisor.knowledge_node_ids)} linked"
-                    )
-                result_lines.append("")
+            try:
+                advisor_id = arguments["advisor_id"]
+                query = arguments["query"]
 
-            return [TextContent(type="text", text="\n".join(result_lines))]
-        elif name == "link_advisor_knowledge":
-            director = ctx.get_director()
-            if not director or not director.compass:
-                return [TextContent(type="text", text="Error: COMPASS framework not initialized")]
+                # 1. Spawn Advisor
+                tool_name = ctx.agent_factory.spawn_advisor(advisor_id)
 
-            advisor_id = arguments["advisor_id"]
-            node_id = arguments["node_id"]
+                # 2. Execute Advisor Agent (with Auto-Save implicitly handled by AgentFactory)
+                response = await ctx.agent_factory.execute_agent(tool_name, {"query": query})
 
-            success = director.compass.advisor_registry.link_node_to_advisor(advisor_id, node_id)
-            if success:
-                msg = f"Linked node '{node_id}' to advisor '{advisor_id}'"
-            else:
-                msg = f"Failed to link: advisor '{advisor_id}' not found or node already linked"
-            return [TextContent(type="text", text=msg)]
-        elif name == "get_advisor_knowledge":
-            director = ctx.get_director()
-            if not director or not director.compass:
-                return [TextContent(type="text", text="Error: COMPASS framework not initialized")]
+                return [TextContent(type="text", text=response)]
 
-            knowledge = director.compass.advisor_registry.get_advisor_knowledge(
-                arguments["advisor_id"]
-            )
-            return [TextContent(type="text", text=json.dumps(knowledge, indent=2))]
-        elif name == "get_advisor_context":
-            result = workspace.get_advisor_context(arguments["advisor_id"])
-            return [TextContent(type="text", text=result)]
+            except Exception as e:
+                logger.error(f"Consult Advisor failed: {e}")
+                return [TextContent(type="text", text=f"Error consulting advisor: {e}")]
 
         elif name == "recall_work":
             results = bridge.history.search_history(
@@ -4032,48 +3971,20 @@ Provide an improved synthesis that addresses the critique by using these tools t
                 node_id=arguments["node_id"], depth=arguments.get("depth", 1)
             )
             return [TextContent(type="text", text=json.dumps(result, indent=2, default=str))]
-        elif name == "teach_cognitive_state":
-            director = ctx.get_director()
-            success = director.teach_state(arguments["label"])
-            msg = (
-                f"Learned state '{arguments['label']}'"
-                if success
-                else "Failed: No recent thought to learn from."
-            )
-            return [TextContent(type="text", text=msg)]
-        elif name == "get_known_archetypes":
-            director = ctx.get_director()
-            states = director.get_known_states()
-            return [TextContent(type="text", text=json.dumps(states, indent=2))]
-        elif name == "visualize_thought":
-            director = ctx.get_director()
-            vis = director.visualize_last_thought()
-            return [TextContent(type="text", text=vis)]
         elif name == "consult_ruminator":
-            # Metabolic Cost: Rumination (3.0)
-            if workspace.ledger:
-                from decimal import Decimal
-
-                from src.substrate.energy import EnergyToken, MeasurementCost
-
-                workspace.ledger.record_transaction(
-                    MeasurementCost(
-                        energy=EnergyToken(Decimal("3.0"), "joules"),
-                        operation_name="consult_ruminator",
-                    )
-                )
-
-            sleep_cycle = ctx.sleep_cycle
-            if not sleep_cycle:
-                return [
-                    TextContent(type="text", text="Error: Sleep Cycle component not initialized")
-                ]
+            focus_node_id = arguments.get("focus_node_id")
+            if not workspace.sleep_cycle:
+                return [TextContent(type="text", text="Error: Sleep cycle module not initialized.")]
 
             # Run in executor
             loop = asyncio.get_running_loop()
-            result = await loop.run_in_executor(
-                None, sleep_cycle.diagrammatic_ruminator, arguments.get("focus_node_id")
-            )
+
+            # Helper function for the executor
+            def _run_chase():
+                return workspace.sleep_cycle.diagrammatic_ruminator(focus_node_id=focus_node_id)
+
+            result = await loop.run_in_executor(None, _run_chase)
+
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
 
         elif name == "run_sleep_cycle":
@@ -4792,11 +4703,14 @@ Provide a brief first-person reflection on your cognitive state. Are you making 
 
             if mode == "nodes":
                 label = arguments.get("label")
-                if not label:
-                    return [
-                        TextContent(type="text", text="Error: 'label' is required for node search.")
-                    ]
                 filters = arguments.get("filters", {})
+                if not label and not filters:
+                    return [
+                        TextContent(
+                            type="text", text="Error: Either 'label' or 'filters' must be provided."
+                        )
+                    ]
+                # Allow empty label (wildcard) if filters exist
                 results = workspace.search_nodes(label, filters, limit)
             elif mode == "relationships":
                 start_id = arguments.get("start_id")

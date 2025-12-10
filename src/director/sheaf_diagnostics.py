@@ -150,7 +150,6 @@ class SheafAnalyzer:
             raise ValueError("Need at least one weight matrix")
 
         # Compute dimensions
-
         vertex_dims = [weights[0].shape[1]]  # Input dimension
         for w in weights:
             vertex_dims.append(w.shape[0])
@@ -158,9 +157,12 @@ class SheafAnalyzer:
         total_vertex_dim = sum(vertex_dims)
         total_edge_dim = sum(w.shape[0] for w in weights)  # Each edge has output dim
 
+        # Determine device from weights
+        device = weights[0].device if weights else self.device
+
         # Build coboundary matrix
         # Each edge e = (u -> v) contributes: -w_e on column u, I on column v
-        delta = torch.zeros(total_edge_dim, total_vertex_dim, device=self.device)
+        delta = torch.zeros(total_edge_dim, total_vertex_dim, device=device)
 
         edge_offset = 0
         vertex_offset = 0
@@ -175,7 +177,7 @@ class SheafAnalyzer:
             delta[
                 edge_offset : edge_offset + out_dim,
                 vertex_offset + in_dim : vertex_offset + in_dim + out_dim,
-            ] = torch.eye(out_dim, device=self.device)
+            ] = torch.eye(out_dim, device=device)
 
             edge_offset += out_dim
             vertex_offset += in_dim

@@ -9,15 +9,51 @@ from typing import Any, Dict, List, Optional, Tuple
 logger = logging.getLogger("raa.logic_core")
 
 
+from enum import Enum, auto  # noqa: E402
+
+
+class LogicMode(Enum):
+    """
+    Operational modes for the Logic Core.
+    """
+
+    FOL_STRICT = auto()  # Strict First-Order Logic (Prover9 compatible)
+    HOL_HYBRID = auto()  # Higher-Order constructs allowed (via stratification/bridging)
+
+
+class HybridBridge:
+    """
+    Facilitates the 'Hybrid Logic' approach by bridging HOL concepts to FOL.
+    Allows defining properties like 'Finite' or 'Reachable' via schema instantiation
+    or stratified definitions that Prover9 can handle in finite domains.
+    """
+
+    @staticmethod
+    def bridge_definition(concept: str, formulation: str) -> List[str]:
+        """
+        Bridge a higher-order concept into FOL premises if possible.
+        """
+        if concept == "TransitiveClosure":
+            # Expand T(x,y) -> (R(x,y) | exists z (R(x,z) & T(z,y)))
+            # This is recursive and not strictly FOL, but can be approximated for finite steps
+            return [
+                f"all x all y ({formulation}(x,y) -> (Base(x,y) | exists z (Base(x,z) & {formulation}(z,y))))"
+            ]
+        return []
+
+
 class SyntaxValidator:
     """Pre-validate logical formulas for common syntax errors"""
 
     # Common quantifiers and operators
     QUANTIFIERS = {"all", "exists"}
     OPERATORS = {"->", "<->", "&", "|", "-"}
-    RESERVED = QUANTIFIERS | {"true", "false", "end_of_list"}
+    # Extended for Hybrid mode
+    HOL_QUANTIFIERS = {"forall", "exist"}
+    RESERVED = QUANTIFIERS | HOL_QUANTIFIERS | {"true", "false", "end_of_list"}
 
-    def __init__(self) -> None:
+    def __init__(self, mode: LogicMode = LogicMode.FOL_STRICT) -> None:
+        self.mode = mode
         self.errors: List[str] = []
         self.warnings: List[str] = []
 
@@ -83,6 +119,14 @@ class SyntaxValidator:
                         f"Quantifier '{quantifier} {var}' must be followed by a formula in parentheses"
                     )
 
+        if self.mode == LogicMode.HOL_HYBRID:
+            # Check for HOL quantifiers simply to warn if they are essentially unsupported by underlying Prover9
+            for quantifier in self.HOL_QUANTIFIERS:
+                if quantifier in formula:
+                    self.warnings.append(
+                        f"HOL Quantifier '{quantifier}' detected. Ensure it is bridged to FOL."
+                    )
+
     def _check_operators(self, formula: str) -> None:
         """Check operator usage"""
         # Check for double operators (likely mistakes)
@@ -109,13 +153,13 @@ class SyntaxValidator:
             name = match.group(1)
 
             # Skip quantifiers
-            if name in self.QUANTIFIERS:
+            if name in self.QUANTIFIERS or name in self.HOL_QUANTIFIERS:
                 continue
 
             # Predicates should start with lowercase
-            if name[0].isupper():
+            if name[0].isupper() and self.mode == LogicMode.FOL_STRICT:
                 self.warnings.append(
-                    f"Predicate/function '{name}' starts with uppercase - consider using lowercase for consistency"
+                    f"Predicate/function '{name}' starts with uppercase - use lowercase for strict FOL compatibility"
                 )
 
             # Check for reserved words

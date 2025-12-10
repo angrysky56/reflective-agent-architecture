@@ -139,6 +139,29 @@ class ContinuityField:
         _, residual = self.compute_projection(query_vector)
         return float(np.linalg.norm(residual))
 
+    def get_basis_vectors(self) -> np.ndarray:
+        """
+        Returns the principal components (basis vectors) of the current manifold.
+        Used by ContextualEigenSorter for Sanity Checks.
+        """
+        if not self.anchors:
+            return np.array([])
+
+        if self._anchor_matrix is None:
+            self._anchor_matrix = np.array(self.anchors)
+
+        neighbors = self._anchor_matrix
+        center = np.mean(neighbors, axis=0)
+        centered_neighbors = neighbors - center
+
+        n_components = min(neighbors.shape[0] - 1, self.embedding_dim)
+        if n_components == 0:
+            return np.array([center])  # Single point basis
+
+        svd = TruncatedSVD(n_components=min(n_components, 5))  # Top 5 components
+        svd.fit(centered_neighbors)
+        return svd.components_
+
     def validate_coherence(self, current_state: np.ndarray, proposed_state: np.ndarray) -> float:
         """
         Validates if a proposed state maintains topological coherence with the field.
