@@ -46,6 +46,13 @@ class PrecuneusIntegrator(nn.Module):
                              Used to modulate State stream weight based on entropy.
         """
 
+        # 0. Standardization: Ensure all vectors are 1D (or matching batch dim)
+        # The Synthesize primitive passes 1D vectors, but Pointer might return 2D (1, D).
+        # We target 1D for this integration context.
+        for key in ["state", "agent", "action"]:
+            if vectors[key].dim() > 1:
+                vectors[key] = vectors[key].squeeze()
+
         # 1. Normalize Energies to Gating Weights (0 to 1)
         # We invert energy: High energy (confusion) -> Low weight
         state_w = self._energy_to_gate(energies["state"])

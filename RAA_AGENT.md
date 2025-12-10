@@ -312,7 +312,7 @@ constrain(node_id="...", mode="consistency",
   - Your energy is low (check `check_cognitive_state`).
 - **Action**: Call `run_sleep_cycle(epochs=1)`. Adjust epochs based on complexity of work.
 - **Scaffolding**: Successful tools and patterns are synchronized to the Manifold, becoming "attractors" that guide future thought.
-- **CRITICAL**: Do not interpret "take a nap" as a command for _you_ (the LLM) to stop generating or roleplay sleeping. It is a command to trigger the **System 2 Sleep Cycle**. Always use the tool.
+- **CRITICAL**: Do not interpret "sleep" as a command for _you_ (the LLM) to stop generating or roleplay sleeping. It is a command to trigger the **System 2 Sleep Cycle**. Always use the tool.
 
 ## 7. Stereoscopic Regulation
 

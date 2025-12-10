@@ -123,6 +123,7 @@ class DirectorMVP:
         llm_provider: Optional[Any] = None,
         work_history: Optional[Any] = None,
         precuneus: Optional[Any] = None,
+        goal_controller: Optional[Any] = None,
     ):
         """
         Initialize Director.
@@ -135,6 +136,7 @@ class DirectorMVP:
             continuity_service: Optional ContinuityService for anchoring milestones
             work_history: Optional WorkHistory for long-term entropy recall
             precuneus: Optional PrecuneusIntegrator for state modulation
+            goal_controller: Optional GoalController (Pointer) for executive alignment
         """
         self.manifold = manifold
         self.config = config or DirectorConfig()
@@ -142,6 +144,7 @@ class DirectorMVP:
         self.continuity_service = continuity_service
         self.work_history = work_history
         self.precuneus = precuneus
+        self.goal_controller = goal_controller
 
         # Entropy monitor
         self.monitor = EntropyMonitor(
@@ -635,21 +638,6 @@ class DirectorMVP:
         # Check for forced Time Gate in context
         force_gate = context.get("force_time_gate", False) if context else False
 
-        # Logic:
-        # 1. If System 2 Disabled -> System 1
-        # 2. If Forced -> System 2
-        # 3. If Cognitive State says STUCK -> System 2
-        # 4. If Entropy High (>0.8) AND NOT Focused -> System 2
-        # 5. If Entropy SUPER High (>0.95) -> System 2 (even if Focused)
-
-        engage_reason = None
-
-        if not self.config.enable_system2 and not force_gate:
-            logger.info(
-                f"Director: High Entropy ({entropy_score:.2f}) but System 2 disabled. Using System 1."
-            )
-            return result
-
         if force_gate:
             engage_reason = "Forced by User"
         elif should_engage_system2:
@@ -658,6 +646,88 @@ class DirectorMVP:
             engage_reason = f"Critical Entropy ({entropy_score:.2f})"
         elif entropy_score >= 0.8 and cognitive_state_label != "Focused/Flow":
             engage_reason = f"High Entropy ({entropy_score:.2f})"
+
+        # --- Executive Capability Injection (Gen 3) ---
+        # Instead of just "Time Gating", we empower the Director to use its limbs.
+        # We inject component status into the context so COMPASS knows what to do.
+
+        # 1. Manifold Status
+        manifold_status = "Unknown"
+        if self.manifold:
+            # Simple heuristic: density of memories
+            # If manifold has __len__, utilize it
+            manifold_count = (
+                len(self.manifold.memory_bank) if hasattr(self.manifold, "memory_bank") else 0
+            )
+            if manifold_count < 10:
+                manifold_status = "Sparse (Need Experience)"
+            else:
+                manifold_status = f"Rich ({manifold_count} Patterns)"
+
+        # 2. Pointer Status (Goal Alignment)
+        pointer_status = "Drifting"
+        goal_vector_norm = 0.0
+        if self.goal_controller:
+            # Check if goal is strong (high norm) or weak
+            # We assume get_current_goal returns a tensor
+            try:
+                current_goal = self.goal_controller.get_current_goal()
+                goal_vector_norm = float(torch.norm(current_goal).item())
+                if goal_vector_norm > 0.8:
+                    pointer_status = "Locked (Strong Intent)"
+                elif goal_vector_norm > 0.3:
+                    pointer_status = "Stable"
+                else:
+                    pointer_status = "Weak/Drifting"
+            except Exception:
+                pointer_status = "Error Reading Pointer"
+        else:
+            pointer_status = "Disconnected"
+
+        # 3. Inject into Context
+        if context is None:
+            context = {}
+
+        context["executive_state"] = {
+            "manifold": manifold_status,
+            "pointer": f"{pointer_status} (Strength: {goal_vector_norm:.2f})",
+            "entropy": float(entropy_score),
+            "cognitive_label": cognitive_state_label,
+        }
+
+        logger.info(f"Director: Executive State Injected: {context['executive_state']}")
+
+        # 4. Functional Action Mapping (Reflexive Triggers)
+        # If we are stuck, we force specific tools based on the diagnosis.
+
+        if cognitive_state_label == "Looping/Stuck" and "substrate_transaction" in str(
+            context.get("trajectory", "")
+        ):
+            # Diagnosis: Hypochondria (Obsessed with own state)
+            # Rx: Look Outward (Inspect Graph)
+            logger.info("Director: Hypochondria detected. Prescribing 'inspect_graph'.")
+            # Force tool call by appending to prompt (System 2 will see this)
+            # Or better, we can invoke it via COMPASS if we wanted to force it.
+            # But enriching context with "Prescription" is cleaner for the LLM.
+            context["prescription"] = (
+                "ACTION REQUIRED: Stop introspecting. Use 'inspect_graph' to examine external nodes."
+            )
+
+        elif entropy_score > 0.9 and manifold_status.startswith("Sparse"):
+            # Diagnosis: Confusion due to lack of experience
+            # Rx: Consult Advisor (Ask for help)
+            logger.info("Director: Ignorance detected. Prescribing 'consult_advisor'.")
+            context["prescription"] = (
+                "ACTION REQUIRED: Knowledge gap. Use 'consult_advisor' to ask an expert."
+            )
+
+        elif pointer_status == "Weak/Drifting" and entropy_score > 0.5:
+            # Diagnosis: Aimlessness
+            # Rx: Scavenge (Find utility)
+            logger.info("Director: Drift detected. Prescribing 'scavenge'.")
+            context["prescription"] = (
+                "ACTION REQUIRED: Goal Drift. Use 'evaluate_utility' or 'scavenge' to find high-value paths."
+            )
 
         if not engage_reason:
             logger.info("Director: Low Entropy. Trusting System 1 (Fast Time).")

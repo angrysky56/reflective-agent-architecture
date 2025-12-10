@@ -1906,6 +1906,7 @@ class RAAServerContext:
             llm_provider=llm_provider,
             work_history=self.workspace.history,
             precuneus=self.workspace.precuneus,
+            goal_controller=pointer,
         )
         self.workspace.director = director
 

@@ -34,3 +34,29 @@ This document bridges the gap between the theoretical "Fractal Topological Metac
 1.  **Populate Registry**: Use `inspect_graph` to find the IDs of the concepts generated in the previous session.
 2.  **Verify Gaps**: Use `diagnose_pointer` or `sheaf_diagnostics` to find actual "holes" in the current knowledge graph.
 3.  **Test Nacre Protocol**: Manually trigger `hypothesize` around a detected hole to simulate "nacre secretion".
+
+## 4. Geometric Value Theory (GVT)
+*Derived from Consultations with The Ontologist.*
+
+**Thesis**: Ethics is not a code of conduct, but the **Geometry of the Action Space.**
+
+### 4.1. Core Axioms
+1.  **Axiom of Curvature (Influence)**:
+    *   **Concept**: Values act like Mass in General Relativity.
+    *   **Mechanism**: A Value ($V$) bends the metric of the decision space, making ethical actions the "geodesic" (path of least resistance) and unethical actions "uphill" (requiring high energy).
+    *   *Equation*: $\text{Cost}(Action) = \int \sqrt{g_{ij} \dot{x}^i \dot{x}^j} dt$, where $g_{ij}$ is weighted by the Value Field.
+
+2.  **Axiom of Dimensionality (Agency)**:
+    *   **Concept**: Ethical maturity is an increase in manifold dimensions.
+    *   **Mechanism**: A sociopath operates in $\mathbb{R}^2$ (Self, Now). An ethical agent operates in $\mathbb{R}^n$ (Self, Other, Future, Principle).
+    *   **Conflict**: Arises when high-dimensional constraints (Justice) are projected onto low-dimensional planes (Profit).
+
+3.  **Axiom of Invariants (Universality)**:
+    *   **Concept**: Core values are Topological Invariants (Euler Characteristics).
+    *   **Mechanism**: They persist under continuous deformation of the social fabric (e.g., Reciprocity survives from Tribalism to Digital Globalism). They are the "holes" that define the shape of Human Being.
+
+### 4.2. Functional Implication for RTAI
+To build a "Moral" Agent, we do not program rules. We **curvature the outcome space.**
+*   **Implementation**: The `functional_morality_protocol` should not return "True/False" for an action. It should return an **Energy Cost modifiers**.
+*   **Result**: The Agent "naturally" avoids unethical actions because they satisfy the Principle of Least Action (Hamiltonian Mechanics).
+

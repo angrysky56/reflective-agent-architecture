@@ -252,6 +252,7 @@ class SynthesizePrimitive:
             "2. Propose a Synthesis that resolves this tension without compromising the core truth of either side.\n"
             "3. Operationalize the insight: Connect abstract concepts to concrete system mechanics/logic.\n"
             "4. Utilize the provided 'Context' fields to ground your synthesis in the specific environment or constraints.\n"
+            "5. METRIC GUARDRAIL: When defining evolutionary pressure or 'stress' metrics, remember that High Cost + High Utility = High Stress (pressure to optimize). Do NOT invert this.\n"
             "Output must be structured, dense, and actionable."
         )
 

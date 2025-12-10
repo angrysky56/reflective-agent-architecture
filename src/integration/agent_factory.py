@@ -303,42 +303,31 @@ class AgentFactory:
                 if tool_name.startswith("consult_"):
                     advisor_id = tool_name.replace("consult_", "").replace("_agent", "")
 
-                    # 2. Extract Title/Concept (Simple heuristic or first line)
-                    lines = final_response.strip().split("\n")
-                    title = lines[0][:100] if lines else "Advisor Insight"
+                    # 3. Create Thought Node using Standard Template (Precuneus/Workspace)
+                    # This ensures utility, compression, and embedding are calculated correctly.
+                    with self.workspace.neo4j_driver.session() as session:
+                        # Create the node (Standard)
+                        node_id = self.workspace._create_thought_node(
+                            session=session,
+                            content=final_response,
+                            cognitive_type="Insight",
+                            confidence=1.0,  # Advisors are experts
+                        )
 
-                    # 3. Create Thought Node in The Library
-                    # We use a dedicated method or generic create_thought
-                    import time
+                        # Link Attribution (Advisor -> Node)
+                        session.run(
+                            """
+                            MERGE (a:Advisor {id: $advisor_id})
+                            MATCH (t:ThoughtNode {id: $node_id})
+                            MERGE (a)-[:AUTHORED]->(t)
+                            """,
+                            advisor_id=advisor_id,
+                            node_id=node_id,
+                        )
 
-                    node_id = f"library_{advisor_id}_{int(time.time())}"
-
-                    # Create Node
-                    cypher_create = """
-                    MERGE (a:Advisor {id: $advisor_id})
-                    CREATE (t:ThoughtNode {
-                        id: $node_id,
-                        name: $title,
-                        content: $content,
-                        type: 'Insight',
-                        advisor: $advisor_id,
-                        created_at: timestamp(),
-                        status: 'crystallized'
-                    })
-                    MERGE (a)-[:AUTHORED]->(t)
-                    RETURN t.id
-                    """
-
-                    self.workspace.write_query(
-                        cypher_create,
-                        {
-                            "advisor_id": advisor_id,
-                            "node_id": node_id,
-                            "title": title,
-                            "content": final_response,
-                        },
+                    logger.info(
+                        f"The Library: Saved insight {node_id} from {advisor_id} via Standard Template"
                     )
-                    logger.info(f"The Library: Saved insight {node_id} from {advisor_id}")
 
                     # 4. Link in Registry (So it appears in manage_advisor get_knowledge)
                     # AgentFactory has self.registry initialized in __init__
