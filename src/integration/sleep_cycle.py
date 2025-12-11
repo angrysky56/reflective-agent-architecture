@@ -100,6 +100,73 @@ class SleepCycle:
 
         return {"sleep_cycle_results": results}
 
+    async def evaluate_fixation(self, node_id: str, context: dict) -> dict:
+        """
+        Consciously evaluate why a single node is being fixated on.
+        Called by Director when is_looping (Fixation) is True.
+        """
+        if not self.workspace:
+            return {"status": "skipped", "reason": "No workspace connected"}
+
+        # 1. Get node context
+        # This assumes workspace has get_node_context, if not we might need to use neo4j directly
+        # server.py calls workspace.get_node_context so it should be there.
+        try:
+            node_context = self.workspace.get_node_context(node_id, depth=1)
+        except Exception:
+            node_context = f"Node {node_id} context unavailable."
+
+        # 2. LLM evaluation (Conscious Check)
+        prompt = f"""Node '{node_id}' is being accessed repeatedly (Fixation detected).
+        Context: {node_context}
+        Active Goal: {context.get('goal', 'None')}
+
+        Is this revisitation justified?
+        A) HUB/AXIOM: It's a central connector or advisor knowledge base. (Action: Flag as 'hub')
+        B) DEEP WORK: We are refining this specific concept. (Action: Continue, maybe flag 'wip')
+        C) STAGNATION: We are circling a conceptual sink without progress. (Action: Suggest 'hypothesize')
+
+        Return JSON: {{ "diagnosis": "HUB"|"DEEP_WORK"|"STAGNATION", "reason": "...", "recommended_action": "..." }}
+        """
+
+        # Using dream provider or a dedicated reflective one
+        evaluation_str = await self.workspace._llm_generate_async(
+            system_prompt="You are a Metacognitive Evaluator.", user_prompt=prompt
+        )
+
+        # Parse simplistic JSON from string if needed
+        import json
+
+        try:
+            # simple cleanup if LLM returns markdown code blocks
+            clean_json = evaluation_str.replace("```json", "").replace("```", "").strip()
+            evaluation = json.loads(clean_json)
+        except Exception:
+            evaluation = {
+                "diagnosis": "UNKNOWN",
+                "reason": evaluation_str,
+                "recommended_action": "Investigate manually",
+            }
+
+        # 3. Apply Flags if needed
+        # We assume workspace has a flagging mechanism or we do it via DB directly
+        if evaluation.get("diagnosis") in ["HUB", "DEEP_WORK"]:
+            # flagging logic
+            try:
+                with self.workspace.neo4j_driver.session() as session:
+                    session.run(
+                        """
+                         MATCH (n:ConceptNode {id: $id})
+                         SET n.flag = $flag
+                         """,
+                        id=node_id,
+                        flag=evaluation["diagnosis"].lower(),
+                    )
+            except Exception as e:
+                logger.warning(f"Failed to flag node: {e}")
+
+        return evaluation
+
     def _replay_memories(self, epochs: int) -> Dict[str, Any]:
         """
         Train the processor on 'Focused' (high-quality) episodes.

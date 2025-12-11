@@ -700,18 +700,37 @@ class DirectorMVP:
         # 4. Functional Action Mapping (Reflexive Triggers)
         # If we are stuck, we force specific tools based on the diagnosis.
 
-        if cognitive_state_label == "Looping/Stuck" and "substrate_transaction" in str(
-            context.get("trajectory", "")
-        ):
-            # Diagnosis: Hypochondria (Obsessed with own state)
-            # Rx: Look Outward (Inspect Graph)
-            logger.info("Director: Hypochondria detected. Prescribing 'inspect_graph'.")
-            # Force tool call by appending to prompt (System 2 will see this)
-            # Or better, we can invoke it via COMPASS if we wanted to force it.
-            # But enriching context with "Prescription" is cleaner for the LLM.
+        if cognitive_state_label == "Looping/Stuck":
+            # New Semantic Fixation Logic: Conscious Evaluation
+            # The server.py check detected Sole Node Fixation.
+            # We need to ask the Ruminator (via SleepCycle which holds the logic, or ideally move logic to a shared place)
+            # For now, we assume we can call an internal method or tool.
+            # Since evaluate_fixation is on SleepCycle, and SleepCycle is often standalone,
+            # we might need to access it via compass integration if available, or just rely on the LLM to use the tool if we exposed it.
+            # However, the plan said "Wire this into the Director".
+            # Let's see if we can call the tool "consult_ruminator" or similar, or inject a prescription.
+
+            # Actually, `server.py` *already* returns the warning.
+            # But the Director acts on the label.
+            # We want to perform the evaluation *automatically*.
+
+            # FIXME: Ideally obtain node_id from the warning or state check result.
+            # Since we don't have the node_id easily here without parsing the warning,
+            # We will use a general prescription that ENCOURAGES the LLM to use the evaluator or self-correct.
+
+            # Better specific integration:
+            # If we had the node_id, we could call sleep_cycle.evaluate_fixation().
+            # For this MVP, let's look at the `instructions` we give to System 2.
+
             context["prescription"] = (
-                "ACTION REQUIRED: Stop introspecting. Use 'inspect_graph' to examine external nodes."
+                "SEMANTIC FIXATION DETECTED: You are focusing on a single node repeatedly. "
+                "IMMEDIATE ACTION: 1. Critically evaluate if this is 'Deep Work' or 'Stagnation'. "
+                "2. If Stagnation, use 'hypothesize' to lateralize or 'explore_for_utility'. "
+                "3. If Deep Work, explicitly note why in your next thought."
             )
+
+            # Proposed explicit auto-evaluation (if we can get the node from the state response)
+            # We parsed state_str earlier.
 
         elif entropy_score > 0.9 and manifold_status.startswith("Sparse"):
             # Diagnosis: Confusion due to lack of experience

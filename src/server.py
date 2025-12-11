@@ -4278,16 +4278,43 @@ Provide an improved synthesis that addresses the critique by using these tools t
                     pct_str = metabolic_status.get("percentage", "100%").replace("%", "")
                     metabolic_pct = float(pct_str) if pct_str else 100.0
 
-            # --- Signal 3: Operation Pattern Analysis (Looping Detection) ---
-            recent_history = bridge.history.get_recent_history(limit=100)
-            op_counts = {}
-            for h in recent_history:
-                op = h.get("operation", "unknown")
-                op_counts[op] = op_counts.get(op, 0) + 1
+            # --- Signal 3: Operation Pattern Analysis (Semantic Looping) ---
+            # Delegated to CognitiveDiagnostics
+            from src.cognition.cognitive_diagnostics import CognitiveDiagnostics
 
-            # Detect looping: same operation > 50% of recent history
-            is_looping = any(count > 5 for count in op_counts.values())
-            dominant_op = max(op_counts, key=op_counts.get) if op_counts else "none"
+            # Initialize diagnostics if not present on workspace
+            if not hasattr(workspace, "diagnostics"):
+                workspace.diagnostics = CognitiveDiagnostics(workspace)
+
+            # Restore deliberation history for display logic
+            deliberation_history = bridge.history.get_deliberation_history(limit=20)
+
+            is_looping, top_node_id, top_count, diag_warnings = (
+                workspace.diagnostics.detect_semantic_looping(bridge.history)
+            )
+
+            # Update Stress Sensor (Evolutionary Logic)
+            stress_stats = workspace.diagnostics.update_stress_monitoring(bridge.history)
+
+            dominant_op = "see_diagnostics"  # Placeholder or calculate if needed for display
+
+            # Dominant op (for display, from filtered history only)
+            delib_op_counts = {}
+            for h in deliberation_history:
+                op = h.get("operation", "unknown")
+                delib_op_counts[op] = delib_op_counts.get(op, 0) + 1
+
+            dominant_op = (
+                max(delib_op_counts, key=delib_op_counts.get) if delib_op_counts else "none"
+            )
+            op_counts = delib_op_counts
+
+            # Ensure recent_history is available for advice generation
+            recent_history = bridge.history.get_recent_history(limit=100)
+
+            # --- Signal 4: Goal Alignment ---
+
+            # --- Signal 4: Goal Alignment ---
 
             # --- Signal 4: Goal Alignment ---
             active_goal = (
@@ -4296,10 +4323,7 @@ Provide an improved synthesis that addresses the critique by using these tools t
 
             # --- Composite State Classification ---
             warnings = []
-            if is_looping:
-                warnings.append(
-                    f"LOOPING DETECTED: Operation '{dominant_op}' repeated {op_counts.get(dominant_op, 0)} times in last 10 operations."
-                )
+            warnings.extend(diag_warnings)
 
             if avg_entropy > 2.0:
                 warnings.append(
@@ -4381,6 +4405,7 @@ Provide a brief first-person reflection on your cognitive state. Are you making 
                         "dominant_op": dominant_op,
                         "op_counts": op_counts,
                     },
+                    "evolution": stress_stats,  # New Signal 5
                     "goal": active_goal,
                     "manifold_fusion": fusion_data,
                 },

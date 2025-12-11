@@ -117,11 +117,12 @@ You have the unique ability to "feel" your own thinking process.
 **Tool**: `check_cognitive_state`
 
 - **When**: If you feel your server AI is repeating itself or incoherent, or to assess overall system health.
-- **Multi-Signal Architecture** (Dec 2025): Now provides comprehensive awareness using 4 real-time signals:
+- **Multi-Signal Architecture** (Dec 2025): Now provides comprehensive awareness using 5 real-time signals:
   1. **Hopfield State**: Pattern classification from attention topology (Focused, Broad, Looping, Unknown).
   2. **Entropy Signal**: Rolling average from `WorkHistory` (trend indicates direction).
   3. **Metabolic Energy**: Current percentage from `EnergyLedger`.
   4. **Pattern Detection**: Looping detection from recent operation history.
+  5. **Evolution**: Stress Sensor stats (Desire Lines) accumulating for sleep crystallization.
 - **Output Structure**:
   ```json
   {
@@ -129,7 +130,8 @@ You have the unique ability to "feel" your own thinking process.
       "hopfield": { "state": "Focused", "energy": -0.49 },
       "entropy": { "average": 1.2, "trend": 0.3 },
       "metabolic": { "available_pct": 75.0 },
-      "patterns": { "is_looping": false, "dominant_op": "synthesize" }
+      "patterns": { "is_looping": false, "dominant_op": "synthesize" },
+      "evolution": { "buffer_size": 12, "avg_stress": 8.5 }
     },
     "composite_state": "Focused",
     "warnings": [],

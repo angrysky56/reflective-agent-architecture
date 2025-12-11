@@ -55,6 +55,9 @@ class WorkHistory:
                 if "entropy" not in columns:
                     cursor.execute("ALTER TABLE history ADD COLUMN entropy REAL")
 
+                if "node_ids" not in columns:
+                    cursor.execute("ALTER TABLE history ADD COLUMN node_ids TEXT")
+
                 conn.commit()
         except sqlite3.Error as e:
             logger.error(f"Failed to initialize history DB: {e}")
@@ -69,6 +72,7 @@ class WorkHistory:
         diagnostics: Optional[Dict[str, Any]] = None,
         causal_impact: float = 0.0,
         entropy: float = 0.0,
+        node_ids: Optional[List[str]] = None,
     ) -> None:
         """
         Log an operation and its context to history.
@@ -85,12 +89,15 @@ class WorkHistory:
             else:
                 summary = str(result)[:200]
 
+            # Serialize node_ids
+            node_ids_json = json.dumps(node_ids) if node_ids else None
+
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
                 cursor.execute(
                     """
-                    INSERT INTO history (operation, params, result_summary, cognitive_state, energy, diagnostics, causal_impact, entropy)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO history (operation, params, result_summary, cognitive_state, energy, diagnostics, causal_impact, entropy, node_ids)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                     (
                         operation,
@@ -101,6 +108,7 @@ class WorkHistory:
                         diagnostics_json,
                         causal_impact,
                         entropy,
+                        node_ids_json,
                     ),
                 )
                 conn.commit()
@@ -128,10 +136,49 @@ class WorkHistory:
                 )
 
                 rows = cursor.fetchall()
-                return [dict(row) for row in rows]
+            # Parse node_ids from JSON for each row
+            result_list = []
+            for row in rows:
+                item = dict(row)
+                if item.get("node_ids"):
+                    try:
+                        item["node_ids"] = json.loads(item["node_ids"])
+                    except json.JSONDecodeError:
+                        item["node_ids"] = []
+                result_list.append(item)
+            return result_list
+
         except sqlite3.Error as e:
             logger.error(f"Failed to retrieve history: {e}")
             return []
+
+    def get_deliberation_history(self, limit: int = 20) -> List[Dict[str, Any]]:
+        """
+        Return only DELIBERATION and EXPLORATION ops, excluding infrastructure/introspection.
+        """
+        from src.substrate.operation_categories import is_exempt_from_looping
+
+        # Over-fetch to ensure we have enough after filtering
+        raw_limit = limit * 5
+        recent = self.get_recent_history(limit=raw_limit)
+
+        filtered = [h for h in recent if not is_exempt_from_looping(h["operation"])]
+        return filtered[:limit]
+
+    def get_node_visitation_stats(self, limit: int = 50) -> Dict[str, int]:
+        """
+        Count how many times each node was touched in recent deliberation ops.
+        Returns mapped counts: {node_id: count}
+        """
+        history = self.get_deliberation_history(limit=limit)
+        counts: Dict[str, int] = {}
+        for h in history:
+            nodes = h.get("node_ids")
+            if nodes and isinstance(nodes, list):
+                for nid in nodes:
+                    if nid:  # Ensure not None/empty
+                        counts[nid] = counts.get(nid, 0) + 1
+        return counts
 
     def get_session_summary(self) -> Dict[str, Any]:
         """
