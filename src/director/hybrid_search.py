@@ -37,6 +37,7 @@ from src.manifold import Manifold
 from .ltn_refiner import LTNConfig, LTNRefiner
 from .search_mvp import SearchResult, energy_aware_knn_search
 from .sheaf_diagnostics import SheafAnalyzer
+from .utility_aware_search import UtilityAwareSearch
 
 logger = logging.getLogger(__name__)
 
@@ -122,6 +123,7 @@ class HybridSearchStrategy:
         ltn_refiner: LTNRefiner,
         sheaf_analyzer: Optional[SheafAnalyzer] = None,
         config: Optional[HybridSearchConfig] = None,
+        utility_search: Optional[UtilityAwareSearch] = None,
     ):
         """
         Initialize hybrid search strategy.
@@ -131,11 +133,13 @@ class HybridSearchStrategy:
             ltn_refiner: LTN refiner for continuous navigation
             sheaf_analyzer: Optional Sheaf analyzer for topological validation
             config: Hybrid search configuration
+            utility_search: Optional Utility-Aware Search module for valence bias
         """
         self.manifold = manifold
         self.ltn = ltn_refiner
         self.sheaf = sheaf_analyzer
         self.config = config or HybridSearchConfig()
+        self.utility_search = utility_search
 
         # Statistics
         self.search_stats = {
@@ -156,6 +160,7 @@ class HybridSearchStrategy:
         force_ltn: bool = False,
         k: Optional[int] = None,
         metric: Optional[str] = None,
+        valence: float = 0.0,
     ) -> Optional[HybridSearchResult]:
         """
         Execute hybrid search with automatic strategy selection.
@@ -168,6 +173,7 @@ class HybridSearchStrategy:
             force_ltn: If True, skip k-NN and force LTN refinement
             k: Optional override for number of neighbors
             metric: Optional override for distance metric
+            valence: Affective valence bias (-1.0 to 1.0) for utility-aware search
 
         Returns:
             HybridSearchResult if successful, None if all strategies failed
@@ -200,7 +206,9 @@ class HybridSearchStrategy:
 
         knn_result = None
         if not should_skip_knn:
-            knn_result = self._try_knn_search(current_state, result, k=k, metric=metric)
+            knn_result = self._try_knn_search(
+                current_state, result, k=k, metric=metric, valence=valence
+            )
         else:
             result.knn_failed_reason = "Skipped (Forced LTN)"
 
@@ -249,6 +257,7 @@ class HybridSearchStrategy:
         result: HybridSearchResult,
         k: Optional[int] = None,
         metric: Optional[str] = None,
+        valence: float = 0.0,
     ) -> Optional[HybridSearchResult]:
         """
         Attempt RAA energy-aware k-NN search.
@@ -269,12 +278,30 @@ class HybridSearchStrategy:
                 logger.debug(f"Skipping k-NN: {result.knn_failed_reason}")
             return None
 
+        # Custom or Default Energy Evaluator
+        energy_fn = self.manifold.energy
+
+        # If Utility Search is enabled AND we have a non-neutral valence,
+        # wrap the energy function to include bias.
+        # Capture locally to allow type narrowing in closure
+        utility_search = self.utility_search
+
+        if utility_search is not None and abs(valence) > 0.05:
+            # Create a closure that captures the valence
+            def biased_energy_evaluator(pattern: torch.Tensor) -> float:
+                base_energy = self.manifold.energy(pattern)
+                return utility_search.compute_biased_energy(base_energy, valence)
+
+            energy_fn = biased_energy_evaluator
+            if self.config.verbose:
+                logger.debug(f"Applying Utility Bias to Search (Valence: {valence:.2f})")
+
         # Execute k-NN search
         try:
             knn_result = energy_aware_knn_search(
                 current_state=current_state,
                 memory_patterns=memory,
-                energy_evaluator=self.manifold.energy,
+                energy_evaluator=energy_fn,
                 k=k if k is not None else self.config.knn_k,
                 metric=metric if metric is not None else self.config.knn_metric,
                 exclude_threshold=self.config.knn_exclude_threshold,

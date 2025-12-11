@@ -38,7 +38,6 @@ from .entropy_calculator import EntropyCalculator, cwd_to_logits
 from .raa_loop import RAAConfig, ReflectiveAgentArchitecture
 from .reasoning_loop import RAAReasoningLoop, ReasoningConfig
 from .reinforcement import AttractorReinforcement
-from .utility_aware_search import UtilityAwareSearch, utility_biased_energy
 
 __all__ = [
     # Core RAA (full architecture with processor/pointer)
@@ -54,7 +53,6 @@ __all__ = [
     "EntropyCalculator",
     "cwd_to_logits",
     "UtilityAwareSearch",
-    "utility_biased_energy",
     "AttractorReinforcement",
 ]
 

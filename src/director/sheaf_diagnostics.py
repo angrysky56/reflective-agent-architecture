@@ -315,7 +315,7 @@ class SheafAnalyzer:
             d_pinv = vh.T @ torch.diag(s_inv) @ u.T
 
         # Harmonic projector: H = I - d @ d^†
-        identity = torch.eye(d.shape[0], device=self.device)
+        identity = torch.eye(d.shape[0], device=d.device)
         harmonic_projector = identity - d @ d_pinv
 
         # diffusive operator: G = d^†

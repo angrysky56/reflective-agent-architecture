@@ -184,6 +184,13 @@ class DirectorMVP:
             knn_exclude_threshold=self.config.exclude_threshold,
         )
 
+        # 4a. Initialize Utility-Aware Search (Affective Energy Bias)
+        # 4a. Initialize Utility-Aware Search (Affective Energy Bias)
+        from .utility_aware_search import UtilityAwareSearch
+
+        self.utility_search = UtilityAwareSearch(lambda_val=0.5)
+        logger.info("UtilityAwareSearch initialized")
+
         # Initialize LTN Refiner
         # Use provided embedding_fn or a dummy that warns
         def dummy_embed(text: str) -> torch.Tensor:
@@ -196,11 +203,12 @@ class DirectorMVP:
         ltn_config = hybrid_cfg.ltn_config or LTNConfig(device=self.config.device)
         self.ltn_refiner = LTNRefiner(embedding_fn=embedding_fn or dummy_embed, config=ltn_config)
 
-        self.hybrid_search = HybridSearchStrategy(
+        self.hybrid_search: HybridSearchStrategy = HybridSearchStrategy(
             manifold=self.manifold,
             ltn_refiner=self.ltn_refiner,
             sheaf_analyzer=self.sheaf_analyzer,
             config=hybrid_cfg,
+            utility_search=self.utility_search,
         )
 
         # 5. COMPASS Framework (Metacognitive Orchestration)
@@ -265,6 +273,21 @@ class DirectorMVP:
             min_p=0.1, max_p=1.0, tau_min=0.1, tau_max=2.0
         )
         logger.info("PlasticityModulator initialized")
+
+        # 4. Director Coordinator (Multi-Signal Integration)
+        from src.director.director_coordinator import DirectorCoordinator
+
+        self.coordinator = DirectorCoordinator()
+        logger.info("DirectorCoordinator initialized")
+
+        # 5. Director Interoception (Vector-Based Tension Measurement)
+        from src.director.director_interoception import DirectorInteroception
+
+        self.interoception = DirectorInteroception(
+            goal_controller=self.goal_controller,
+            precuneus=self.precuneus,
+        )
+        logger.info("DirectorInteroception initialized")
 
     def get_current_confidence(self) -> float:
         """Estimate current confidence from entropy."""
@@ -637,6 +660,7 @@ class DirectorMVP:
         # Threshold: 0.8 bits
         # Check for forced Time Gate in context
         force_gate = context.get("force_time_gate", False) if context else False
+        engage_reason = None
 
         if force_gate:
             engage_reason = "Forced by User"
@@ -999,6 +1023,12 @@ class DirectorMVP:
         # Delegate to Hybrid Search Strategy
         # This handles both fast k-NN and slow LTN refinement
         try:
+            # Retrieve current valence from Coordinator
+            # If no assessment exists, default to 0.0 (neutral)
+            current_valence = 0.0
+            if self.coordinator and self.coordinator.history:
+                current_valence = self.coordinator.history[-1].valence
+
             result = self.hybrid_search.search(
                 current_state=current_state,
                 evidence=None,  # Director search is usually unsupervised/intrinsic, unless context provides evidence
@@ -1006,6 +1036,7 @@ class DirectorMVP:
                 context=context,
                 k=k,
                 metric=metric,
+                valence=current_valence,
             )
 
             # Log search episode

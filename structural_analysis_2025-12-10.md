@@ -94,7 +94,9 @@ Responsible for metacognition, goal direction, and entropy regulation.
 
 - [`adaptive_criterion.py`](src/director/adaptive_criterion.py): **Dynamic Thresholds** - Manages intervention criteria.
 - [`allostatic_controller.py`](src/director/allostatic_controller.py): **Stability Regulation** - Maintains system stability.
+- [`director_coordinator.py`](src/director/director_coordinator.py): **Multi-Signal Integration** - Coordinates all monitoring signals into holistic assessment.
 - [`director_core.py`](src/director/director_core.py): **Director Loop** - Monitors entropy and triggers reframing.
+- [`director_interoception.py`](src/director/director_interoception.py): **Vector-Based Tension** - Measures goal-result alignment (adjunction tension).
 - [`entropy_monitor.py`](src/director/entropy_monitor.py): **Confusion Detection** - Calculates Shannon entropy.
 - [`epistemic_discriminator.py`](src/director/epistemic_discriminator.py): **Knowledge Assessment** - Distinguishes known/unknown.
 - [`epistemic_metrics.py`](src/director/epistemic_metrics.py): **Uncertainty Metrics** - Calculates certainty scores.

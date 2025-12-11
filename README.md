@@ -138,7 +138,8 @@ RAA synthesizes three active research frontiers:
 - **Function**: Detects "clashes" (high-entropy states) and triggers search.
 - **Search Engine**: Structured exploration of Manifold to find alternative framings.
 - **Key Innovation**: Entropy-triggered associative search for goal reframing.
-- **Multi-Signal Cognitive State** (Dec 2025): Combines Hopfield state, entropy trends, metabolic energy, looping detection, and evolutionary stress (Desire Lines) for comprehensive self-awareness.
+- **Multi-Signal Cognitive State** (Dec 2025): Combines Hopfield state, entropy trends, metabolic energy, looping detection, evolutionary stress, and **adjunction tension** (vector intent-vs-result alignment).
+- **Interoception** (Dec 2025): Measures geometric distance between goal and result vectors to detect hallucination (confident but wrong).
 
 #### 3. The Ruminator (Diagrammatic Reasoner)
 
