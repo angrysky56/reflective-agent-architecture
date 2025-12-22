@@ -12,6 +12,7 @@ This is the Phase 1 (MVP) implementation following SEARCH_MECHANISM_DESIGN.md.
 
 import asyncio
 import logging
+import math
 import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
@@ -337,6 +338,10 @@ class DirectorMVP:
             entropy_history = np.array(self.monitor.entropy_history)
 
         if len(entropy_history) > 10:
+            # Sanitize history for NaNs (legacy data protection)
+            if np.isnan(entropy_history).any():
+                entropy_history = np.nan_to_num(entropy_history, nan=0.5)
+
             assessment = self.epistemic_discriminator.assess(entropy_history)
             logger.info(
                 f"Epistemic Assessment: {assessment.recommendation} (Conf: {assessment.confidence:.2f})"
@@ -610,6 +615,17 @@ class DirectorMVP:
 
         # Create pseudo-logits from confidence: [confidence, 1-confidence]
         confidence = result.get("score", 0.5)
+        # Validate confidence
+        try:
+            confidence = float(confidence)
+            if math.isnan(confidence) or math.isinf(confidence):
+                confidence = 0.5
+        except (ValueError, TypeError):
+            confidence = 0.5
+
+        # Clamp to avoid log(0)
+        confidence = max(1e-4, min(1.0 - 1e-4, confidence))
+
         scores = torch.tensor([confidence, 1.0 - confidence], dtype=torch.float32)
         logits = torch.log(scores + 1e-8)
         entropy_score = calc.compute_entropy(logits)
@@ -624,7 +640,7 @@ class DirectorMVP:
         # 3. Temporal Decision
         # 2.9 Cognitive State Check (Proprioception)
         # We consult the agent's internal state to decide on System 2 usage.
-        should_engage_system2 = False
+        should_engage_system2 = True
         cognitive_state_label = "Unknown"
 
         if self.config.enable_system2:

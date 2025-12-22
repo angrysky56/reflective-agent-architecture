@@ -98,7 +98,13 @@ class SynthesizePrimitive:
             dot_product = np.dot(real_embedding, centroid)
             norm_a = np.linalg.norm(real_embedding)
             norm_b = np.linalg.norm(centroid)
-            coverage_score = dot_product / (norm_a * norm_b) if norm_a > 0 and norm_b > 0 else 0.0
+            if np.isnan(norm_a) or np.isnan(norm_b) or norm_a == 0 or norm_b == 0:
+                coverage_score = 0.0
+            else:
+                coverage_score = dot_product / (norm_a * norm_b)
+
+            if np.isnan(coverage_score):
+                coverage_score = 0.0
 
             # 2. Rigor (R): Epistemic rigor via MetaValidator
             t1 = time.time()

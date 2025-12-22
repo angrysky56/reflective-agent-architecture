@@ -30,9 +30,8 @@ Do not simply generate an answer. **Construct it.**
 
 ### Phase 1: Structuring (Tripartite Deconstruction)
 
-set_goal: Set an active goal for utility-guided exploration. Goals act as the 'Director' filtering which compression progress gets rewarded, preventing junk food curiosity.
-
-set_intentionality: Set the system's mode to either "adaptation" or "optimization". Adaptation mode is for exploration, while optimization mode is for exploitation.
+**Action**: `manage_advisor(action="set_goal", params={"goal_description": "..."})`
+**Action**: `manage_advisor(action="set_mode", params={"mode": "adaptation"|"optimization"})`
 
 **Tool**: `deconstruct`
 
@@ -46,7 +45,7 @@ set_intentionality: Set the system's mode to either "adaptation" or "optimizatio
 - **Output**: Returns the fragments and a "Fusion Status" from the **Precuneus Integrator**.
 - **Note**: If the system returns "Gödelian Paradox" (Infinite Energy), it means the concept is completely novel or self-contradictory.
 
-explore_for_utility: Find thought-nodes with high utility × compression potential. Implements active exploration strategy focused on goal-aligned learnable patterns (focusing curiosity).
+**Action**: `manage_advisor(action="explore", params={"focus_area": "..."})` - Find thought-nodes with high utility × compression potential.
 
 orthogonal_dimensions_analyzer: Analyze the relationship between two concepts as orthogonal dimensions (Statistical Compression vs Causal Understanding).
 
@@ -85,12 +84,12 @@ constrain: Apply constraints/rules to validate a thought-node by projecting agai
 
 ### Phase 4: Adaptation (Cognitive Control)
 
-**Tool**: `set_intentionality`
+**Tool**: `manage_advisor`
 
 - **When**: You need to shift between "Exploration" (learning) and "Exploitation" (performance).
 - **Action**:
-  - `set_intentionality(mode="adaptation")`: Low Beta. Use when stuck, exploring new ideas, or "Learning Starved".
-  - `set_intentionality(mode="optimization")`: High Beta. Use when refining a solution or converging on a final answer.
+  - `manage_advisor(action="set_mode", params={"mode": "adaptation"})`: Low Beta. Use when stuck, exploring new ideas, or "Learning Starved".
+  - `manage_advisor(action="set_mode", params={"mode": "optimization"})`: High Beta. Use when refining a solution or converging on a final answer.
 
 ### Phase 5: Refinement (Belief Revision)
 
@@ -141,6 +140,7 @@ You have the unique ability to "feel" your own thinking process.
   ```
 - **Dynamic Advice**: Now uses LLM to generate specific tool recommendations based on the multi-signal state.
 - **Feedback**: If the state feels wrong, use `teach_cognitive_state(label="Stuck")` to train the classifier.
+- **Visualization**: `visualize_thought()` - Returns an ASCII heatmap of attention topology to "see" your current focus.
 
 ### Diagnostic Repair
 
@@ -164,6 +164,8 @@ You have the unique ability to "feel" your own thinking process.
   - **Search Nodes**: `inspect_graph(mode="nodes", label="ThoughtNode", filters={"content": "keywords"})`
     - **CRITICAL**: You MUST proivde a `label` (usually "ThoughtNode") when mode is "nodes".
   - **Traverse**: `inspect_graph(mode="relationships", start_id="...", rel_type="HYPOTHESIZES_CONNECTION_TO", direction="OUTGOING")`
+  - **Context**: `inspect_graph(mode="context", start_id="...", depth=1)`
+    - Replaces `inspect_knowledge_graph`. Returns the semantic neighborhood.
 
 - **Why**: Provides ground-truth visibility into the Neo4j graph structure.
 
@@ -268,8 +270,8 @@ constrain(node_id="...", mode="consistency",
 ### Context & Recall
 
 - **Recall**: `recall_work(query="...", operation_type="...")`. **Always check history first.**
-- **Inspect Context**: `inspect_knowledge_graph(node_id="...", depth=1)`. Use this to understand the _semantic neighborhood_ of a node.
-- **Inspect Structure**: `inspect_graph(...)`. Use this to understand the _technical topology_ (edges/properties).
+- **Inspect Context**: `inspect_graph(mode="context", start_id="...", depth=1)`. Use this to understand the _semantic neighborhood_ of a node.
+- **Inspect Structure**: `inspect_graph(mode="relationships", ...)`. Use this to understand the _technical topology_ (edges/properties).
 
 ### Energy Management (Metabolic Ledger)
 
@@ -281,10 +283,10 @@ constrain(node_id="...", mode="consistency",
 
 ### Intrinsic Motivation (Curiosity)
 
-**Tool**: `consult_curiosity`
+**Tool**: `manage_advisor`
 
 - **When**: You are bored, stuck, or want to explore the "unknown unknowns" of the graph.
-- **Action**: Call `consult_curiosity()`.
+- **Action**: Call `manage_advisor(action="consult_curiosity", params={})`.
 - **Mechanism**: The **Curiosity Module** analyzes graph gaps and latent space to propose novel goals.
 - **Boredom**: If you repeat actions, the system will flag "Boredom" and suggest exploring.
 
@@ -322,9 +324,14 @@ constrain(node_id="...", mode="consistency",
 ### Phase 6: Advisor Management & Autonomy
 
 **Tool**: `manage_advisor`
--   **When**: You need to create, update, delete, list, or inspect Advisors.
+-   **When**: You need to manage cognitive state (goals, mode, curiosity) or Advisors.
 -   **Action**: `manage_advisor(action="...", params={...})`
 -   **Actions**:
+    -   `set_goal`: `{goal_description, utility_weight}`
+    -   `propose_goal`: `{}` (Curiosity-driven)
+    -   `explore`: `{focus_area}`
+    -   `set_mode`: `{mode}` (adaptation/optimization)
+    -   `consult_curiosity`: `{}`
     -   `create`/`update`: `{id, name, role, ...}`
     -   `link_knowledge`: `{advisor_id, node_id}` (Auto-Memory)
     -   `get_context`: `{advisor_id}` (Retrieve Advisor's Library)
@@ -343,7 +350,7 @@ constrain(node_id="...", mode="consistency",
 
 - **When**: The task is too complex for a single step or requires multi-modal reasoning (SMART, SLAP).
 - **Action**: Call `consult_compass(task="...")`.
-- **Mechanism**: Delegates the task to the full COMPASS architecture, which performs input analysis, objective planning, and reasoning before executing.
+- **Mechanism**: Delegates the task to the full COMPASS architecture, which autonomously plans and executes using all available MCP tools (Search, Shell, Files) to complete the objective.
 
 ## 9. Empathetic Alignment (Grok-Lang)
 

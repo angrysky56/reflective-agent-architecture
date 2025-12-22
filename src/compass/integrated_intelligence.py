@@ -246,8 +246,10 @@ class IntegratedIntelligence:
 
     def _reasoning_intelligence(self, features: np.ndarray, reasoning_plan: Dict) -> float:
         """Reasoning component score."""
-        # Base score on advancement
-        return float(reasoning_plan.get("advancement", 0.5))
+        # Base score on advancement (SLAP score is 0.0-3.0)
+        raw_score = float(reasoning_plan.get("advancement", 0.5))
+        # Normalize to 0.0-1.0 range
+        return min(1.0, max(0.0, raw_score / 3.0))
 
     def _nlu_intelligence(self, task: str, context: Dict) -> float:
         """NLU component score."""
@@ -288,7 +290,9 @@ class IntegratedIntelligence:
             total_score += score * weight
             total_weight += weight
 
-        return total_score / total_weight if total_weight > 0 else 0.5
+        result = total_score / total_weight if total_weight > 0 else 0.5
+        # Final clamp to ensure valid probability
+        return min(1.0, max(0.0, result))
 
     async def _llm_intelligence(
         self, task: str, reasoning_plan: Dict, context: Dict
@@ -582,7 +586,10 @@ class IntegratedIntelligence:
             data = extract_json_from_text(response_content)
 
             if data:
-                return data.get("confidence", 0.8), data.get("action", "LLM_EXECUTION_REQUIRED")
+                conf = data.get("confidence", 0.8)
+                # Clamp confidence
+                conf = min(1.0, max(0.0, conf))
+                return conf, data.get("action", "LLM_EXECUTION_REQUIRED")
             else:
                 return 0.8, response_content if response_content else "LLM_EXECUTION_REQUIRED"
 

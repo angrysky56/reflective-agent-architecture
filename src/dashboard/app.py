@@ -7,7 +7,8 @@ from datetime import datetime
 
 import graphviz
 import pandas as pd
-import plotly.io as pio
+
+# import plotly.io as pio
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -21,7 +22,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 from src.dashboard.mcp_client_wrapper import get_client  # trunk-ignore(ruff/E402)  # noqa: E402
 from src.llm.factory import LLMFactory  # trunk-ignore(ruff/E402)  # noqa: E402
 
-pio.renderers.default = "browser"
+# pio.renderers.default = "browser"
 
 # ==============================================================================
 # Constants

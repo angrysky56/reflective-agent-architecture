@@ -1809,6 +1809,7 @@ class RAAServerContext:
     def __init__(self):
         self.workspace: CognitiveWorkspace | None = None
         self.raa_context: dict[str, Any] | None = None
+
         self.external_mcp = None
         self.is_initialized = False
 
@@ -1855,6 +1856,7 @@ class RAAServerContext:
         embedding_dim = int(embedding_dim)
 
         device = "cuda" if torch.cuda.is_available() else "cpu"
+
         logger.info(f"Initializing RAA components on {device} (dim={embedding_dim})")
 
         # Initialize RAA components
@@ -2493,17 +2495,7 @@ class RAAServerContext:
                     "rules": arguments["rules"],
                 },
             )
-        elif name == "set_goal":
-            goal_id = self.workspace.set_goal(
-                goal_description=arguments["goal_description"],
-                utility_weight=arguments.get("utility_weight", 1.0),
-            )
-            return {
-                "goal_id": goal_id,
-                "description": arguments["goal_description"],
-                "weight": arguments.get("utility_weight", 1.0),
-                "message": "Goal activated for utility-guided exploration",
-            }
+
         elif name == "compress_to_tool":
             return bridge.execute_monitored_operation(
                 operation="compress_to_tool",
@@ -2528,25 +2520,6 @@ class RAAServerContext:
             # Run COMPASS process_task
             # Note: process_task is async
             result = await director.compass.process_task(task, context)
-            return result
-
-        elif name == "explore_for_utility":
-            # Metabolic Cost: Exploration is Search (1.0)
-            if self.workspace.ctx.ledger:
-                from decimal import Decimal
-
-                from src.substrate import EnergyToken, MeasurementCost
-
-                self.workspace.ctx.ledger.record_transaction(
-                    MeasurementCost(
-                        energy=EnergyToken(Decimal("1.0"), "joules"),
-                        operation_name="explore_for_utility",
-                    )
-                )
-            result = self.workspace.explore_for_utility(
-                focus_area=arguments.get("focus_area"),
-                max_candidates=arguments.get("max_candidates", 10),
-            )
             return result
 
         elif name == "get_active_goals":
@@ -2641,12 +2614,6 @@ class RAAServerContext:
             )
             return results
 
-        elif name == "inspect_knowledge_graph":
-            result = self.workspace.get_node_context(
-                node_id=arguments["node_id"], depth=arguments.get("depth", 1)
-            )
-            return result
-
         elif name == "teach_cognitive_state":
             director = self.get_director()
             success = director.teach_state(arguments["label"])
@@ -2740,23 +2707,6 @@ class RAAServerContext:
             }
             return result
 
-        elif name == "set_intentionality":
-            mode = arguments["mode"].lower()
-            manifold = self.get_manifold()
-            if mode == "optimization":
-                manifold.state_memory.set_beta(50.0)
-                manifold.agent_memory.set_beta(50.0)
-                manifold.action_memory.set_beta(50.0)
-                msg = "Intentionality set to OPTIMIZATION."
-            elif mode == "adaptation":
-                manifold.state_memory.set_beta(5.0)
-                manifold.agent_memory.set_beta(5.0)
-                manifold.action_memory.set_beta(5.0)
-                msg = "Intentionality set to ADAPTATION."
-            else:
-                msg = f"Unknown mode: {mode}"
-            return msg
-
         elif name == "revise":
             # Simplified revise logic
             director = self.get_director()
@@ -2787,6 +2737,102 @@ class RAAServerContext:
             else:
                 response = {"status": "failure", "message": "Revision failed."}
             return response
+
+        elif name == "manage_advisor":
+            action = arguments["action"]
+            params = arguments.get("params", {})
+
+            # --- SYSTEM SELF-MANAGEMENT ACTIONS ---
+            if action == "set_goal":
+                # Metabolic Cost: Goal setting is cheap (0.5)
+                if self.workspace.ledger:
+                    from decimal import Decimal
+
+                    from src.substrate import EnergyToken, MeasurementCost
+
+                    self.workspace.ledger.record_transaction(
+                        MeasurementCost(
+                            energy=EnergyToken(Decimal("0.5"), "joules"), operation_name="set_goal"
+                        )
+                    )
+                goal_id = self.workspace.set_goal(
+                    goal_description=params["goal_description"],
+                    utility_weight=params.get("utility_weight", 1.0),
+                )
+                return {
+                    "goal_id": goal_id,
+                    "description": params["goal_description"],
+                    "weight": params.get("utility_weight", 1.0),
+                    "message": "Goal activated for utility-guided exploration",
+                }
+
+            elif action in ["propose_goal", "consult_curiosity"]:
+                # Curiosity-driven goal proposal
+                goal = self.workspace.curiosity.propose_goal()
+                if goal:
+                    result = {"status": "success", "goal": goal}
+                else:
+                    result = {"status": "idle", "message": "No boredom-driven goals at this time."}
+                return result
+
+            elif action == "explore":
+                # Metabolic Cost: Exploration is Search (1.0)
+                if self.workspace.ledger:
+                    from decimal import Decimal
+
+                    from src.substrate import EnergyToken, MeasurementCost
+
+                    self.workspace.ledger.record_transaction(
+                        MeasurementCost(
+                            energy=EnergyToken(Decimal("1.0"), "joules"),
+                            operation_name="explore_for_utility",
+                        )
+                    )
+                result = self.workspace.explore_for_utility(
+                    focus_area=params.get("focus_area"),
+                    max_candidates=params.get("max_candidates", 10),
+                )
+                return result
+
+            elif action == "set_mode":
+                # Intentionality/Mode setting
+                mode = params.get("mode", "").lower()
+                manifold = self.get_manifold()
+                if mode == "optimization":
+                    manifold.state_memory.set_beta(50.0)
+                    manifold.agent_memory.set_beta(50.0)
+                    manifold.action_memory.set_beta(50.0)
+                    msg = "Intentionality set to OPTIMIZATION (High Beta)."
+                elif mode == "adaptation":
+                    manifold.state_memory.set_beta(5.0)
+                    manifold.agent_memory.set_beta(5.0)
+                    manifold.action_memory.set_beta(5.0)
+                    msg = "Intentionality set to ADAPTATION (Low Beta)."
+                else:
+                    msg = f"Unknown mode: {mode}. Use 'optimization' or 'adaptation'."
+                return {"status": "success", "message": msg}
+
+            # --- ADVISOR MANAGEMENT ACTIONS ---
+            elif action in [
+                "create",
+                "update",
+                "delete",
+                "list",
+                "get",
+                "link_knowledge",
+                "get_knowledge",
+                "get_context",
+            ]:
+                if self.advisor_manager:
+                    # Note: AdvisorManager logic is usually sync or async?
+                    # Assuming async based on usage in Server.call_tool, or we check.
+                    # Server.call_tool uses ctx.advisor_manager.manage_advisor which is async (await).
+                    return await self.advisor_manager.manage_advisor(action, params)
+                else:
+                    return {"error": "AdvisorManager not initialized."}
+
+            else:
+                return {"error": f"Unknown manage_advisor action: {action}"}
 
         # Fallback for other tools (simple pass-through if implemented in bridge/workspace)
         # Or check other tools defined in RAA_TOOLS
@@ -2952,96 +2998,6 @@ Syntax: Prover9 FOL format (e.g., "all x (human(x) -> mortal(x))", "human(socrat
         },
     ),
     Tool(
-        name="propose_goal",
-        description="Propose a new goal for the agent based on intrinsic motivation (Curiosity/Boredom).",
-        inputSchema={
-            "type": "object",
-            "properties": {
-                "waitForPreviousTools": {
-                    "type": "boolean",
-                    "description": "If true, wait for all previous tool calls from this turn to complete before executing (sequential). If false or omitted, execute this tool immediately (parallel with other tools).",
-                }
-            },
-        },
-    ),
-    Tool(
-        name="consult_compass",
-        description="Delegate a complex task to the COMPASS cognitive framework. Use this for tasks requiring multi-step reasoning, planning, or metacognitive analysis.",
-        inputSchema={
-            "type": "object",
-            "properties": {
-                "task": {
-                    "type": "string",
-                    "description": "The task description or problem to solve",
-                },
-                "context": {
-                    "type": "object",
-                    "description": "Optional context dictionary",
-                    "additionalProperties": True,
-                },
-            },
-            "required": ["task"],
-        },
-    ),
-    Tool(
-        name="set_goal",
-        description="Set an active goal for utility-guided exploration. Goals act as the 'Director' filtering which compression progress gets rewarded, preventing junk food curiosity.",
-        inputSchema={
-            "type": "object",
-            "properties": {
-                "goal_description": {
-                    "type": "string",
-                    "description": "Natural language description of the goal",
-                },
-                "utility_weight": {
-                    "type": "number",
-                    "description": "Weight for this goal (0.0-1.0)",
-                    "default": 1.0,
-                },
-            },
-            "required": ["goal_description"],
-        },
-    ),
-    Tool(
-        name="compress_to_tool",
-        description="Convert solved problem(s) into a reusable compressed tool (mnemonics as tools). Creates high-level patterns that can be reused for similar problems.",
-        inputSchema={
-            "type": "object",
-            "properties": {
-                "node_ids": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": "Thought-nodes representing the solved problem",
-                },
-                "tool_name": {"type": "string", "description": "Name for this tool"},
-                "description": {
-                    "type": "string",
-                    "description": "Optional description of what this tool does",
-                },
-            },
-            "required": ["node_ids", "tool_name"],
-        },
-    ),
-    Tool(
-        name="explore_for_utility",
-        description="Find thought-nodes with high utility × compression potential. Implements active exploration strategy focused on goal-aligned learnable patterns (avoiding junk food curiosity).",
-        inputSchema={
-            "type": "object",
-            "properties": {
-                "focus_area": {
-                    "type": "string",
-                    "description": "Optional semantic focus for exploration",
-                },
-                "max_candidates": {
-                    "type": "integer",
-                    "description": "Maximum nodes to return",
-                    "default": 10,
-                },
-            },
-            "required": [],
-        },
-    ),
-    Tool(
         name="get_active_goals",
         description="Get all currently active goals with their weights and metadata.",
         inputSchema={"type": "object", "properties": {}, "required": []},
@@ -3073,22 +3029,6 @@ Syntax: Prover9 FOL format (e.g., "all x (human(x) -> mortal(x))", "human(socrat
                 "limit": {"type": "integer", "description": "Max number of results (default 10)"},
             },
             "required": [],
-        },
-    ),
-    Tool(
-        name="inspect_knowledge_graph",
-        description="Explore the knowledge graph around a specific node to understand context.",
-        inputSchema={
-            "type": "object",
-            "properties": {
-                "node_id": {"type": "string", "description": "ID of the node to inspect"},
-                "depth": {
-                    "type": "integer",
-                    "description": "Traversal depth (default 1)",
-                    "default": 1,
-                },
-            },
-            "required": ["node_id"],
         },
     ),
     Tool(
@@ -3155,21 +3095,6 @@ Syntax: Prover9 FOL format (e.g., "all x (human(x) -> mortal(x))", "human(socrat
         },
     ),
     Tool(
-        name="set_intentionality",
-        description="Set the agent's cognitive intentionality mode (Optimization vs Adaptation). Controls the 'temperature' of the Manifold.",
-        inputSchema={
-            "type": "object",
-            "properties": {
-                "mode": {
-                    "type": "string",
-                    "enum": ["optimization", "adaptation"],
-                    "description": "Mode to set: 'optimization' (High Beta, Convergent) or 'adaptation' (Low Beta, Divergent).",
-                }
-            },
-            "required": ["mode"],
-        },
-    ),
-    Tool(
         name="revise",
         description="Refine a belief or concept using Hybrid Operator C (LTN + Hopfield). Adjusts a thought-node to better match evidence while respecting logical constraints and energy barriers.",
         inputSchema={
@@ -3194,13 +3119,18 @@ Syntax: Prover9 FOL format (e.g., "all x (human(x) -> mortal(x))", "human(socrat
     ),
     Tool(
         name="manage_advisor",
-        description="Consolidated tool for managing Advisors (CRUD + Knowledge). Actions: create, update, delete, list, get, link_knowledge, get_knowledge, get_context.",
+        description="Consolidated tool for managing Advisors (CRUD + Knowledge) AND user's own cognitive state. Actions: set_goal, propose_goal, explore, set_mode, consult_curiosity, create, update, delete, list, get, link_knowledge, get_knowledge, get_context.",
         inputSchema={
             "type": "object",
             "properties": {
                 "action": {
                     "type": "string",
                     "enum": [
+                        "set_goal",
+                        "propose_goal",
+                        "explore",
+                        "set_mode",
+                        "consult_curiosity",
                         "create",
                         "update",
                         "delete",
@@ -3214,7 +3144,7 @@ Syntax: Prover9 FOL format (e.g., "all x (human(x) -> mortal(x))", "human(socrat
                 },
                 "params": {
                     "type": "object",
-                    "description": "Parameters for the action (e.g., {'id': '...'} for delete, {'id': '...', 'name': '...'} for create).",
+                    "description": "Parameters for the action (e.g., {'goal_description': '...'} for set_goal).",
                 },
             },
             "required": ["action", "params"],
@@ -3234,14 +3164,14 @@ Syntax: Prover9 FOL format (e.g., "all x (human(x) -> mortal(x))", "human(socrat
     ),
     Tool(
         name="inspect_graph",
-        description="Inspect the graph using dynamic queries. Search for nodes by label or traverse relationships.",
+        description="Inspect the graph using dynamic queries. Search for nodes, traverse relationships, or explore local context.",
         inputSchema={
             "type": "object",
             "properties": {
                 "mode": {
                     "type": "string",
-                    "enum": ["nodes", "relationships"],
-                    "description": "Operation mode: 'nodes' to search nodes, 'relationships' to traverse.",
+                    "enum": ["nodes", "relationships", "context"],
+                    "description": "Operation mode: 'nodes' (search), 'relationships' (traverse), 'context' (neighborhood).",
                 },
                 "label": {
                     "type": "string",
@@ -3253,7 +3183,7 @@ Syntax: Prover9 FOL format (e.g., "all x (human(x) -> mortal(x))", "human(socrat
                 },
                 "start_id": {
                     "type": "string",
-                    "description": "Starting node ID for traversal (required for mode='relationships').",
+                    "description": "Starting node ID (required for 'relationships' and 'context').",
                 },
                 "rel_type": {
                     "type": "string",
@@ -3265,6 +3195,11 @@ Syntax: Prover9 FOL format (e.g., "all x (human(x) -> mortal(x))", "human(socrat
                     "default": "OUTGOING",
                     "description": "Traversal direction.",
                 },
+                "depth": {
+                    "type": "integer",
+                    "default": 1,
+                    "description": "Traversal depth (for 'context' mode).",
+                },
                 "limit": {
                     "type": "integer",
                     "default": 10,
@@ -3272,19 +3207,6 @@ Syntax: Prover9 FOL format (e.g., "all x (human(x) -> mortal(x))", "human(socrat
                 },
             },
             "required": ["mode"],
-        },
-    ),
-    Tool(
-        name="consult_curiosity",
-        description="Consult the agent's curiosity module to see if there are any interesting goals to pursue (based on boredom/surprise).",
-        inputSchema={
-            "type": "object",
-            "properties": {
-                "waitForPreviousTools": {
-                    "type": "boolean",
-                    "description": "If true, wait for all previous tool calls from this turn to complete before executing (sequential). If false or omitted, execute this tool immediately (parallel with other tools).",
-                }
-            },
         },
     ),
     Tool(
@@ -3850,9 +3772,9 @@ Provide an improved synthesis that addresses the critique by using these tools t
                                 )
 
                         except Exception as e:
-                            logger.warning(f"Director resolution failed: {e}")
+                            logger.error(f"Director resolution error: {e}", exc_info=True)
                             result["resolution_error"] = str(e)
-                            result["resolution_skipped"] = "Director/COMPASS execution failed"
+                            result["resolution_skipped"] = "Resolution aborted due to runtime error"
 
                         else:
                             # If we get here, director ran successfully
@@ -3906,28 +3828,6 @@ Provide an improved synthesis that addresses the critique by using these tools t
                 arguments.get("hybrid", False),
             )
 
-        elif name == "set_goal":
-            # Metabolic Cost: Goal setting is cheap (0.5)
-            if workspace.ledger:
-                from decimal import Decimal
-
-                from src.substrate.energy import EnergyToken, MeasurementCost
-
-                workspace.ledger.record_transaction(
-                    MeasurementCost(
-                        energy=EnergyToken(Decimal("0.5"), "joules"), operation_name="set_goal"
-                    )
-                )
-            goal_id = workspace.set_goal(
-                goal_description=arguments["goal_description"],
-                utility_weight=arguments.get("utility_weight", 1.0),
-            )
-            result = {
-                "goal_id": goal_id,
-                "description": arguments["goal_description"],
-                "weight": arguments.get("utility_weight", 1.0),
-                "message": "Goal activated for utility-guided exploration",
-            }
         elif name == "compress_to_tool":
             # Metabolic Cost: Compression is expensive (5.0)
             if workspace.ledger:
@@ -3981,13 +3881,95 @@ Provide an improved synthesis that addresses the critique by using these tools t
 
             result = workspace.resolve_meta_paradox(conflict=arguments["conflict"])
         elif name == "manage_advisor":
-            if not ctx.advisor_manager:
-                return [TextContent(type="text", text="Error: Advisor Manager not initialized")]
+            action = arguments["action"]
+            params = arguments["params"]
 
-            result = ctx.advisor_manager.manage_advisor(
-                action=arguments["action"], params=arguments["params"]
-            )
-            return [TextContent(type="text", text=json.dumps(result, indent=2))]
+            # --- SYSTEM SELF-MANAGEMENT ACTIONS ---
+            if action == "set_goal":
+                # Metabolic Cost: Goal setting is cheap (0.5)
+                if workspace.ledger:
+                    from decimal import Decimal
+
+                    from src.substrate.energy import EnergyToken, MeasurementCost
+
+                    workspace.ledger.record_transaction(
+                        MeasurementCost(
+                            energy=EnergyToken(Decimal("0.5"), "joules"), operation_name="set_goal"
+                        )
+                    )
+                goal_id = workspace.set_goal(
+                    goal_description=params["goal_description"],
+                    utility_weight=params.get("utility_weight", 1.0),
+                )
+                return [
+                    TextContent(
+                        type="text",
+                        text=json.dumps(
+                            {
+                                "goal_id": goal_id,
+                                "description": params["goal_description"],
+                                "weight": params.get("utility_weight", 1.0),
+                                "message": "Goal activated for utility-guided exploration",
+                            },
+                            indent=2,
+                        ),
+                    )
+                ]
+
+            elif action in ["propose_goal", "consult_curiosity"]:
+                # Curiosity-driven goal proposal
+                goal = workspace.curiosity.propose_goal()
+                if goal:
+                    result = {"status": "success", "goal": goal}
+                else:
+                    result = {"status": "idle", "message": "No boredom-driven goals at this time."}
+                return [TextContent(type="text", text=json.dumps(result, indent=2))]
+
+            elif action == "explore":
+                # Metabolic Cost: Exploration is Search (1.0)
+                if ctx.ledger:
+                    from decimal import Decimal
+
+                    from src.substrate.energy import EnergyToken, MeasurementCost
+
+                    ctx.ledger.record_transaction(
+                        MeasurementCost(
+                            energy=EnergyToken(Decimal("1.0"), "joules"),
+                            operation_name="explore_for_utility",
+                        )
+                    )
+                result = workspace.explore_for_utility(
+                    focus_area=params.get("focus_area"),
+                    max_candidates=params.get("max_candidates", 10),
+                )
+                return [TextContent(type="text", text=json.dumps(result, indent=2, default=str))]
+
+            elif action == "set_mode" or action == "set_intentionality":
+                mode = params.get("mode", "").lower()
+                manifold = ctx.get_manifold()
+
+                if mode == "optimization":
+                    manifold.state_memory.set_beta(50.0)
+                    manifold.agent_memory.set_beta(50.0)
+                    manifold.action_memory.set_beta(50.0)
+                    msg = "Intentionality set to OPTIMIZATION. All Manifold betas increased to 50.0 (Convergent)."
+                elif mode == "adaptation":
+                    manifold.state_memory.set_beta(5.0)
+                    manifold.agent_memory.set_beta(5.0)
+                    manifold.action_memory.set_beta(5.0)
+                    msg = "Intentionality set to ADAPTATION. All Manifold betas decreased to 5.0 (Divergent)."
+                else:
+                    msg = f"Unknown mode: {mode}"
+
+                return [TextContent(type="text", text=msg)]
+
+            # --- ADVISOR SUB-AGENT MANAGEMENT ---
+            else:
+                if not ctx.advisor_manager:
+                    return [TextContent(type="text", text="Error: Advisor Manager not initialized")]
+
+                result = ctx.advisor_manager.manage_advisor(action=action, params=params)
+                return [TextContent(type="text", text=json.dumps(result, indent=2))]
 
         elif name == "consult_advisor":
             if not ctx.agent_factory:
@@ -4034,11 +4016,7 @@ Provide an improved synthesis that addresses the critique by using these tools t
                 limit=arguments.get("limit", 10),
             )
             return [TextContent(type="text", text=json.dumps(results, indent=2, default=str))]
-        elif name == "inspect_knowledge_graph":
-            result = workspace.get_node_context(
-                node_id=arguments["node_id"], depth=arguments.get("depth", 1)
-            )
-            return [TextContent(type="text", text=json.dumps(result, indent=2, default=str))]
+
         elif name == "consult_ruminator":
             focus_node_id = arguments.get("focus_node_id")
             if not ctx.sleep_cycle:
@@ -4087,31 +4065,7 @@ Provide an improved synthesis that addresses the critique by using these tools t
                 results["energy_status"] = workspace.ledger.get_status()
 
             return [TextContent(type="text", text=json.dumps(results, indent=2))]
-        elif name == "explore_for_utility":
-            # Metabolic Cost: Exploration is Search (1.0)
-            if ctx.ledger:
-                from decimal import Decimal
 
-                from src.substrate import EnergyToken, MeasurementCost
-
-                ctx.ledger.record_transaction(
-                    MeasurementCost(
-                        energy=EnergyToken(Decimal("1.0"), "joules"),
-                        operation_name="explore_for_utility",
-                    )
-                )
-            result = workspace.explore_for_utility(
-                focus_area=arguments.get("focus_area"),
-                max_candidates=arguments.get("max_candidates", 10),
-            )
-        elif name == "consult_curiosity":
-            # Curiosity-driven goal proposal
-            goal = workspace.curiosity.propose_goal()
-            if goal:
-                result = {"status": "success", "goal": goal}
-            else:
-                result = {"status": "idle", "message": "No boredom-driven goals at this time."}
-            return [TextContent(type="text", text=json.dumps(result, indent=2))]
         elif name == "compute_grok_depth":
             # Grok-Lang empathetic alignment scoring
             # Metabolic Cost: Empathy computation is moderate (2.0)
@@ -4421,6 +4375,13 @@ Provide a brief first-person reflection on your cognitive state. Are you making 
             }
             return [TextContent(type="text", text=json.dumps(result, indent=2, default=str))]
 
+        elif name == "visualize_thought":
+            director = ctx.get_director()
+            if not director:
+                return [TextContent(type="text", text="Error: Director not initialized")]
+            vis = director.visualize_last_thought()
+            return [TextContent(type="text", text=vis)]
+
         elif name == "diagnose_antifragility":
             # 1. Get base diagnostics
             pointer = ctx.get_pointer()
@@ -4674,29 +4635,6 @@ Provide a brief first-person reflection on your cognitive state. Are you making 
 
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
 
-        elif name == "set_intentionality":
-            mode = arguments["mode"].lower()
-            manifold = ctx.get_manifold()
-
-            if mode == "optimization":
-                # High Beta = Sharp attention = Convergent = Optimization
-                # Set all manifolds to high beta
-                manifold.state_memory.set_beta(50.0)
-                manifold.agent_memory.set_beta(50.0)
-                manifold.action_memory.set_beta(50.0)
-                msg = "Intentionality set to OPTIMIZATION. All Manifold betas increased to 50.0 (Convergent)."
-            elif mode == "adaptation":
-                # Low Beta = Soft attention = Divergent = Adaptation
-                # Set all manifolds to low beta
-                manifold.state_memory.set_beta(5.0)
-                manifold.agent_memory.set_beta(5.0)
-                manifold.action_memory.set_beta(5.0)
-                msg = "Intentionality set to ADAPTATION. All Manifold betas decreased to 5.0 (Divergent)."
-            else:
-                return [TextContent(type="text", text=f"Unknown mode: {mode}")]
-
-            return [TextContent(type="text", text=msg)]
-
         elif name == "revise":
             # 1. Get components
             director = ctx.get_director()
@@ -4708,11 +4646,14 @@ Provide a brief first-person reflection on your cognitive state. Are you making 
             constraints = arguments.get("constraints", [])
 
             # Use workspace embedding model
+            # Use robust device check matching initialization logic
+            target_device = "cuda" if torch.cuda.is_available() else "cpu"
+
             belief_emb = torch.tensor(
-                workspace._embed_text(belief_text), dtype=torch.float32, device=ctx.device
+                workspace._embed_text(belief_text), dtype=torch.float32, device=target_device
             )
             evidence_emb = torch.tensor(
-                workspace._embed_text(evidence_text), dtype=torch.float32, device=ctx.device
+                workspace._embed_text(evidence_text), dtype=torch.float32, device=target_device
             )
 
             # 3. Execute Hybrid Search (Operator C)
@@ -4834,6 +4775,16 @@ Provide a brief first-person reflection on your cognitive state. Are you making 
                     ]
                 direction = arguments.get("direction", "OUTGOING")
                 results = workspace.traverse_relationships(start_id, rel_type, direction, limit)
+            elif mode == "context":
+                start_id = arguments.get("start_id")
+                depth = arguments.get("depth", 1)
+                if not start_id:
+                    return [
+                        TextContent(
+                            type="text", text="Error: 'start_id' is required for context mode."
+                        )
+                    ]
+                results = workspace.get_node_context(start_id, depth)
             else:
                 return [TextContent(type="text", text=f"Unknown mode: {mode}")]
 

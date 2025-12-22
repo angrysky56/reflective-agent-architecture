@@ -1,0 +1,284 @@
+/* RAA Premium Dashboard Theme */
+@import url("https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&family=JetBrains+Mono:wght@400;700&display=swap");
+
+:root {
+  --bg-color: #0e1117;
+  --card-bg: rgba(255, 255, 255, 0.05);
+  --border-color: rgba(255, 255, 255, 0.1);
+  --primary-color: #00bcd4;
+  --accent-color: #ff4081;
+  --text-primary: #e0e0e0;
+  --text-secondary: #a0a0a0;
+}
+
+/* Global Typography */
+html,
+body,
+[class*="css"] {
+  font-family: "Outfit", sans-serif;
+  color: var(--text-primary);
+  background-color: var(--bg-color);
+}
+
+code,
+.stCodeBlock {
+  font-family: "JetBrains Mono", monospace !important;
+}
+
+/* Glassmorphism Containers */
+.stApp {
+  background: radial-gradient(
+      circle at 10% 20%,
+      rgba(0, 188, 212, 0.1) 0%,
+      transparent 20%
+    ),
+    radial-gradient(
+      circle at 90% 80%,
+      rgba(255, 64, 129, 0.05) 0%,
+      transparent 20%
+    ),
+    var(--bg-color);
+}
+
+/* Main Container */
+.main {
+    background-color: #0c0e14;
+    font-family: 'Outfit', sans-serif;
+}
+
+/* Sidebar */
+[data-testid="stSidebar"] {
+    background-color: rgba(12, 14, 20, 0.95);
+    border-right: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Tab Headers */
+.stTabs [data-baseweb="tab-list"] {
+    gap: 24px;
+    background-color: transparent;
+}
+
+.stTabs [data-baseweb="tab"] {
+    height: 50px;
+    white-space: pre-wrap;
+    background-color: transparent;
+    border-radius: 4px;
+    color: rgba(255, 255, 255, 0.6);
+    font-family: 'Outfit', sans-serif;
+    font-weight: 600;
+}
+
+.stTabs [aria-selected="true"] {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: #ffffff;
+    border-bottom: 2px solid #6c5ce7;
+}
+
+/* Messages - STRICT LEFT ALIGNMENT */
+.user-message, .assistant-message {
+    padding: 16px;
+    margin-bottom: 12px;
+    border-radius: 8px;
+    border-left: 3px solid;
+    font-size: 15px;
+    line-height: 1.6;
+    background: rgba(255, 255, 255, 0.03); /* Unified Glass Background */
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    width: 100%; /* Full width */
+    text-align: left; /* Strict Left */
+}
+
+/* User Variant */
+.user-message {
+    border-left-color: #00cec9; /* Cyan Accent */
+}
+
+/* Assistant Variant */
+.assistant-message {
+    border-left-color: #d63384; /* Pink Accent */
+}
+
+/* Tool Execution Box */
+.tool-exec-box {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: #a29bfe;
+    background: rgba(0, 0, 0, 0.3);
+    padding: 10px;
+    border-radius: 4px;
+    margin: 8px 0;
+    border-left: 3px solid #6c5ce7;
+}
+
+/* Metrics & Gauges */
+.metric-container {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 16px;
+    text-align: center;
+}
+
+.metric-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 24px;
+    font-weight: 700;
+    color: #00cec9;
+}
+
+.metric-label {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.5);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+/* Status Badge */
+.status-badge {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+.status-online {
+    background-color: rgba(0, 206, 201, 0.15);
+    color: #00cec9;
+    border: 1px solid rgba(0, 206, 201, 0.3);
+}
+
+.status-offline {
+    background-color: rgba(255, 71, 87, 0.15);
+    color: #ff4757;
+    border: 1px solid rgba(255, 71, 87, 0.3);
+}
+
+/* Sticky Header HUD */
+.hud-header {
+    position: sticky;
+    top: 0;
+    z-index: 999;
+    background: linear-gradient(135deg, rgba(12, 14, 20, 0.98) 0%, rgba(20, 25, 35, 0.98) 100%);
+    backdrop-filter: blur(12px);
+    padding: 16px 24px;
+    border-bottom: 1px solid rgba(108, 92, 231, 0.3);
+    border-radius: 0 0 8px 8px;
+    margin-bottom: 16px;
+}
+
+.hud-header h1 {
+    color: #ffffff;
+    font-family: 'Outfit', sans-serif;
+    font-weight: 600;
+}
+
+.hud-header {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.hud-title {
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: #ffffff;
+    font-family: 'Outfit', sans-serif;
+}
+
+.hud-metric {
+    font-size: 0.9rem;
+    color: rgba(255, 255, 255, 0.8);
+    background: rgba(255, 255, 255, 0.05);
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+.hud-phase {
+    font-size: 0.85rem;
+    color: #00cec9;
+    background: rgba(0, 206, 201, 0.1);
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-weight: 500;
+}
+
+/* Chat Input Container */
+.chat-input-container {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+}
+
+/* Sidebar Metric Cards */
+.sidebar-metric-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+/* File Upload Styling */
+[data-testid="stFileUploader"] {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px dashed rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 8px;
+    margin-bottom: 8px;
+}
+
+/* Grok-Lang Widget */
+.grok-widget {
+    background: linear-gradient(135deg, rgba(108, 92, 231, 0.1) 0%, rgba(0, 206, 201, 0.05) 100%);
+    border: 1px solid rgba(108, 92, 231, 0.2);
+    border-radius: 8px;
+    padding: 12px;
+}
+
+/* Chart Container */
+.stLineChart {
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 8px;
+    padding: 8px;
+}
+
+/* Chat Area - scrollable */
+.chat-area {
+    flex: 1;
+    overflow-y: auto;
+    padding-bottom: 100px; /* Space for fixed input */
+}
+
+/* Fixed Bottom Input Area */
+.fixed-input-area {
+    position: sticky;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(180deg, transparent 0%, rgba(12, 14, 20, 0.95) 20%);
+    padding: 16px 0;
+    z-index: 100;
+}
+
+/* Streamlit chat input override for better styling */
+[data-testid="stChatInput"] {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+}
+
+/* Temperature indicator */
+.temp-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.85rem;
+    color: #ff7675;
+    background: rgba(255, 118, 117, 0.1);
+    padding: 4px 10px;
+    border-radius: 4px;
+}
