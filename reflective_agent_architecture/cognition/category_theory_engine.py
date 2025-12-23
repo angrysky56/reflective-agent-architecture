@@ -1,10 +1,10 @@
-
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from reflective_agent_architecture.cognition.logic_core import LogicCore
 
 logger = logging.getLogger("raa.category_engine")
+
 
 class CategoryTheoryEngine:
     """
@@ -18,16 +18,18 @@ class CategoryTheoryEngine:
     3. Generating rigorous reports on graph topology.
     """
 
-    def __init__(self, prover_path: Optional[str] = None):
+    def __init__(self, prover_path: str | None = None):
         self.logic = LogicCore(prover_path)
 
-    def verify_triangle_commutativity(self,
-                                     a_id: str,
-                                     b_id: str,
-                                     c_id: str,
-                                     path_ab_type: str,
-                                     path_ac_type: str,
-                                     path_bc_type: str) -> Dict[str, Any]:
+    def verify_triangle_commutativity(
+        self,
+        a_id: str,
+        b_id: str,
+        c_id: str,
+        path_ab_type: str,
+        path_ac_type: str,
+        path_bc_type: str,
+    ) -> dict[str, Any]:
         """
         Verify if the triangle A->B->C commutes with A->C.
         Checks if f_BC o f_AB = f_AC.
@@ -63,9 +65,15 @@ class CategoryTheoryEngine:
         # But here we are often checking if a SPECIFIC relationship serves as the composition.
 
         premises = [
-            f"morphism({m_ab})", f"source({m_ab},{obj_a})", f"target({m_ab},{obj_b})",
-            f"morphism({m_bc})", f"source({m_bc},{obj_b})", f"target({m_bc},{obj_c})",
-            f"morphism({m_ac})", f"source({m_ac},{obj_a})", f"target({m_ac},{obj_c})"
+            f"morphism({m_ab})",
+            f"source({m_ab},{obj_a})",
+            f"target({m_ab},{obj_b})",
+            f"morphism({m_bc})",
+            f"source({m_bc},{obj_b})",
+            f"target({m_bc},{obj_c})",
+            f"morphism({m_ac})",
+            f"source({m_ac},{obj_a})",
+            f"target({m_ac},{obj_c})",
         ]
 
         # 3. Add Category Axioms
@@ -82,9 +90,9 @@ class CategoryTheoryEngine:
 
         return self.logic.prove(premises, conclusion)
 
-    def generate_commutativity_report(self,
-                                     focus_node: Dict,
-                                     open_triangles: List[Dict]) -> str:
+    def generate_commutativity_report(
+        self, focus_node: dict[str, Any], open_triangles: list[dict[str, Any]]
+    ) -> str:
         """
         Generate a human-readable report on the commutativity of the neighborhood.
         """
@@ -96,7 +104,9 @@ class CategoryTheoryEngine:
 
         if not open_triangles:
             report.append("## Status: Commutative")
-            report.append("No open triangles detected in the immediate neighborhood. The local diagram is coherent.")
+            report.append(
+                "No open triangles detected in the immediate neighborhood. The local diagram is coherent."
+            )
             return "\n".join(report)
 
         report.append(f"## Status: Non-Commutative ({len(open_triangles)} open triangles)")
@@ -104,20 +114,24 @@ class CategoryTheoryEngine:
         report.append("")
 
         for tri in open_triangles:
-             b_name = tri.get('b_name', 'B')
-             c_name = tri.get('c_name', 'C')
-             report.append(f"- **Span**: {focus_node.get('name')} -> {b_name} ({tri.get('ab_type')}), {focus_node.get('name')} -> {c_name} ({tri.get('ac_type')})")
-             report.append(f"  - Missing/Inferred Morphism: {b_name} -> {c_name}")
-             if 'inferred' in tri:
-                 report.append(f"  - **Proposed Completion**: {tri['inferred']}")
-             if 'verification' in tri:
-                 proof_res = tri['verification'].get('result', 'unknown')
-                 report.append(f"  - **Formal Verification**: {proof_res.upper()}")
-                 if proof_res == 'proved':
-                     report.append("    -> The Diagram Commutes (Logically Consistent)")
-                 else:
-                     report.append("    -> Commutativity NOT Proved (Relationship may be contingent or heuristic)")
-             report.append("")
+            b_name = tri.get("b_name", "B")
+            c_name = tri.get("c_name", "C")
+            report.append(
+                f"- **Span**: {focus_node.get('name')} -> {b_name} ({tri.get('ab_type')}), {focus_node.get('name')} -> {c_name} ({tri.get('ac_type')})"
+            )
+            report.append(f"  - Missing/Inferred Morphism: {b_name} -> {c_name}")
+            if "inferred" in tri:
+                report.append(f"  - **Proposed Completion**: {tri['inferred']}")
+            if "verification" in tri:
+                proof_res = tri["verification"].get("result", "unknown")
+                report.append(f"  - **Formal Verification**: {proof_res.upper()}")
+                if proof_res == "proved":
+                    report.append("    -> The Diagram Commutes (Logically Consistent)")
+                else:
+                    report.append(
+                        "    -> Commutativity NOT Proved (Relationship may be contingent or heuristic)"
+                    )
+            report.append("")
 
         report.append("## Recommendation")
         report.append("Run `consult_ruminator` to formally close these diagrams.")

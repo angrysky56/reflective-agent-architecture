@@ -10,7 +10,7 @@ This is the main orchestrator that coordinates all subsystems:
 - Integrated Intelligence (Execution Layer)
 """
 
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, cast
 
 from .advisors import AdvisorRegistry
 from .config import COMPASSConfig, get_config
@@ -37,10 +37,10 @@ class COMPASS:
 
     def __init__(
         self,
-        config: Optional[COMPASSConfig] = None,
-        logger: Optional[COMPASSLogger] = None,
-        llm_provider: Optional[Any] = None,
-        mcp_client: Optional[Any] = None,
+        config: COMPASSConfig | None = None,
+        logger: COMPASSLogger | None = None,
+        llm_provider: Any | None = None,
+        mcp_client: Any | None = None,
     ):
         """
         Initialize COMPASS framework.
@@ -111,9 +111,9 @@ class COMPASS:
     async def process_task(
         self,
         task_description: str,
-        context: Optional[Dict] = None,
-        max_iterations: Optional[int] = None,
-    ) -> Dict[str, Any]:
+        context: dict | None = None,
+        max_iterations: int | None = None,
+    ) -> dict[str, Any]:
         """
         Process a task through the integrated cognitive framework.
 
@@ -393,8 +393,8 @@ class COMPASS:
         return "Error: No LLM provider available."
 
     async def _execute_reasoning_step(
-        self, task: str, plan: Dict, modules: List[int], resources: Dict, context: Optional[Dict]
-    ) -> Dict:
+        self, task: str, plan: dict, modules: list[int], resources: dict, context: dict | None
+    ) -> dict:
         """Execute a single reasoning step using Integrated Intelligence."""
         self.logger.info(f"COMPASS._execute_reasoning_step called for task: {task[:50]}...")
         result = await self.integrated_intelligence.make_decision(
@@ -405,7 +405,7 @@ class COMPASS:
         )
         return result
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Get current status of the framework."""
         return {
             "omcd": {
@@ -420,9 +420,9 @@ class COMPASS:
 
 
 def create_compass(
-    config: Optional[COMPASSConfig] = None,
-    llm_provider: Optional[Any] = None,
-    mcp_client: Optional[Any] = None,
+    config: COMPASSConfig | None = None,
+    llm_provider: Any | None = None,
+    mcp_client: Any | None = None,
 ) -> COMPASS:
     """
     Factory function to create a COMPASS instance.
@@ -441,7 +441,7 @@ def create_compass(
     return COMPASS(config, llm_provider=llm_provider, mcp_client=mcp_client)
 
 
-def quick_solve(task: str, **config_overrides: Any) -> Dict[str, Any]:
+def quick_solve(task: str, **config_overrides: Any) -> dict[str, Any]:
     """
     Quick one-shot task solving with COMPASS.
 

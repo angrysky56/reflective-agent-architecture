@@ -19,8 +19,12 @@ import streamlit as st  # trunk-ignore(ruff/E402)  # noqa: E402
 # Add project root to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
-from reflective_agent_architecture.dashboard.mcp_client_wrapper import get_client  # trunk-ignore(ruff/E402)  # noqa: E402
-from reflective_agent_architecture.llm.factory import LLMFactory  # trunk-ignore(ruff/E402)  # noqa: E402
+from reflective_agent_architecture.dashboard.mcp_client_wrapper import (  # trunk-ignore(ruff/E402)  # noqa: E402
+    get_client,
+)
+from reflective_agent_architecture.llm.factory import (  # trunk-ignore(ruff/E402)  # noqa: E402
+    LLMFactory,
+)
 
 # pio.renderers.default = "browser"
 

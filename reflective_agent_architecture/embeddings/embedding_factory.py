@@ -3,12 +3,21 @@ import os
 from typing import Any, Optional
 
 import torch
-
-from reflective_agent_architecture.embeddings.base_embedding_provider import BaseEmbeddingProvider
-from reflective_agent_architecture.embeddings.lmstudio_embedding_provider import LMStudioEmbeddingProvider
-from reflective_agent_architecture.embeddings.ollama_embedding_provider import OllamaEmbeddingProvider
-from reflective_agent_architecture.embeddings.openrouter_embedding_provider import OpenRouterEmbeddingProvider
-from reflective_agent_architecture.embeddings.sentence_transformer_provider import SentenceTransformerProvider
+from reflective_agent_architecture.embeddings.base_embedding_provider import (
+    BaseEmbeddingProvider,
+)
+from reflective_agent_architecture.embeddings.lmstudio_embedding_provider import (
+    LMStudioEmbeddingProvider,
+)
+from reflective_agent_architecture.embeddings.ollama_embedding_provider import (
+    OllamaEmbeddingProvider,
+)
+from reflective_agent_architecture.embeddings.openrouter_embedding_provider import (
+    OpenRouterEmbeddingProvider,
+)
+from reflective_agent_architecture.embeddings.sentence_transformer_provider import (
+    SentenceTransformerProvider,
+)
 
 logger = logging.getLogger(__name__)
 

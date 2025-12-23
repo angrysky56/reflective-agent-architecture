@@ -156,7 +156,9 @@ class WorkHistory:
         """
         Return only DELIBERATION and EXPLORATION ops, excluding infrastructure/introspection.
         """
-        from reflective_agent_architecture.substrate.operation_categories import is_exempt_from_looping
+        from reflective_agent_architecture.substrate.operation_categories import (
+            is_exempt_from_looping,
+        )
 
         # Over-fetch to ensure we have enough after filtering
         raw_limit = limit * 5

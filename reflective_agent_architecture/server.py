@@ -45,35 +45,62 @@ from dotenv import load_dotenv
 from mcp.server import Server
 from mcp.types import TextContent, Tool
 from neo4j import GraphDatabase
-
 from reflective_agent_architecture.cognition.curiosity import CuriosityModule
-from reflective_agent_architecture.cognition.emotion_framework import consult_computational_empathy
-from reflective_agent_architecture.cognition.grok_lang import AffectVector, GrokDepthCalculator, Intent, MindState, Utterance
+from reflective_agent_architecture.cognition.emotion_framework import (
+    consult_computational_empathy,
+)
+from reflective_agent_architecture.cognition.grok_lang import (
+    AffectVector,
+    GrokDepthCalculator,
+    Intent,
+    MindState,
+    Utterance,
+)
 from reflective_agent_architecture.cognition.logic_core import LogicCore
-from reflective_agent_architecture.cognition.primitives.compress import CompressPrimitive
-from reflective_agent_architecture.cognition.primitives.deconstruct import DeconstructPrimitive
-from reflective_agent_architecture.cognition.primitives.hypothesize import HypothesizePrimitive
-from reflective_agent_architecture.cognition.primitives.synthesize import SynthesizePrimitive
+from reflective_agent_architecture.cognition.primitives.compress import (
+    CompressPrimitive,
+)
+from reflective_agent_architecture.cognition.primitives.deconstruct import (
+    DeconstructPrimitive,
+)
+from reflective_agent_architecture.cognition.primitives.hypothesize import (
+    HypothesizePrimitive,
+)
+from reflective_agent_architecture.cognition.primitives.synthesize import (
+    SynthesizePrimitive,
+)
 from reflective_agent_architecture.cognition.system_guide import SystemGuideNodes
 from reflective_agent_architecture.cognition.working_memory import WorkingMemory
-from reflective_agent_architecture.compass.orthogonal_dimensions import OrthogonalDimensionsAnalyzer
+from reflective_agent_architecture.compass.orthogonal_dimensions import (
+    OrthogonalDimensionsAnalyzer,
+)
 from reflective_agent_architecture.config.cwd_config import CWDConfig
 from reflective_agent_architecture.director import Director, DirectorConfig
 from reflective_agent_architecture.director.simple_gp import SimpleGP
-from reflective_agent_architecture.embeddings.base_embedding_provider import BaseEmbeddingProvider
+from reflective_agent_architecture.embeddings.base_embedding_provider import (
+    BaseEmbeddingProvider,
+)
 from reflective_agent_architecture.embeddings.embedding_factory import EmbeddingFactory
 from reflective_agent_architecture.embeddings.migration_trainer import train_projection
 from reflective_agent_architecture.integration.agent_factory import AgentFactory
 from reflective_agent_architecture.integration.continuity_field import ContinuityField
-from reflective_agent_architecture.integration.continuity_service import ContinuityService
-from reflective_agent_architecture.integration.cwd_raa_bridge import BridgeConfig, CWDRAABridge
+from reflective_agent_architecture.integration.continuity_service import (
+    ContinuityService,
+)
+from reflective_agent_architecture.integration.cwd_raa_bridge import (
+    BridgeConfig,
+    CWDRAABridge,
+)
 from reflective_agent_architecture.integration.precuneus import PrecuneusIntegrator
 from reflective_agent_architecture.integration.sleep_cycle import SleepCycle
 from reflective_agent_architecture.llm.factory import LLMFactory
 from reflective_agent_architecture.llm.provider import BaseLLMProvider
 from reflective_agent_architecture.manifold import HopfieldConfig, Manifold
 from reflective_agent_architecture.persistence.work_history import WorkHistory
-from reflective_agent_architecture.pointer.goal_controller import GoalController, PointerConfig
+from reflective_agent_architecture.pointer.goal_controller import (
+    GoalController,
+    PointerConfig,
+)
 from reflective_agent_architecture.processor import Processor, ProcessorConfig
 from reflective_agent_architecture.substrate import (
     EnergyToken,
@@ -81,9 +108,15 @@ from reflective_agent_architecture.substrate import (
     OperationCostProfile,
     SubstrateAwareDirector,
 )
-from reflective_agent_architecture.substrate.energy import EnergyDepletionError, MetabolicLedger
+from reflective_agent_architecture.substrate.energy import (
+    EnergyDepletionError,
+    MetabolicLedger,
+)
 from reflective_agent_architecture.substrate.entropy import EntropyMonitor
-from reflective_agent_architecture.vectordb_migrate import ChromaMigrator, MigrationDetector
+from reflective_agent_architecture.vectordb_migrate import (
+    ChromaMigrator,
+    MigrationDetector,
+)
 
 # Load environment variables from .env file
 load_dotenv()
@@ -1828,7 +1861,9 @@ class RAAServerContext:
         self._initialize_raa_components()
 
         # 3. Initialize External MCP Manager
-        from reflective_agent_architecture.integration.external_mcp_client import ExternalMCPManager
+        from reflective_agent_architecture.integration.external_mcp_client import (
+            ExternalMCPManager,
+        )
 
         # Config path relative to project root
         config_path = Path(__file__).parent.parent / "compass_mcp_config.json"
@@ -2047,7 +2082,9 @@ class RAAServerContext:
             and hasattr(self.substrate_director, "compass")
         ):
             # Initialize Advisor Manager (Consolidated Integration)
-            from reflective_agent_architecture.integration.advisor_manager import AdvisorManager
+            from reflective_agent_architecture.integration.advisor_manager import (
+                AdvisorManager,
+            )
 
             self.advisor_manager = AdvisorManager(
                 registry=self.substrate_director.compass.advisor_registry, workspace=self
@@ -2322,7 +2359,10 @@ class RAAServerContext:
         if self.ledger:
             from decimal import Decimal
 
-            from reflective_agent_architecture.substrate import EnergyToken, MeasurementCost
+            from reflective_agent_architecture.substrate import (
+                EnergyToken,
+                MeasurementCost,
+            )
 
             # Cost ~ Learning Cost (5.0)
             self.ledger.record_transaction(
@@ -2428,7 +2468,10 @@ class RAAServerContext:
             if self.workspace.ctx.ledger:
                 from decimal import Decimal
 
-                from reflective_agent_architecture.substrate import EnergyToken, MeasurementCost
+                from reflective_agent_architecture.substrate import (
+                    EnergyToken,
+                    MeasurementCost,
+                )
 
                 # Cost ~ Search Cost (1.0)
                 self.workspace.ctx.ledger.record_transaction(
@@ -2472,7 +2515,10 @@ class RAAServerContext:
             if self.workspace.ctx.ledger:
                 from decimal import Decimal
 
-                from reflective_agent_architecture.substrate import EnergyToken, MeasurementCost
+                from reflective_agent_architecture.substrate import (
+                    EnergyToken,
+                    MeasurementCost,
+                )
 
                 self.workspace.ctx.ledger.record_transaction(
                     MeasurementCost(
@@ -2748,7 +2794,10 @@ class RAAServerContext:
                 if self.workspace.ledger:
                     from decimal import Decimal
 
-                    from reflective_agent_architecture.substrate import EnergyToken, MeasurementCost
+                    from reflective_agent_architecture.substrate import (
+                        EnergyToken,
+                        MeasurementCost,
+                    )
 
                     self.workspace.ledger.record_transaction(
                         MeasurementCost(
@@ -2780,7 +2829,10 @@ class RAAServerContext:
                 if self.workspace.ledger:
                     from decimal import Decimal
 
-                    from reflective_agent_architecture.substrate import EnergyToken, MeasurementCost
+                    from reflective_agent_architecture.substrate import (
+                        EnergyToken,
+                        MeasurementCost,
+                    )
 
                     self.workspace.ledger.record_transaction(
                         MeasurementCost(
@@ -3546,7 +3598,10 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
             if workspace.ledger:
                 from decimal import Decimal
 
-                from reflective_agent_architecture.substrate.energy import EnergyToken, MeasurementCost
+                from reflective_agent_architecture.substrate.energy import (
+                    EnergyToken,
+                    MeasurementCost,
+                )
 
                 workspace.ledger.record_transaction(
                     MeasurementCost(
@@ -3582,7 +3637,10 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
             if workspace.ledger:
                 from decimal import Decimal
 
-                from reflective_agent_architecture.substrate.energy import EnergyToken, MeasurementCost
+                from reflective_agent_architecture.substrate.energy import (
+                    EnergyToken,
+                    MeasurementCost,
+                )
 
                 workspace.ledger.record_transaction(
                     MeasurementCost(
@@ -3604,7 +3662,10 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
             if workspace.ledger:
                 from decimal import Decimal
 
-                from reflective_agent_architecture.substrate.energy import EnergyToken, MeasurementCost
+                from reflective_agent_architecture.substrate.energy import (
+                    EnergyToken,
+                    MeasurementCost,
+                )
 
                 workspace.ledger.record_transaction(
                     MeasurementCost(
@@ -3789,7 +3850,10 @@ Provide an improved synthesis that addresses the critique by using these tools t
             if workspace.ledger:
                 from decimal import Decimal
 
-                from reflective_agent_architecture.substrate.energy import EnergyToken, MeasurementCost
+                from reflective_agent_architecture.substrate.energy import (
+                    EnergyToken,
+                    MeasurementCost,
+                )
 
                 workspace.ledger.record_transaction(
                     MeasurementCost(
@@ -3813,7 +3877,10 @@ Provide an improved synthesis that addresses the critique by using these tools t
             if workspace.ledger:
                 from decimal import Decimal
 
-                from reflective_agent_architecture.substrate.energy import EnergyToken, MeasurementCost
+                from reflective_agent_architecture.substrate.energy import (
+                    EnergyToken,
+                    MeasurementCost,
+                )
 
                 workspace.ledger.record_transaction(
                     MeasurementCost(
@@ -3833,7 +3900,10 @@ Provide an improved synthesis that addresses the critique by using these tools t
             if workspace.ledger:
                 from decimal import Decimal
 
-                from reflective_agent_architecture.substrate.energy import EnergyToken, MeasurementCost
+                from reflective_agent_architecture.substrate.energy import (
+                    EnergyToken,
+                    MeasurementCost,
+                )
 
                 workspace.ledger.record_transaction(
                     MeasurementCost(
@@ -3870,7 +3940,10 @@ Provide an improved synthesis that addresses the critique by using these tools t
             if workspace.ledger:
                 from decimal import Decimal
 
-                from reflective_agent_architecture.substrate.energy import EnergyToken, MeasurementCost
+                from reflective_agent_architecture.substrate.energy import (
+                    EnergyToken,
+                    MeasurementCost,
+                )
 
                 workspace.ledger.record_transaction(
                     MeasurementCost(
@@ -3890,7 +3963,10 @@ Provide an improved synthesis that addresses the critique by using these tools t
                 if workspace.ledger:
                     from decimal import Decimal
 
-                    from reflective_agent_architecture.substrate.energy import EnergyToken, MeasurementCost
+                    from reflective_agent_architecture.substrate.energy import (
+                        EnergyToken,
+                        MeasurementCost,
+                    )
 
                     workspace.ledger.record_transaction(
                         MeasurementCost(
@@ -3930,7 +4006,10 @@ Provide an improved synthesis that addresses the critique by using these tools t
                 if ctx.ledger:
                     from decimal import Decimal
 
-                    from reflective_agent_architecture.substrate.energy import EnergyToken, MeasurementCost
+                    from reflective_agent_architecture.substrate.energy import (
+                        EnergyToken,
+                        MeasurementCost,
+                    )
 
                     ctx.ledger.record_transaction(
                         MeasurementCost(
@@ -4072,7 +4151,10 @@ Provide an improved synthesis that addresses the critique by using these tools t
             if workspace.ledger:
                 from decimal import Decimal
 
-                from reflective_agent_architecture.substrate.energy import EnergyToken, MeasurementCost
+                from reflective_agent_architecture.substrate.energy import (
+                    EnergyToken,
+                    MeasurementCost,
+                )
 
                 workspace.ledger.record_transaction(
                     MeasurementCost(
@@ -4234,7 +4316,9 @@ Provide an improved synthesis that addresses the critique by using these tools t
 
             # --- Signal 3: Operation Pattern Analysis (Semantic Looping) ---
             # Delegated to CognitiveDiagnostics
-            from reflective_agent_architecture.cognition.cognitive_diagnostics import CognitiveDiagnostics
+            from reflective_agent_architecture.cognition.cognitive_diagnostics import (
+                CognitiveDiagnostics,
+            )
 
             # Initialize diagnostics if not present on workspace
             if not hasattr(workspace, "diagnostics"):
@@ -4511,7 +4595,10 @@ Provide a brief first-person reflection on your cognitive state. Are you making 
             if workspace.ledger:
                 from decimal import Decimal
 
-                from reflective_agent_architecture.substrate.energy import EnergyToken, MeasurementCost
+                from reflective_agent_architecture.substrate.energy import (
+                    EnergyToken,
+                    MeasurementCost,
+                )
 
                 workspace.ledger.record_transaction(
                     MeasurementCost(
@@ -4529,7 +4616,10 @@ Provide a brief first-person reflection on your cognitive state. Are you making 
             if workspace.ledger:
                 from decimal import Decimal
 
-                from reflective_agent_architecture.substrate.energy import EnergyToken, MeasurementCost
+                from reflective_agent_architecture.substrate.energy import (
+                    EnergyToken,
+                    MeasurementCost,
+                )
 
                 workspace.ledger.record_transaction(
                     MeasurementCost(
@@ -4550,7 +4640,10 @@ Provide a brief first-person reflection on your cognitive state. Are you making 
             if workspace.ledger:
                 from decimal import Decimal
 
-                from reflective_agent_architecture.substrate.energy import EnergyToken, MeasurementCost
+                from reflective_agent_architecture.substrate.energy import (
+                    EnergyToken,
+                    MeasurementCost,
+                )
 
                 workspace.ledger.record_transaction(
                     MeasurementCost(
@@ -4572,7 +4665,10 @@ Provide a brief first-person reflection on your cognitive state. Are you making 
             if workspace.ledger:
                 from decimal import Decimal
 
-                from reflective_agent_architecture.substrate.energy import EnergyToken, MeasurementCost
+                from reflective_agent_architecture.substrate.energy import (
+                    EnergyToken,
+                    MeasurementCost,
+                )
 
                 workspace.ledger.record_transaction(
                     MeasurementCost(
@@ -4797,7 +4893,10 @@ Provide a brief first-person reflection on your cognitive state. Are you making 
             if ctx.ledger:
                 from decimal import Decimal
 
-                from reflective_agent_architecture.substrate import EnergyToken, MeasurementCost
+                from reflective_agent_architecture.substrate import (
+                    EnergyToken,
+                    MeasurementCost,
+                )
 
                 ctx.ledger.record_transaction(
                     MeasurementCost(

@@ -8,7 +8,7 @@ Provides specialized analysis of the agent's cognitive state, including:
 """
 
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from reflective_agent_architecture.persistence.work_history import WorkHistory
 
@@ -26,7 +26,7 @@ class CognitiveDiagnostics:
 
     def detect_semantic_looping(
         self, history: WorkHistory
-    ) -> Tuple[bool, Optional[str], int, List[str]]:
+    ) -> tuple[bool, str | None, int, list[str]]:
         """
         Detect semantic looping (Sole Node Fixation).
 
@@ -70,7 +70,7 @@ class CognitiveDiagnostics:
 
         return is_looping, top_node_id, top_count, warnings
 
-    def update_stress_monitoring(self, history: WorkHistory) -> Dict[str, Any]:
+    def update_stress_monitoring(self, history: WorkHistory) -> dict[str, Any]:
         """
         Scan recent history to update the Stress Sensor.
 
@@ -79,12 +79,16 @@ class CognitiveDiagnostics:
         try:
             # Lazy load sensor to avoid circular imports during init
             if not hasattr(self, "stress_sensor"):
-                from reflective_agent_architecture.evolution.stress_sensor import StressSensor
+                from reflective_agent_architecture.evolution.stress_sensor import (
+                    StressSensor,
+                )
 
                 self.stress_sensor = StressSensor()
                 self._last_processed_id = 0
 
-            from reflective_agent_architecture.evolution.stress_sensor import ReasoningTrace as TraceType  # alias for clarity
+            from reflective_agent_architecture.evolution.stress_sensor import (
+                ReasoningTrace as TraceType,  # alias for clarity
+            )
 
             # Fetch recent operations
             # Ideally we'd scan from _last_processed_id, but WorkHistory might not expose ID easily

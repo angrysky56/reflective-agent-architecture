@@ -7,7 +7,6 @@ Manages the specialized Advisor Profiles that COMPASS can embody.
 import json
 import os
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
 
 from ..utils import COMPASSLogger
 
@@ -28,14 +27,14 @@ class AdvisorProfile:
     role: str
     description: str
     system_prompt: str
-    tools: List[str] = field(default_factory=list)
-    knowledge_paths: List[str] = field(default_factory=list)
+    tools: list[str] = field(default_factory=list)
+    knowledge_paths: list[str] = field(default_factory=list)
     # NEW: Links to ThoughtNodes in Neo4j for persistent advisor knowledge
-    knowledge_node_ids: List[str] = field(default_factory=list)
+    knowledge_node_ids: list[str] = field(default_factory=list)
     # NEW: Associated patterns in Manifold for advisor-specific retrieval
-    manifold_pattern_ids: List[str] = field(default_factory=list)
+    manifold_pattern_ids: list[str] = field(default_factory=list)
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         return {
             "id": self.id,
             "name": self.name,
@@ -49,7 +48,7 @@ class AdvisorProfile:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict) -> "AdvisorProfile":
+    def from_dict(cls, data: dict) -> "AdvisorProfile":
         # Handle backward compatibility for old advisor files
         # without knowledge_node_ids or manifold_pattern_ids
         data.setdefault("knowledge_node_ids", [])
@@ -62,8 +61,8 @@ class AdvisorRegistry:
     Registry for managing Advisor Profiles.
     """
 
-    def __init__(self, storage_path: Optional[str] = None):
-        self.advisors: Dict[str, AdvisorProfile] = {}
+    def __init__(self, storage_path: str | None = None):
+        self.advisors: dict[str, AdvisorProfile] = {}
 
         if storage_path:
             self.storage_path = storage_path
@@ -151,7 +150,7 @@ class AdvisorRegistry:
             return True
         return False
 
-    def get_advisor(self, advisor_id: str) -> Optional[AdvisorProfile]:
+    def get_advisor(self, advisor_id: str) -> AdvisorProfile | None:
         """Get an advisor by ID."""
         return self.advisors.get(advisor_id)
 
@@ -162,7 +161,7 @@ class AdvisorRegistry:
             return
 
         try:
-            with open(self.storage_path, "r") as f:
+            with open(self.storage_path) as f:
                 content = f.read()
                 if not content.strip():
                     logger.warning(f"Advisor file is empty: {self.storage_path}")
@@ -233,7 +232,7 @@ class AdvisorRegistry:
         except Exception as e:
             logger.error(f"Failed to save advisors: {e}")
 
-    def select_best_advisor(self, intent: str, concepts: List[str]) -> AdvisorProfile:
+    def select_best_advisor(self, intent: str, concepts: list[str]) -> AdvisorProfile:
         """
         Select the best advisor based on intent and concepts.
         (Simple heuristic for now, can be LLM-driven later)
@@ -298,7 +297,7 @@ class AdvisorRegistry:
             return True
         return False
 
-    def get_advisor_knowledge(self, advisor_id: str) -> Dict[str, List[str]]:
+    def get_advisor_knowledge(self, advisor_id: str) -> dict[str, list[str]]:
         """
         Get all knowledge associations for an advisor.
 
@@ -311,6 +310,6 @@ class AdvisorRegistry:
 
         return {"node_ids": advisor.knowledge_node_ids, "pattern_ids": advisor.manifold_pattern_ids}
 
-    def get_all_advisors(self) -> List[AdvisorProfile]:
+    def get_all_advisors(self) -> list[AdvisorProfile]:
         """Return all registered advisors."""
         return list(self.advisors.values())

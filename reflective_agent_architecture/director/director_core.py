@@ -18,7 +18,6 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
 
 import torch
-
 from reflective_agent_architecture.compass.adapters import RAALLMProvider
 from reflective_agent_architecture.compass.compass_framework import COMPASS
 
@@ -27,9 +26,10 @@ if TYPE_CHECKING:
     from reflective_agent_architecture.manifold import Manifold
 
 import numpy as np
-
 from reflective_agent_architecture.director.entropy_monitor import EntropyMonitor
-from reflective_agent_architecture.director.process_logger import logger as process_logger  # Integrated Process Logger
+from reflective_agent_architecture.director.process_logger import (
+    logger as process_logger,
+)
 
 from .epistemic_discriminator import EpistemicDiscriminator
 from .epistemic_metrics import estimate_complexity, estimate_randomness
@@ -42,7 +42,11 @@ from .reflexive_closure_engine import ReflexiveClosureEngine
 from .search_mvp import SearchResult
 from .sheaf_diagnostics import SheafAnalyzer, SheafConfig, SheafDiagnostics
 from .simple_gp import TRIG_OPS, TRIG_UNARY_OPS, SimpleGP
-from .thought_suppression import SuppressionResult, SuppressionStrategy, ThoughtSuppressor
+from .thought_suppression import (
+    SuppressionResult,
+    SuppressionStrategy,
+    ThoughtSuppressor,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -230,13 +234,18 @@ class DirectorMVP:
         )
 
         # Initialize Allostatic Controller (Predictive)
-        from reflective_agent_architecture.director.allostatic_controller import AllostaticConfig, AllostaticController
+        from reflective_agent_architecture.director.allostatic_controller import (
+            AllostaticConfig,
+            AllostaticController,
+        )
 
         self.allostatic_controller = AllostaticController(
             AllostaticConfig(), ledger=None
         )  # Ledger wired later
         # 7. Swarm Controller (Hive Mind)
-        from reflective_agent_architecture.integration.swarm_controller import SwarmController
+        from reflective_agent_architecture.integration.swarm_controller import (
+            SwarmController,
+        )
 
         self.swarm_controller = SwarmController(self.agent_factory)
 
@@ -276,13 +285,17 @@ class DirectorMVP:
         logger.info("PlasticityModulator initialized")
 
         # 4. Director Coordinator (Multi-Signal Integration)
-        from reflective_agent_architecture.director.director_coordinator import DirectorCoordinator
+        from reflective_agent_architecture.director.director_coordinator import (
+            DirectorCoordinator,
+        )
 
         self.coordinator = DirectorCoordinator()
         logger.info("DirectorCoordinator initialized")
 
         # 5. Director Interoception (Vector-Based Tension Measurement)
-        from reflective_agent_architecture.director.director_interoception import DirectorInteroception
+        from reflective_agent_architecture.director.director_interoception import (
+            DirectorInteroception,
+        )
 
         self.interoception = DirectorInteroception(
             goal_controller=self.goal_controller,
@@ -609,7 +622,9 @@ class DirectorMVP:
 
         # 2. Measure Entropy (Uncertainty)
         # Use EntropyCalculator to get formal Shannon entropy
-        from reflective_agent_architecture.integration.entropy_calculator import EntropyCalculator
+        from reflective_agent_architecture.integration.entropy_calculator import (
+            EntropyCalculator,
+        )
 
         calc = EntropyCalculator()
 

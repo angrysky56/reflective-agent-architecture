@@ -9,9 +9,15 @@ from dotenv import load_dotenv
 project_root = Path(__file__).resolve().parent.parent.parent
 sys.path.append(str(project_root))
 
-from reflective_agent_architecture.embeddings.embedding_factory import EmbeddingFactory  # noqa: E402
-from reflective_agent_architecture.vectordb_migrate.integrations.chroma_migrator import ChromaMigrator  # noqa: E402
-from reflective_agent_architecture.vectordb_migrate.migration import MigrationDetector  # noqa: E402
+from reflective_agent_architecture.embeddings.embedding_factory import (  # noqa: E402
+    EmbeddingFactory,
+)
+from reflective_agent_architecture.vectordb_migrate.integrations.chroma_migrator import (  # noqa: E402
+    ChromaMigrator,
+)
+from reflective_agent_architecture.vectordb_migrate.migration import (  # noqa: E402
+    MigrationDetector,
+)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

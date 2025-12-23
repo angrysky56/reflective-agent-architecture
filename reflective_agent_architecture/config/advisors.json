@@ -236,5 +236,18 @@
     "knowledge_paths": [],
     "knowledge_node_ids": [],
     "manifold_pattern_ids": []
+  },
+  {
+    "id": "entropy_trace_system",
+    "name": "Entropy Trace System",
+    "role": "Architectural Framework",
+    "description": "A specialized advisor.",
+    "system_prompt": "You are a helpful advisor.",
+    "tools": [],
+    "knowledge_paths": [],
+    "knowledge_node_ids": [
+      "thought_1766429191157589"
+    ],
+    "manifold_pattern_ids": []
   }
 ]
