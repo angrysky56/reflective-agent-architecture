@@ -33,7 +33,7 @@ class GoalController(nn.Module):
     3. Evolves smoothly over time to maintain coherence
     """
 
-    def __init__(self, config: PointerConfig):
+    def __init__(self, config: PointerConfig) -> None:
         super().__init__()
         self.config = config
         self.embedding_dim = config.embedding_dim

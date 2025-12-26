@@ -41,6 +41,7 @@ class GoalController(nn.Module):
         self.device = config.device
 
         # RNN for maintaining goal state
+        self.rnn: nn.RNNBase
         if config.controller_type == "gru":
             self.rnn = nn.GRU(
                 input_size=config.embedding_dim,

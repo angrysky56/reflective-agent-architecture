@@ -4,7 +4,7 @@
       "command": "uv",
       "args": [
         "--directory",
-        "/home/ty/Repositories/ai_workspace/mcp_coordinator/mcp_servers/reflective-agent-architecture",
+        "/your/project/path/reflective-agent-architecture",
         "run",
         "raa-server"
       ]

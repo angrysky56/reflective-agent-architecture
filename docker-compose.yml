@@ -1,0 +1,36 @@
+# This docker-compose.yml file is for local development only.
+# It is not intended for production or any current use.
+
+services:
+  neo4j:
+    image: neo4j:latest
+    container_name: raa-neo4j
+    ports:
+      - 7475:7474 # HTTP (Alternative)
+      - 7688:7687 # Bolt (Alternative)
+    volumes:
+      - ./data/neo4j/data:/data
+      - ./data/neo4j/logs:/logs
+      - ./data/neo4j/import:/var/lib/neo4j/import
+      - ./data/neo4j/plugins:/plugins
+      # Mount dump for import
+      - ./data/neo4j/dumps:/dumps
+    environment:
+      - NEO4J_ACCEPT_LICENSE_AGREEMENT=yes
+      - NEO4J_AUTH=${NEO4J_USER}/${NEO4J_PASSWORD}
+      - NEO4J_apoc_export_file_enabled=true
+      - NEO4J_apoc_import_file_enabled=true
+      - NEO4J_apoc_import_file_use__neo4j__config=true
+      - NEO4J_PLUGINS=["apoc", "graph-data-science"]
+      - NEO4J_dbms_security_procedures_unrestricted=apoc.*,gds.*
+      - NEO4J_dbms_security_procedures_allowlist=apoc.*,gds.*
+      - NEO4J_server_bolt_advertised__address=localhost:7688
+    healthcheck:
+      test:
+        [
+          CMD-SHELL,
+          wget --no-verbose --tries=1 --spider localhost:7474 || exit 1,
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 5

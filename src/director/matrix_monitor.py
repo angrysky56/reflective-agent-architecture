@@ -179,22 +179,22 @@ class MatrixMonitor(nn.Module):
                 logger.debug(f"Similarities: {similarities.tolist()}")
 
             # Find closest match
-            best_score, best_idx = torch.max(similarities, dim=-1)
-            best_idx = best_idx.item()
+            best_score, best_match_idx = torch.max(similarities, dim=-1)
+            best_idx_int = int(best_match_idx.item())
 
             # Calculate energy (stability)
             energy = self.self_manifold.energy(query_state).item()
 
             # Retrieve label
-            label = self.state_labels.get(best_idx, "Unknown")
+            label = self.state_labels.get(best_idx_int, "Unknown")
 
             # Compile diagnostics
             diagnostics = {
-                "attention_mean": float(attention_weights.mean()),
-                "attention_std": float(attention_weights.std()),
-                "query_norm": float(torch.norm(query_state)),
+                "attention_mean": attention_weights.mean().item(),
+                "attention_std": attention_weights.std().item(),
+                "query_norm": torch.norm(query_state).item(),
                 "similarities": similarities.tolist(),
-                "best_match_score": float(best_score),
+                "best_match_score": best_score.item(),
             }
 
             return label, energy, diagnostics

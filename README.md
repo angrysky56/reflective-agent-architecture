@@ -96,7 +96,7 @@ Add the RAA server to your client configuration (e.g., `claude_desktop_config.js
         "--directory",
         "/ABSOLUTE/PATH/TO/reflective-agent-architecture",
         "run",
-        "src/server.py"
+        "raa-server"
       ]
     }
   }

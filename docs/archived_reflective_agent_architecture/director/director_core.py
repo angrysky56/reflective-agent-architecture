@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
 
 import torch
+
 from reflective_agent_architecture.compass.adapters import RAALLMProvider
 from reflective_agent_architecture.compass.compass_framework import COMPASS
 
@@ -26,6 +27,7 @@ if TYPE_CHECKING:
     from reflective_agent_architecture.manifold import Manifold
 
 import numpy as np
+
 from reflective_agent_architecture.director.entropy_monitor import EntropyMonitor
 from reflective_agent_architecture.director.process_logger import (
     logger as process_logger,

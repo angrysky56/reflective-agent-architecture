@@ -1,31 +1,28 @@
+"""Seed script for Geometric Value Theory (GVT) nodes in Neo4j.
+
+Creates foundational theory and axiom nodes that establish the geometric
+framework for ethical reasoning within the Reflective Agent Architecture.
+
+Usage:
+    uv run python -m reflective_agent_architecture.scripts.seed_gvt
+"""
+
 import asyncio
-import os
-import sys
 
-# Adjust path to include the project root (one level up from src)
-current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.abspath(os.path.join(current_dir, "../.."))
-sys.path.insert(0, project_root)
-
-# Verify import
-try:
-    from reflective_agent_architecture.config.cwd_config import CWDConfig
-except ImportError as e:
-    print(f"Import Error: {e}")
-    print(f"sys.path: {sys.path}")
-    sys.exit(1)
-
-from reflective_agent_architecture.server import CognitiveWorkspace, RAAServerContext
+from reflective_agent_architecture.config.cwd_config import CWDConfig
 
 
-async def seed_gvt():
+async def seed_gvt() -> None:
+    """
+    Seed the Neo4j database with Geometric Value Theory nodes.
+
+    Creates:
+        - Core GVT theory node (authored by 'ontologist' advisor)
+        - Three foundational axioms: Curvature, Dimensionality, Invariants
+    """
     print("Initializing Workspace...")
     settings = CWDConfig()
-    # Mocking necessary components to get a workspace with Neo4j driver
-    # We can try to attach to the existing server context if we could, but here we just need the driver.
-    # easier to just instantiate the driver directly or use a minimal workspace.
-
-    # Actually, let's just use the Neo4j driver directly to avoid complex dependency injection for a simple seed script.
+    # Use Neo4j driver directly for this seed script (avoids workspace dependency overhead)
     from neo4j import GraphDatabase
 
     uri = settings.neo4j_uri

@@ -40,14 +40,14 @@ geometric = ["torch-geometric>=2.4.0"]
 notebooks = ["jupyter>=1.0.0", "ipykernel>=6.25.0"]
 
 [project.scripts]
-raa-server = "reflective_agent_architecture.server:cli"
+raa-server = "src.server:cli"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["reflective_agent_architecture"]
+packages = ["src"]
 
 [tool.hatch.metadata]
 allow-direct-references = true

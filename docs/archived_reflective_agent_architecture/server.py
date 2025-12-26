@@ -45,84 +45,51 @@ from dotenv import load_dotenv
 from mcp.server import Server
 from mcp.types import TextContent, Tool
 from neo4j import GraphDatabase
-from reflective_agent_architecture.cognition.curiosity import CuriosityModule
-from reflective_agent_architecture.cognition.emotion_framework import (
-    consult_computational_empathy,
-)
-from reflective_agent_architecture.cognition.grok_lang import (
-    AffectVector,
-    GrokDepthCalculator,
-    Intent,
-    MindState,
-    Utterance,
-)
-from reflective_agent_architecture.cognition.logic_core import LogicCore
-from reflective_agent_architecture.cognition.primitives.compress import (
-    CompressPrimitive,
-)
-from reflective_agent_architecture.cognition.primitives.deconstruct import (
-    DeconstructPrimitive,
-)
-from reflective_agent_architecture.cognition.primitives.hypothesize import (
-    HypothesizePrimitive,
-)
-from reflective_agent_architecture.cognition.primitives.synthesize import (
-    SynthesizePrimitive,
-)
-from reflective_agent_architecture.cognition.system_guide import SystemGuideNodes
-from reflective_agent_architecture.cognition.working_memory import WorkingMemory
-from reflective_agent_architecture.compass.orthogonal_dimensions import (
-    OrthogonalDimensionsAnalyzer,
-)
-from reflective_agent_architecture.config.cwd_config import CWDConfig
-from reflective_agent_architecture.director import Director, DirectorConfig
-from reflective_agent_architecture.director.simple_gp import SimpleGP
-from reflective_agent_architecture.embeddings.base_embedding_provider import (
-    BaseEmbeddingProvider,
-)
-from reflective_agent_architecture.embeddings.embedding_factory import EmbeddingFactory
-from reflective_agent_architecture.embeddings.migration_trainer import train_projection
-from reflective_agent_architecture.integration.agent_factory import AgentFactory
-from reflective_agent_architecture.integration.continuity_field import ContinuityField
-from reflective_agent_architecture.integration.continuity_service import (
-    ContinuityService,
-)
-from reflective_agent_architecture.integration.cwd_raa_bridge import (
-    BridgeConfig,
-    CWDRAABridge,
-)
-from reflective_agent_architecture.integration.precuneus import PrecuneusIntegrator
-from reflective_agent_architecture.integration.sleep_cycle import SleepCycle
-from reflective_agent_architecture.llm.factory import LLMFactory
-from reflective_agent_architecture.llm.provider import BaseLLMProvider
-from reflective_agent_architecture.manifold import HopfieldConfig, Manifold
-from reflective_agent_architecture.persistence.work_history import WorkHistory
-from reflective_agent_architecture.pointer.goal_controller import (
-    GoalController,
-    PointerConfig,
-)
-from reflective_agent_architecture.processor import Processor, ProcessorConfig
-from reflective_agent_architecture.substrate import (
+
+from cognition.curiosity import CuriosityModule
+from cognition.emotion_framework import consult_computational_empathy
+from cognition.grok_lang import AffectVector, GrokDepthCalculator, Intent, MindState, Utterance
+from cognition.logic_core import LogicCore
+from cognition.primitives.compress import CompressPrimitive
+from cognition.primitives.deconstruct import DeconstructPrimitive
+from cognition.primitives.hypothesize import HypothesizePrimitive
+from cognition.primitives.synthesize import SynthesizePrimitive
+from cognition.system_guide import SystemGuideNodes
+from cognition.working_memory import WorkingMemory
+from compass.orthogonal_dimensions import OrthogonalDimensionsAnalyzer
+from config.cwd_config import CWDConfig
+from director import Director, DirectorConfig
+from director.simple_gp import SimpleGP
+from embeddings.base_embedding_provider import BaseEmbeddingProvider
+from embeddings.embedding_factory import EmbeddingFactory
+from embeddings.migration_trainer import train_projection
+from integration.agent_factory import AgentFactory
+from integration.continuity_field import ContinuityField
+from integration.continuity_service import ContinuityService
+from integration.cwd_raa_bridge import BridgeConfig, CWDRAABridge
+from integration.precuneus import PrecuneusIntegrator
+from integration.sleep_cycle import SleepCycle
+from llm.factory import LLMFactory
+from llm.provider import BaseLLMProvider
+from manifold import HopfieldConfig, Manifold
+from persistence.work_history import WorkHistory
+from pointer.goal_controller import GoalController, PointerConfig
+from processor import Processor, ProcessorConfig
+from substrate import (
     EnergyToken,
     MeasurementLedger,
     OperationCostProfile,
     SubstrateAwareDirector,
 )
-from reflective_agent_architecture.substrate.energy import (
-    EnergyDepletionError,
-    MetabolicLedger,
-)
-from reflective_agent_architecture.substrate.entropy import EntropyMonitor
-from reflective_agent_architecture.vectordb_migrate import (
-    ChromaMigrator,
-    MigrationDetector,
-)
+from substrate.energy import EnergyDepletionError, MetabolicLedger
+from substrate.entropy import EntropyMonitor
+from vectordb_migrate import ChromaMigrator, MigrationDetector
 
 # Load environment variables from .env file
 load_dotenv()
 
 
-def evolve_formula_logic(data_points, n_generations=10, hybrid=False):
+def evolve_formula_logic(data_points, n_generations=10, hybrid=False) -> str:
     """
     Uses Genetic Programming to evolve a symbolic formula that fits the data.
     data_points: List of dictionaries [{'x': 1, 'y': 2, 'result': 3}, ...]
@@ -608,7 +575,7 @@ class CognitiveWorkspace:
                 # Scan collection for mixed dimensions
                 collection = self.chroma_client.get_collection(collection_name)
                 sample_results = collection.get(
-                    limit=min(100, mismatch["count"]), include=["embeddings", "metadatas"]
+                    limit=min(1000, mismatch["count"]), include=["embeddings", "metadatas"]
                 )
 
                 if len(sample_results["embeddings"]) == 0:
@@ -807,7 +774,7 @@ class CognitiveWorkspace:
         return identifier
 
     def search_nodes(
-        self, label: str | None, property_filters: dict[str, Any] | None = None, limit: int = 10
+        self, label: str | None, property_filters: dict[str, Any] | None = None, limit: int = 100
     ) -> list[dict[str, Any]]:
         """
         Search for nodes with optional label and property filters.
@@ -843,7 +810,7 @@ class CognitiveWorkspace:
         start_id: str,
         rel_type: str | None = None,
         direction: str = "OUTGOING",
-        limit: int = 10,
+        limit: int = 100,
     ) -> list[dict[str, Any]]:
         """
         Traverse relationships dynamically.
@@ -1216,8 +1183,8 @@ class CognitiveWorkspace:
         # Record in working memory for future context
         self.working_memory.record(
             operation=operation_name,
-            input_data=input_data or user_prompt[:500],
-            output_data=response[:1000],
+            input_data=input_data or user_prompt[:2000],
+            output_data=response[:4000],
             node_ids=node_ids or [],
         )
 
@@ -1861,9 +1828,7 @@ class RAAServerContext:
         self._initialize_raa_components()
 
         # 3. Initialize External MCP Manager
-        from reflective_agent_architecture.integration.external_mcp_client import (
-            ExternalMCPManager,
-        )
+        from src.integration.external_mcp_client import ExternalMCPManager
 
         # Config path relative to project root
         config_path = Path(__file__).parent.parent / "compass_mcp_config.json"
@@ -1923,12 +1888,12 @@ class RAAServerContext:
         )
 
         # Create LLM provider for COMPASS
-        from reflective_agent_architecture.compass.adapters import RAALLMProvider
+        from src.compass.adapters import RAALLMProvider
 
         llm_provider = RAALLMProvider(model_name=self.workspace.config.compass_model)
 
         # Create MCP Client Adapter
-        from reflective_agent_architecture.compass.adapters import RAAMCPClient
+        from src.compass.adapters import RAAMCPClient
 
         mcp_client_adapter = RAAMCPClient(self)
 
@@ -2017,13 +1982,13 @@ class RAAServerContext:
         )
 
         # Initialize LLM Provider for Agents
-        from reflective_agent_architecture.compass.adapters import RAALLMProvider
+        from src.compass.adapters import RAALLMProvider
 
         llm_model = self.workspace.config.llm_model if self.workspace else "kimi-k2-thinking:cloud"
         self.llm_provider = RAALLMProvider(model_name=llm_model)
 
         # Initialize Agent Factory
-        from reflective_agent_architecture.integration.agent_factory import AgentFactory
+        from src.integration.agent_factory import AgentFactory
 
         # Define Unified Tool Executor (Local + External)
         async def unified_tool_executor(name: str, args: dict) -> Any:
@@ -2082,9 +2047,7 @@ class RAAServerContext:
             and hasattr(self.substrate_director, "compass")
         ):
             # Initialize Advisor Manager (Consolidated Integration)
-            from reflective_agent_architecture.integration.advisor_manager import (
-                AdvisorManager,
-            )
+            from src.integration.advisor_manager import AdvisorManager
 
             self.advisor_manager = AdvisorManager(
                 registry=self.substrate_director.compass.advisor_registry, workspace=self
@@ -2359,10 +2322,7 @@ class RAAServerContext:
         if self.ledger:
             from decimal import Decimal
 
-            from reflective_agent_architecture.substrate import (
-                EnergyToken,
-                MeasurementCost,
-            )
+            from src.substrate import EnergyToken, MeasurementCost
 
             # Cost ~ Learning Cost (5.0)
             self.ledger.record_transaction(
@@ -2468,10 +2428,7 @@ class RAAServerContext:
             if self.workspace.ctx.ledger:
                 from decimal import Decimal
 
-                from reflective_agent_architecture.substrate import (
-                    EnergyToken,
-                    MeasurementCost,
-                )
+                from src.substrate import EnergyToken, MeasurementCost
 
                 # Cost ~ Search Cost (1.0)
                 self.workspace.ctx.ledger.record_transaction(
@@ -2515,10 +2472,7 @@ class RAAServerContext:
             if self.workspace.ctx.ledger:
                 from decimal import Decimal
 
-                from reflective_agent_architecture.substrate import (
-                    EnergyToken,
-                    MeasurementCost,
-                )
+                from src.substrate import EnergyToken, MeasurementCost
 
                 self.workspace.ctx.ledger.record_transaction(
                     MeasurementCost(
@@ -2624,7 +2578,7 @@ class RAAServerContext:
             advice = remedial_action.get("advice", "Continue current line of reasoning.")
 
             # Meta-Commentary
-            recent_history = bridge.history.get_recent_history(limit=5)
+            recent_history = bridge.history.get_recent_history(limit=20)
             history_summary = "\n".join(
                 [f"- {h['operation']}: {h['result_summary']}" for h in recent_history]
             )
@@ -2656,7 +2610,7 @@ class RAAServerContext:
             results = bridge.history.search_history(
                 query=arguments.get("query"),
                 operation_type=arguments.get("operation_type"),
-                limit=arguments.get("limit", 10),
+                limit=arguments.get("limit", 100),
             )
             return results
 
@@ -2794,10 +2748,7 @@ class RAAServerContext:
                 if self.workspace.ledger:
                     from decimal import Decimal
 
-                    from reflective_agent_architecture.substrate import (
-                        EnergyToken,
-                        MeasurementCost,
-                    )
+                    from src.substrate import EnergyToken, MeasurementCost
 
                     self.workspace.ledger.record_transaction(
                         MeasurementCost(
@@ -2829,10 +2780,7 @@ class RAAServerContext:
                 if self.workspace.ledger:
                     from decimal import Decimal
 
-                    from reflective_agent_architecture.substrate import (
-                        EnergyToken,
-                        MeasurementCost,
-                    )
+                    from src.substrate import EnergyToken, MeasurementCost
 
                     self.workspace.ledger.record_transaction(
                         MeasurementCost(
@@ -3078,7 +3026,7 @@ Syntax: Prover9 FOL format (e.g., "all x (human(x) -> mortal(x))", "human(socrat
                     "type": "string",
                     "description": "Filter by operation type (e.g., 'hypothesize')",
                 },
-                "limit": {"type": "integer", "description": "Max number of results (default 10)"},
+                "limit": {"type": "integer", "description": "Max number of results (default 100)"},
             },
             "required": [],
         },
@@ -3598,10 +3546,7 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
             if workspace.ledger:
                 from decimal import Decimal
 
-                from reflective_agent_architecture.substrate.energy import (
-                    EnergyToken,
-                    MeasurementCost,
-                )
+                from src.substrate.energy import EnergyToken, MeasurementCost
 
                 workspace.ledger.record_transaction(
                     MeasurementCost(
@@ -3637,10 +3582,7 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
             if workspace.ledger:
                 from decimal import Decimal
 
-                from reflective_agent_architecture.substrate.energy import (
-                    EnergyToken,
-                    MeasurementCost,
-                )
+                from src.substrate.energy import EnergyToken, MeasurementCost
 
                 workspace.ledger.record_transaction(
                     MeasurementCost(
@@ -3662,10 +3604,7 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
             if workspace.ledger:
                 from decimal import Decimal
 
-                from reflective_agent_architecture.substrate.energy import (
-                    EnergyToken,
-                    MeasurementCost,
-                )
+                from src.substrate.energy import EnergyToken, MeasurementCost
 
                 workspace.ledger.record_transaction(
                     MeasurementCost(
@@ -3850,10 +3789,7 @@ Provide an improved synthesis that addresses the critique by using these tools t
             if workspace.ledger:
                 from decimal import Decimal
 
-                from reflective_agent_architecture.substrate.energy import (
-                    EnergyToken,
-                    MeasurementCost,
-                )
+                from src.substrate.energy import EnergyToken, MeasurementCost
 
                 workspace.ledger.record_transaction(
                     MeasurementCost(
@@ -3877,10 +3813,7 @@ Provide an improved synthesis that addresses the critique by using these tools t
             if workspace.ledger:
                 from decimal import Decimal
 
-                from reflective_agent_architecture.substrate.energy import (
-                    EnergyToken,
-                    MeasurementCost,
-                )
+                from src.substrate.energy import EnergyToken, MeasurementCost
 
                 workspace.ledger.record_transaction(
                     MeasurementCost(
@@ -3900,10 +3833,7 @@ Provide an improved synthesis that addresses the critique by using these tools t
             if workspace.ledger:
                 from decimal import Decimal
 
-                from reflective_agent_architecture.substrate.energy import (
-                    EnergyToken,
-                    MeasurementCost,
-                )
+                from src.substrate.energy import EnergyToken, MeasurementCost
 
                 workspace.ledger.record_transaction(
                     MeasurementCost(
@@ -3940,10 +3870,7 @@ Provide an improved synthesis that addresses the critique by using these tools t
             if workspace.ledger:
                 from decimal import Decimal
 
-                from reflective_agent_architecture.substrate.energy import (
-                    EnergyToken,
-                    MeasurementCost,
-                )
+                from src.substrate.energy import EnergyToken, MeasurementCost
 
                 workspace.ledger.record_transaction(
                     MeasurementCost(
@@ -3963,10 +3890,7 @@ Provide an improved synthesis that addresses the critique by using these tools t
                 if workspace.ledger:
                     from decimal import Decimal
 
-                    from reflective_agent_architecture.substrate.energy import (
-                        EnergyToken,
-                        MeasurementCost,
-                    )
+                    from src.substrate.energy import EnergyToken, MeasurementCost
 
                     workspace.ledger.record_transaction(
                         MeasurementCost(
@@ -4006,10 +3930,7 @@ Provide an improved synthesis that addresses the critique by using these tools t
                 if ctx.ledger:
                     from decimal import Decimal
 
-                    from reflective_agent_architecture.substrate.energy import (
-                        EnergyToken,
-                        MeasurementCost,
-                    )
+                    from src.substrate.energy import EnergyToken, MeasurementCost
 
                     ctx.ledger.record_transaction(
                         MeasurementCost(
@@ -4069,7 +3990,7 @@ Provide an improved synthesis that addresses the critique by using these tools t
                     bridge.history.log_operation(
                         operation="consult_advisor",
                         params=arguments,
-                        result=response[:200] + "...",
+                        result=response[:1000] + "...",
                         cognitive_state=(
                             f"Entropy: {workspace.entropy_monitor.current_entropy:.2f}"
                             if hasattr(workspace, "entropy_monitor")
@@ -4092,7 +4013,7 @@ Provide an improved synthesis that addresses the critique by using these tools t
             results = bridge.history.search_history(
                 query=arguments.get("query"),
                 operation_type=arguments.get("operation_type"),
-                limit=arguments.get("limit", 10),
+                limit=arguments.get("limit", 100),
             )
             return [TextContent(type="text", text=json.dumps(results, indent=2, default=str))]
 
@@ -4151,10 +4072,7 @@ Provide an improved synthesis that addresses the critique by using these tools t
             if workspace.ledger:
                 from decimal import Decimal
 
-                from reflective_agent_architecture.substrate.energy import (
-                    EnergyToken,
-                    MeasurementCost,
-                )
+                from src.substrate.energy import EnergyToken, MeasurementCost
 
                 workspace.ledger.record_transaction(
                     MeasurementCost(
@@ -4316,9 +4234,7 @@ Provide an improved synthesis that addresses the critique by using these tools t
 
             # --- Signal 3: Operation Pattern Analysis (Semantic Looping) ---
             # Delegated to CognitiveDiagnostics
-            from reflective_agent_architecture.cognition.cognitive_diagnostics import (
-                CognitiveDiagnostics,
-            )
+            from src.cognition.cognitive_diagnostics import CognitiveDiagnostics
 
             # Initialize diagnostics if not present on workspace
             if not hasattr(workspace, "diagnostics"):
@@ -4595,10 +4511,7 @@ Provide a brief first-person reflection on your cognitive state. Are you making 
             if workspace.ledger:
                 from decimal import Decimal
 
-                from reflective_agent_architecture.substrate.energy import (
-                    EnergyToken,
-                    MeasurementCost,
-                )
+                from src.substrate.energy import EnergyToken, MeasurementCost
 
                 workspace.ledger.record_transaction(
                     MeasurementCost(
@@ -4616,10 +4529,7 @@ Provide a brief first-person reflection on your cognitive state. Are you making 
             if workspace.ledger:
                 from decimal import Decimal
 
-                from reflective_agent_architecture.substrate.energy import (
-                    EnergyToken,
-                    MeasurementCost,
-                )
+                from src.substrate.energy import EnergyToken, MeasurementCost
 
                 workspace.ledger.record_transaction(
                     MeasurementCost(
@@ -4640,10 +4550,7 @@ Provide a brief first-person reflection on your cognitive state. Are you making 
             if workspace.ledger:
                 from decimal import Decimal
 
-                from reflective_agent_architecture.substrate.energy import (
-                    EnergyToken,
-                    MeasurementCost,
-                )
+                from src.substrate.energy import EnergyToken, MeasurementCost
 
                 workspace.ledger.record_transaction(
                     MeasurementCost(
@@ -4665,10 +4572,7 @@ Provide a brief first-person reflection on your cognitive state. Are you making 
             if workspace.ledger:
                 from decimal import Decimal
 
-                from reflective_agent_architecture.substrate.energy import (
-                    EnergyToken,
-                    MeasurementCost,
-                )
+                from src.substrate.energy import EnergyToken, MeasurementCost
 
                 workspace.ledger.record_transaction(
                     MeasurementCost(
@@ -4893,10 +4797,7 @@ Provide a brief first-person reflection on your cognitive state. Are you making 
             if ctx.ledger:
                 from decimal import Decimal
 
-                from reflective_agent_architecture.substrate import (
-                    EnergyToken,
-                    MeasurementCost,
-                )
+                from src.substrate import EnergyToken, MeasurementCost
 
                 ctx.ledger.record_transaction(
                     MeasurementCost(

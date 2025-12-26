@@ -88,6 +88,7 @@ data/embeddings/*.txt
 data/embeddings/*.bin
 data/embeddings/*.vec
 data/embeddings/*.zip
+data/
 
 # Databases
 *.db

@@ -89,7 +89,9 @@ from src.vectordb_migrate import ChromaMigrator, MigrationDetector
 load_dotenv()
 
 
-def evolve_formula_logic(data_points, n_generations=10, hybrid=False):
+def evolve_formula_logic(
+    data_points: list[dict[str, Any]], n_generations: int = 10, hybrid: bool = False
+) -> str:
     """
     Uses Genetic Programming to evolve a symbolic formula that fits the data.
     data_points: List of dictionaries [{'x': 1, 'y': 2, 'result': 3}, ...]
@@ -135,7 +137,7 @@ class CognitiveWorkspace:
     - Cognitive primitives for active reasoning
     """
 
-    def __init__(self, config: CWDConfig):
+    def __init__(self, config: CWDConfig) -> None:
         self.config = config
         self.device = config.device
 
@@ -312,13 +314,13 @@ class CognitiveWorkspace:
             "get_cognitive_state": self._get_cognitive_state,
         }
 
-    def get_manifold(self):
+    def get_manifold(self) -> Manifold | None:
         return self.manifold
 
-    def get_director(self):
+    def get_director(self) -> Director | None:
         return self.director
 
-    def get_precuneus(self):
+    def get_precuneus(self) -> PrecuneusIntegrator:
         return self.precuneus
 
     def _get_cognitive_state(self) -> str:
@@ -342,7 +344,7 @@ class CognitiveWorkspace:
         except Exception as e:
             return f"Error getting cognitive state: {e}"
 
-    def _track_tool_usage(self, tool_name: str):
+    def _track_tool_usage(self, tool_name: str) -> None:
         """Track tool usage for entropy calculation."""
         self.tool_usage_buffer.append(tool_name)
         if len(self.tool_usage_buffer) > self.MAX_TOOL_BUFFER:
@@ -463,7 +465,7 @@ class CognitiveWorkspace:
         except Exception as e:
             return f"Error searching codebase: {e}"
 
-    def _inspect_codebase(self, action: str, **kwargs) -> str:
+    def _inspect_codebase(self, action: str, **kwargs: Any) -> str:
         """
         Inspect codebase structure using System Guide Nodes (Code Casefile).
         Actions:
@@ -575,7 +577,7 @@ class CognitiveWorkspace:
                 # Scan collection for mixed dimensions
                 collection = self.chroma_client.get_collection(collection_name)
                 sample_results = collection.get(
-                    limit=min(100, mismatch["count"]), include=["embeddings", "metadatas"]
+                    limit=min(1000, mismatch["count"]), include=["embeddings", "metadatas"]
                 )
 
                 if len(sample_results["embeddings"]) == 0:
@@ -745,7 +747,7 @@ class CognitiveWorkspace:
             # Don't fail server startup on migration errors
             logger.warning("Continuing despite migration issues...")
 
-    def close(self):
+    def close(self) -> None:
         """Cleanup connections"""
         self.neo4j_driver.close()
 
@@ -774,7 +776,7 @@ class CognitiveWorkspace:
         return identifier
 
     def search_nodes(
-        self, label: str | None, property_filters: dict[str, Any] | None = None, limit: int = 10
+        self, label: str | None, property_filters: dict[str, Any] | None = None, limit: int = 100
     ) -> list[dict[str, Any]]:
         """
         Search for nodes with optional label and property filters.
@@ -810,7 +812,7 @@ class CognitiveWorkspace:
         start_id: str,
         rel_type: str | None = None,
         direction: str = "OUTGOING",
-        limit: int = 10,
+        limit: int = 100,
     ) -> list[dict[str, Any]]:
         """
         Traverse relationships dynamically.
@@ -838,7 +840,7 @@ class CognitiveWorkspace:
         params = {"start_id": start_id, "limit": limit}
         return self.read_query(query, params)
 
-    def _initialize_gen3_schema(self):
+    def _initialize_gen3_schema(self) -> None:
         """
         Initialize Gen 3 architecture enhancements in Neo4j.
 
@@ -987,7 +989,7 @@ class CognitiveWorkspace:
             path_a, path_b, object_start, object_end, with_category_axioms
         )
 
-    def _get_category_axioms(self, concept: str, **kwargs) -> Dict[str, Any]:
+    def _get_category_axioms(self, concept: str, **kwargs: Any) -> Dict[str, Any]:
         """Get category theory axioms."""
         self._track_tool_usage("get_category_axioms")
         if not self.logic_core:
@@ -1183,8 +1185,8 @@ class CognitiveWorkspace:
         # Record in working memory for future context
         self.working_memory.record(
             operation=operation_name,
-            input_data=input_data or user_prompt[:500],
-            output_data=response[:1000],
+            input_data=input_data or user_prompt[:2000],
+            output_data=response[:4000],
             node_ids=node_ids or [],
         )
 
@@ -1806,14 +1808,14 @@ class RAAServerContext:
     Encapsulates CognitiveWorkspace and RAA components to avoid global state.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.workspace: CognitiveWorkspace | None = None
         self.raa_context: dict[str, Any] | None = None
 
         self.external_mcp = None
         self.is_initialized = False
 
-    def initialize(self):
+    def initialize(self) -> None:
         """Initialize all components"""
         if self.is_initialized:
             return
@@ -1837,7 +1839,7 @@ class RAAServerContext:
         self.is_initialized = True
         logger.info("RAA Server Context initialized successfully")
 
-    def _initialize_raa_components(self):
+    def _initialize_raa_components(self) -> None:
         """Initialize RAA specific components"""
         if not self.workspace:
             raise RuntimeError("Workspace must be initialized before RAA components")
@@ -1927,7 +1929,7 @@ class RAAServerContext:
         self.ledger = MeasurementLedger(initial_energy)
 
         # Wire ledger to WorkHistory for persistence
-        def persist_transaction(cost, balance):
+        def persist_transaction(cost: Any, balance: Any) -> None:
             try:
                 self.workspace.history.log_operation(
                     operation="substrate_transaction",
@@ -2154,7 +2156,7 @@ class RAAServerContext:
         if total_loaded > 0:
             logger.info(f"Cold start: Loaded {total_loaded} patterns from Chroma into Manifold")
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         """Cleanup resources"""
         if self.workspace:
             self.workspace.close()
@@ -2376,7 +2378,7 @@ class RAAServerContext:
             escalation = "ConsultParadoxResolver"
 
         # Classify novelty from energies (interpretable summary)
-        def classify_energy(e):
+        def classify_energy(e: float) -> str:
             if e < -0.7:
                 return "familiar"
             if e < -0.3:
@@ -2578,7 +2580,7 @@ class RAAServerContext:
             advice = remedial_action.get("advice", "Continue current line of reasoning.")
 
             # Meta-Commentary
-            recent_history = bridge.history.get_recent_history(limit=5)
+            recent_history = bridge.history.get_recent_history(limit=20)
             history_summary = "\n".join(
                 [f"- {h['operation']}: {h['result_summary']}" for h in recent_history]
             )
@@ -2610,7 +2612,7 @@ class RAAServerContext:
             results = bridge.history.search_history(
                 query=arguments.get("query"),
                 operation_type=arguments.get("operation_type"),
-                limit=arguments.get("limit", 10),
+                limit=arguments.get("limit", 100),
             )
             return results
 
@@ -3026,7 +3028,7 @@ Syntax: Prover9 FOL format (e.g., "all x (human(x) -> mortal(x))", "human(socrat
                     "type": "string",
                     "description": "Filter by operation type (e.g., 'hypothesize')",
                 },
-                "limit": {"type": "integer", "description": "Max number of results (default 10)"},
+                "limit": {"type": "integer", "description": "Max number of results (default 100)"},
             },
             "required": [],
         },
@@ -3475,7 +3477,7 @@ Syntax: Same as prove tool - use Prover9 FOL format.""",
 
 
 @server.list_tools()
-async def list_tools(cursor: Any = None, _meta: Any = None, **kwargs) -> list[Tool]:
+async def list_tools(cursor: Any = None, _meta: Any = None, **kwargs: Any) -> list[Tool]:
     """List available cognitive workspace tools"""
     logger.info("DEBUG: list_tools handler called")
     ctx = get_raa_context()
@@ -3990,7 +3992,7 @@ Provide an improved synthesis that addresses the critique by using these tools t
                     bridge.history.log_operation(
                         operation="consult_advisor",
                         params=arguments,
-                        result=response[:200] + "...",
+                        result=response[:1000] + "...",
                         cognitive_state=(
                             f"Entropy: {workspace.entropy_monitor.current_entropy:.2f}"
                             if hasattr(workspace, "entropy_monitor")
@@ -4013,7 +4015,7 @@ Provide an improved synthesis that addresses the critique by using these tools t
             results = bridge.history.search_history(
                 query=arguments.get("query"),
                 operation_type=arguments.get("operation_type"),
-                limit=arguments.get("limit", 10),
+                limit=arguments.get("limit", 100),
             )
             return [TextContent(type="text", text=json.dumps(results, indent=2, default=str))]
 
@@ -4026,7 +4028,7 @@ Provide an improved synthesis that addresses the critique by using these tools t
             loop = asyncio.get_running_loop()
 
             # Helper function for the executor
-            def _run_chase():
+            def _run_chase() -> dict[str, Any]:
                 return ctx.sleep_cycle.diagrammatic_ruminator(focus_node_id=focus_node_id)
 
             result = await loop.run_in_executor(None, _run_chase)
@@ -4838,7 +4840,7 @@ Provide a brief first-person reflection on your cognitive state. Are you making 
         return [TextContent(type="text", text=f"Error: {str(e)}")]
 
 
-async def main():
+async def main() -> None:
     """Run the MCP server"""
     from mcp.server.stdio import stdio_server
 

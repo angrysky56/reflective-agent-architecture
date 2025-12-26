@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import Any, Dict, cast
+from typing import Any
 
 import torch
 
@@ -19,7 +19,7 @@ class DeconstructPrimitive:
     def __init__(self, workspace: Any):
         self.workspace = workspace
 
-    def run(self, problem: str, max_depth: int = 64) -> dict[str, Any]:
+    def run(self, problem: str, max_depth: int = 3) -> dict[str, Any]:
         """
         Break a complex problem into component thought-nodes with recursive depth.
 
@@ -30,7 +30,7 @@ class DeconstructPrimitive:
         Returns:
             Hierarchical decomposition with actionable sub-problems
         """
-        logger.info(f"Deconstructing (depth={max_depth}): {problem[:4096]}...")
+        logger.info(f"Deconstructing (depth={max_depth}): {problem[:200]}...")
 
         with self.workspace.neo4j_driver.session() as session:
             # Create root problem node
@@ -66,7 +66,7 @@ class DeconstructPrimitive:
             # Record in working memory
             self.workspace.working_memory.record(
                 operation="deconstruct",
-                input_data={"problem": problem[:4096], "max_depth": max_depth},
+                input_data={"problem": problem[:500], "max_depth": max_depth},
                 output_data={
                     "components": len(tripartite_result["components"]),
                     "subproblems": len(actionable_subproblems),
@@ -78,14 +78,14 @@ class DeconstructPrimitive:
             # Persist to SQLite history
             self.workspace.history.log_operation(
                 operation="deconstruct",
-                params={"problem": problem[:4096], "max_depth": max_depth},
+                params={"problem": problem[:500], "max_depth": max_depth},
                 result={k: v for k, v in result.items() if k != "embeddings"},
                 cognitive_state=self.workspace.working_memory.current_goal or "Unknown",
             )
 
             return result
 
-    def _tripartite_decompose(self, session: Any, problem: str, root_id: str) -> dict[str, Any]:
+    def _tripartite_decompose(self, session, problem: str, root_id: str) -> dict[str, Any]:
         """
         Phase 1: Break problem into State/Agent/Action domains.
         """
@@ -110,17 +110,17 @@ Output JSON:
 }"""
         user_prompt = f"Deconstruct this problem:\n\n{problem}"
 
-        llm_output = self.workspace._llm_generate(system_prompt, user_prompt, max_tokens=4096)
+        llm_output = self.workspace._llm_generate(system_prompt, user_prompt, max_tokens=4000)
         clean_response = llm_output.replace("```json", "").replace("```", "").strip()
 
         try:
             fragments = json.loads(clean_response)
         except json.JSONDecodeError:
-            logger.error(f"Failed to parse tripartite JSON: {clean_response[:4096]}")
+            logger.error(f"Failed to parse tripartite JSON: {clean_response[:500]}")
             fragments = {
                 "state_fragment": "Context extraction failed",
                 "agent_fragment": "Agent extraction failed",
-                "action_fragment": problem[:4096],
+                "action_fragment": problem[:500],
             }
 
         # Persist fragments as ThoughtNodes
@@ -181,7 +181,7 @@ Output JSON:
         }
 
     def _actionable_decompose(
-        self, session: Any, problem: str, parent_id: str, remaining_depth: int
+        self, session, problem: str, parent_id: str, remaining_depth: int
     ) -> list[dict[str, Any]]:
         """
         Phase 2: Generate actionable sub-problems with recursive decomposition.
@@ -209,14 +209,14 @@ Output JSON:
 }"""
         user_prompt = f"Break this problem into actionable sub-problems:\n\n{problem}"
 
-        llm_output = self.workspace._llm_generate(system_prompt, user_prompt, max_tokens=4096)
+        llm_output = self.workspace._llm_generate(system_prompt, user_prompt, max_tokens=4000)
         clean_response = llm_output.replace("```json", "").replace("```", "").strip()
 
         try:
             parsed = json.loads(clean_response)
             sub_problems = parsed.get("sub_problems", [])
         except json.JSONDecodeError:
-            logger.error(f"Failed to parse actionable JSON: {clean_response[:4096]}")
+            logger.error(f"Failed to parse actionable JSON: {clean_response[:500]}")
             return []
 
         result = []
@@ -263,7 +263,7 @@ Output JSON:
             }
 
             # Recursive decomposition for high-complexity sub-problems
-            if remaining_depth > 1 and complexity == "high" and len(description) > 4096:
+            if remaining_depth > 1 and complexity == "high" and len(description) > 50:
                 logger.info(f"Recursively decomposing: {title}")
                 sp_result["children"] = self._actionable_decompose(
                     session, full_content, sp_id, remaining_depth - 1
@@ -273,10 +273,10 @@ Output JSON:
 
         return result
 
-    def _calculate_coherence(self, embeddings_map: Dict[str, Any]) -> Dict[str, Any]:
+    def _calculate_coherence(self, embeddings_map: dict) -> dict[str, float]:
         """Calculate coherence metrics from embeddings."""
         if not embeddings_map:
-            return cast(Dict[str, Any], {"balance": 0.0, "dominant_stream": "none"})
+            return {"balance": 0.0, "dominant_stream": "none"}
 
         # Calculate norms for each domain
         norms = {}
@@ -300,14 +300,11 @@ Output JSON:
 
         dominant = max(norms.items(), key=lambda x: x[1])[0] if norms else "none"
 
-        # Construct final result with explicit type to avoid mypy inference issues
-        result: Dict[str, Any] = {
+        return {
+            **weights,
             "balance": balance,
             "dominant_stream": dominant,
-            **weights,
         }
-
-        return result
 
     def _calculate_pattern_match(self, fragments: dict) -> dict[str, str]:
         """Estimate pattern match quality for each domain."""
@@ -326,9 +323,7 @@ Output JSON:
             "action": assess_quality(fragments.get("action_fragment", "")),
         }
 
-    def _get_decomposition_tree(
-        self, session: Any, root_id: str, max_depth: int = 3
-    ) -> dict[str, Any]:
+    def _get_decomposition_tree(self, session, root_id: str, max_depth: int = 3) -> dict[str, Any]:
         """Retrieve full decomposition tree up to max_depth."""
 
         def fetch_node(node_id: str, depth: int) -> dict[str, Any]:
